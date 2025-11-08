@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "py-accountant"
+version = "0.1.0"
+description = ""
+authors = ["akm77 <aleksey.kotryakhov@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "py_accountant", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.13,<4.0"
+sqlalchemy = "^2.0.0"
+
+# Dev-only dependencies managed via poetry groups
+poetry-core = ">=2.0.0"
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0.0"
+ruff = ">=0.6.0"
+pre-commit = ">=3.5.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+# Target the newest Python version for parsing (3.13)
+target-version = "py313"
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # import sorting
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+    "SIM",# flake8-simplify
+    "C4", # flake8-comprehensions
+]
+ignore = ["E501"]  # handled by formatter; allow long lines when needed
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+# Enable Ruff as a pre-commit hook (reference only; actual hook in .pre-commit-config.yaml)
