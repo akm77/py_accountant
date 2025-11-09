@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import warnings
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Sequence
+from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import and_, select, func, desc, asc
+from sqlalchemy import and_, asc, desc, func, select
 from sqlalchemy.orm import joinedload
 
 from .errors import FError
@@ -17,32 +19,46 @@ from .models import (
     Transaction,
 )
 
+# Deprecation notice for the legacy Book API
+warnings.warn(
+    "py_fledger.Book is deprecated and will be removed in a future release. "
+    "Migrate to application use cases (CreateAccount/CreateCurrency/PostTransaction/"
+    "GetBalance/ListLedger/GetTradingBalance[Detailed]) and CLI commands.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 @dataclass
 class SafeAccount:
     name: str
     full_name: str
-    path: List[str]
-    currency: Optional[str] = None
-    children: Optional[List["SafeAccount"]] = None
+    path: list[str]
+    currency: str | None = None
+    children: list[SafeAccount] | None = None
 
 
 @dataclass
 class RichTransaction:
     id: int
     account_name: str
-    account_path: List[str]
+    account_path: list[str]
     amount: int
     credit: bool
     currency: str
     exchange_rate: float
-    memo: Optional[str]
-    meta: Optional[Dict[str, Any]]
+    memo: str | None
+    meta: dict[str, Any] | None
     created_at: datetime
 
 
 class Book:
     def __init__(self, url: str):
+        warnings.warn(
+            "py_fledger.Book is deprecated. Prefer application.use_cases.* and CLI.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not url:
             raise FError("No DB connection url")
         if not isinstance(url, str):
@@ -58,12 +74,12 @@ class Book:
     def close(self) -> None:
         self.db.dispose()
 
-    def entry(self, memo: str = "") -> "Entry":
+    def entry(self, memo: str = "") -> Entry:
         return Entry(memo, self)
 
     # Internal helpers
 
-    def _make_account_path(self, account: str) -> List[str]:
+    def _make_account_path(self, account: str) -> list[str]:
         if not account:
             raise FError("No account provided")
         if not isinstance(account, str):
@@ -73,7 +89,7 @@ class Book:
             raise FError(f"Wrong account {account}")
         return acc_path
 
-    def _find_currency(self, session, code: Optional[str]) -> Optional[Currency]:
+    def _find_currency(self, session, code: str | None) -> Currency | None:
         if not code:
             return session.get(Currency, 1)
         if not isinstance(code, str):
@@ -81,10 +97,10 @@ class Book:
         stmt = select(Currency).where(Currency.code == code)
         return session.execute(stmt).scalar_one_or_none()
 
-    def _find_account(self, session, account: str) -> Optional[Account]:
+    def _find_account(self, session, account: str) -> Account | None:
         acc_path = self._make_account_path(account)
         parent_id = None
-        db_acc: Optional[Account] = None
+        db_acc: Account | None = None
         for part in acc_path:
             stmt = (
                 select(Account)
@@ -97,7 +113,7 @@ class Book:
             parent_id = db_acc.id
         return db_acc
 
-    def _find_subaccounts(self, session, account: Optional[Account]) -> List[Account]:
+    def _find_subaccounts(self, session, account: Account | None) -> list[Account]:
         prefix = f"{account.full_name}:" if account else ""
         stmt = (
             select(Account)
@@ -121,14 +137,14 @@ class Book:
             session.add(cur)
         return True
 
-    def check_currency(self, code: str) -> Optional[Dict[str, Any]]:
+    def check_currency(self, code: str) -> dict[str, Any] | None:
         with self.db.make_session() as session:
             db_cur = self._find_currency(session, code)
             if not db_cur:
                 return None
             return {"code": db_cur.code, "exchangeRate": db_cur.exchange_rate}
 
-    def create_account(self, name: str, currency: Optional[str] = None) -> bool:
+    def create_account(self, name: str, currency: str | None = None) -> bool:
         if not name:
             raise FError("Name not specified")
         if not isinstance(name, str):
@@ -166,7 +182,7 @@ class Book:
             session.add(account_obj)
         return True
 
-    def check_account(self, name: str) -> Optional[SafeAccount]:
+    def check_account(self, name: str) -> SafeAccount | None:
         with self.db.make_session() as session:
             db_acc = self._find_account(session, name)
             if not db_acc:
@@ -178,7 +194,7 @@ class Book:
                 currency=db_acc.currency.code if db_acc.currency else None,
             )
 
-    def get_accounts(self, parent: Optional[str] = None) -> List[SafeAccount]:
+    def get_accounts(self, parent: str | None = None) -> list[SafeAccount]:
         with self.db.make_session() as session:
             parent_db = None
             parent_id = None
@@ -188,7 +204,7 @@ class Book:
                     parent_id = parent_db.id
             accs = self._find_subaccounts(session, parent_db)
 
-            def find_children(pid: Optional[int]) -> List[SafeAccount]:
+            def find_children(pid: int | None) -> list[SafeAccount]:
                 children = [acc for acc in accs if acc.parent_id == pid]
                 return [
                     SafeAccount(
@@ -251,17 +267,17 @@ class Book:
     def ledger(
         self,
         account: str,
-        meta: Optional[Dict[str, Any]] = None,
-        options: Optional[Dict[str, Any]] = None,
-    ) -> List[RichTransaction]:
+        meta: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> list[RichTransaction]:
         with self.db.make_session() as session:
             db_acc = self._find_account(session, account)
             if not db_acc:
                 raise FError(f"Account {account} not found on DB")
             accounts = [db_acc] + self._find_subaccounts(session, db_acc)
             acc_ids = [acc.id for acc in accounts]
-            start_date = datetime.fromtimestamp(0, tz=timezone.utc)
-            end_date = datetime.now(timezone.utc)
+            start_date = datetime.fromtimestamp(0, tz=UTC)
+            end_date = datetime.now(UTC)
             offset = 0
             limit = None
             order = desc
@@ -308,7 +324,7 @@ class Book:
             if limit is not None:
                 stmt = stmt.limit(limit)
             txs = list(session.execute(stmt).scalars())
-            rich: List[RichTransaction] = [
+            rich: list[RichTransaction] = [
                 RichTransaction(
                     id=tx.id,
                     account_name=tx.account.full_name,
@@ -325,9 +341,9 @@ class Book:
             ]
             return rich
 
-    def trading_balance(self, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        start_date = datetime.fromtimestamp(0, tz=timezone.utc)
-        end_date = datetime.now(timezone.utc)
+    def trading_balance(self, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        start_date = datetime.fromtimestamp(0, tz=UTC)
+        end_date = datetime.now(UTC)
         if options:
             if options.get("startDate"):
                 start_date = options["startDate"]
@@ -337,7 +353,7 @@ class Book:
                 raise FError(
                     f"options.startDate {start_date} should go before options.endDate {end_date}"  # noqa: E501
                 )
-        result: Dict[str, Any] = {"currency": {}, "base": 0}
+        result: dict[str, Any] = {"currency": {}, "base": 0}
         with self.db.make_session() as session:
             currencies = list(session.execute(select(Currency)).scalars())
             for currency in currencies:
@@ -383,18 +399,18 @@ class Entry:
         if len(memo) > 1024:
             raise FError("Memo longer than 1024")
         self.memo = memo
-        self.debits: List[Dict[str, Any]] = []
-        self.credits: List[Dict[str, Any]] = []
+        self.debits: list[dict[str, Any]] = []
+        self.credits: list[dict[str, Any]] = []
         self._committed = False
         self.book = book
 
-    def debit(self, account: str, amount: int | str, meta: Optional[Dict[str, Any]] = None, exchange_rate: Optional[float] = None) -> "Entry":
+    def debit(self, account: str, amount: int | str, meta: dict[str, Any] | None = None, exchange_rate: float | None = None) -> Entry:
         return self._dir("debits", account, amount, meta, exchange_rate)
 
-    def credit(self, account: str, amount: int | str, meta: Optional[Dict[str, Any]] = None, exchange_rate: Optional[float] = None) -> "Entry":
+    def credit(self, account: str, amount: int | str, meta: dict[str, Any] | None = None, exchange_rate: float | None = None) -> Entry:
         return self._dir("credits", account, amount, meta, exchange_rate)
 
-    def _dir(self, direction: str, account: str, amount: int | str, meta: Optional[Dict[str, Any]], exchange_rate: Optional[float]) -> "Entry":
+    def _dir(self, direction: str, account: str, amount: int | str, meta: dict[str, Any] | None, exchange_rate: float | None) -> Entry:
         if not isinstance(account, str):
             raise FError("Account not string")
         try:
@@ -403,9 +419,8 @@ class Entry:
             raise FError("Amount invalid") from exc
         if amount_int <= 0:
             raise FError("Amount should be > 0")
-        if exchange_rate is not None:
-            if exchange_rate <= 0:
-                raise FError("Exchange rate should be > 0")
+        if exchange_rate is not None and exchange_rate <= 0:
+            raise FError("Exchange rate should be > 0")
         meta = meta or {}
         if not isinstance(meta, dict):
             raise FError("meta is not object")
@@ -437,7 +452,7 @@ class Entry:
                     el["exchangeRate"] = rate
 
     def _check_balance(self) -> None:
-        def sum_dir(direction: Sequence[Dict[str, Any]]) -> float:
+        def sum_dir(direction: Sequence[dict[str, Any]]) -> float:
             s = 0.0
             for el in direction:
                 s += el["amount"] / float(el["exchangeRate"])
@@ -450,8 +465,8 @@ class Entry:
                 f"Entry not balanced. Credit sum: {credit_sum}, debit sum: {debit_sum}"  # noqa: E501
             )
 
-    def _make_transactions(self) -> List[Dict[str, Any]]:
-        txs: List[Dict[str, Any]] = []
+    def _make_transactions(self) -> list[dict[str, Any]]:
+        txs: list[dict[str, Any]] = []
         for direction_name, direction in [("credits", self.credits), ("debits", self.debits)]:
             credit_flag = direction_name == "credits"
             for el in direction:
@@ -471,7 +486,7 @@ class Entry:
     def _update_currency(self, session) -> None:
         if not self._committed:
             raise FError("Cannot update exchange rates before entry committed")
-        updates: Dict[str, Dict[str, Any]] = {}
+        updates: dict[str, dict[str, Any]] = {}
         for direction in [self.debits, self.credits]:
             for el in direction:
                 currency = el["account"].currency
@@ -481,7 +496,7 @@ class Entry:
                     updates[currency.code]["exchangeRate"] = el["exchangeRate"]
                 else:
                     updates[currency.code]["exchangeRate"] = 1.0
-        for code, data in updates.items():
+        for _code, data in updates.items():  # unused loop var renamed
             data["currency"].exchange_rate = data["exchangeRate"]
             session.add(data["currency"])
 
@@ -514,4 +529,3 @@ class Entry:
 
 def book(url: str) -> Book:
     return Book(url)
-

@@ -456,3 +456,48 @@ poetry run python -m presentation.cli.main --policy last_write fx:batch rates.js
 - Используйте `last_write` при частых обновлениях из доверенного источника.
 - Используйте `weighted_average` при шумных котировках для сглаживания.
 
+## Миграция с py_fledger.Book (Deprecated)
+
+Модуль `py_fledger` и класс `Book` помечены как DEPRECATED и будут удалены в будущих версиях.
+Новая архитектура использует сценарии (use cases) и порты/DTO.
+
+Почему депрекация:
+- Смешение домена и инфраструктуры внутри `Book` (SQLAlchemy напрямую).
+- Отсутствие четких контрактов (DTO/портов) для подмены хранилища и тестируемости.
+- Ограниченная расширяемость (баланс, торговый баланс, политика курсов, диагностика).
+
+Замена по функционалу:
+- Создание валюты: `Book.create_currency(code)` → `CreateCurrency(uow)(code)` / CLI `currency:add CODE`
+- Назначение базовой валюты: (нет прямого метода) → `uow.currencies.set_base(code)` / CLI `currency:set-base CODE`
+- Создание счета: `Book.create_account(full_name, currency)` → `CreateAccount(uow)(full_name, currency)` / CLI `account:add FULL_NAME CURRENCY`
+- Публикация транзакции: `Book.entry(memo).debit(...).credit(...).commit()` → `PostTransaction(uow, clock)([EntryLineDTO(...), ...], memo=memo)` / CLI `tx:post --line side:account:amount:currency[:rate]`
+- Баланс счета: `Book.balance(account)` (string int) → `GetBalance(uow, clock)(account)` (Decimal) / CLI `balance:get ACCOUNT`
+- Леджер (история): `Book.ledger(account, meta?, options)` → `ListLedger(uow, clock)(account, start=..., end=..., meta=..., offset=..., limit=..., order=...)` / CLI `ledger:list ACCOUNT [--flags]`
+- Торговый баланс: `Book.trading_balance(options)` → `GetTradingBalance(uow, clock)(base_currency?)` / CLI `trading:balance`
+- Детализированный торговый баланс (конверсия + прозрачность): (отсутствует в Book) → `GetTradingBalanceDetailed(uow, clock)(base)` / CLI `trading:detailed --base CODE`
+
+Известные различия:
+- Типы сумм: в Book используются целые (int) и строковый вывод; в новой системе `Decimal` с квантованием `money_quantize`.
+- Идентификаторы транзакций: Book (целые авто-инкремент), новый движок (UUID-like строка). Паритет тестов сравнивает количество и суммы, а не ID.
+- Конверсия торгового баланса: новая система явно делит на курс для получения суммы в базе; детализированный баланс фиксирует `rate_used` и `rate_fallback`.
+
+Parity-тесты: см. `tests/unit/py_fledger/test_parity_book_vs_use_cases.py`.
+
+Путь миграции:
+1. Инкапсулировать доступ к данным через `UnitOfWork` и репозитории.
+2. Заменить создание и постинг на вызовы `CreateCurrency`, `CreateAccount`, `PostTransaction`.
+3. Заменить чтение балансов/отчетов на `GetBalance`, `ListLedger`, `GetTradingBalance[Detailed]`.
+4. Удалить прямые импорты `py_fledger.Book` (оставить только в паритетных тестах до полного удаления).
+
+CLI соответствие (пример):
+```bash
+# Было (код): Book.entry("Sale").debit("Assets:Cash", 100).credit("Income:Sales", 100).commit()
+# Стало (CLI):
+poetry run python -m presentation.cli.main tx:post --line DEBIT:Assets:Cash:100:USD --line CREDIT:Income:Sales:100:USD
+```
+
+Диагностика:
+- `diagnostics:rates` для просмотра курсов, базовой валюты и активной политики.
+- (Идея на будущее) parity-report для автоматизированного сравнения.
+
+Статус: py_fledger.Book DEPRECATED (NS9). Новая функциональность полностью покрывает сценарии.

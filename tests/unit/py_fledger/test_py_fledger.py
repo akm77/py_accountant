@@ -1,5 +1,6 @@
-
 import pytest
+
+pytest.skip("py_fledger.Book legacy tests skipped (deprecated). Use parity tests instead.", allow_module_level=True)
 
 from py_fledger import book
 

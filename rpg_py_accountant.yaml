@@ -2,7 +2,7 @@ rpg:
   metadata:
     project_name: "py_accountant"
     description: "Монорепозиторий: домен/приложение/инфраструктура/презентация + пакет py_fledger (двойная запись). Цель — Clean Architecture."
-    last_updated: "2025-11-09"
+    last_updated: "2025-11-10"
     environments:
       - name: "test"
         description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
@@ -96,7 +96,7 @@ rpg:
         description: "Публичный пакет-оболочка корневого проекта (версия, утилиты)."
       - name: "py_fledger"
         path: "src/py_fledger"
-        description: "Пакет двойной записи. RPG для него хранится отдельно и не изменяется."
+        description: "Пакет двойной записи (DEPRECATED: parity covered by tests/unit/py_fledger/test_parity_book_vs_use_cases.py; migrate to application.use_cases.*)."
 
     files:
       - name: "__init__.py"
@@ -536,6 +536,17 @@ rpg:
           "test_trading_detailed_missing_base",
         ]
         coverage_status: "exists"
+      - target_component: "Parity Book vs Use Cases"
+        test_file: "tests/unit/py_fledger/test_parity_book_vs_use_cases.py"
+        test_functions: [
+          "test_parity_single_tx_usd[None]",
+          "test_parity_single_tx_usd[1.0]",
+          "test_parity_multi_currency_with_rates",
+          "test_parity_ledger_window_and_order",
+          "test_parity_trading_balance_and_detailed",
+          "test_negative_unbalanced_transaction_rejected"
+        ]
+        coverage_status: "exists"
     integration_tests:
       - integration_point: "Presentation -> Application (CLI)"
         test_description: "E2E CLI сценарии: валюты/счета/проводки/баланс/trading/ledger"
@@ -809,12 +820,31 @@ rpg:
     - id: "NS9"
       title: "Депрекация py_fledger.Book и полная миграция"
       details:
-        - "Сопоставление функционала и тест на паритет результатов"
+        - "Добавлены DeprecationWarning на импорт и инстанцирование Book"
+        - "Добавлен README раздел миграции с Book -> Use Cases"
+        - "Добавлен паритетный тестовый набор (баланс, мультивалюта, леджер, trading balance detailed, негативный несбалансированный)"
+        - "Старый модульный тест py_fledger помечен skip"
       deliverables:
-        - "Документ миграции и удаление book.py после достижения паритета"
-      status: "planned"
+        - "tests/unit/py_fledger/test_parity_book_vs_use_cases.py"
+        - "README.md раздел 'Миграция с py_fledger.Book'"
+        - "DeprecationWarning в src/py_fledger/__init__.py и src/py_fledger/book.py"
+      status: "done"
       priority: "medium"
-
+      acceptance:
+        - "grep: нет новых импортов Book вне паритетного теста"
+        - "Паритетные тесты 6 passed"
+        - "README раздел миграции присутствует"
+        - "RPG помечает py_fledger как DEPRECATED"
+        - "Отсутствие функциональных расхождений по ключевым числовым показателям"
+      risks:
+        - "Остаточные зависимости на Book в внешнем коде (отслеживать grep при следующих PR)"
+        - "Предупреждения DeprecationWarning могут быть подавлены и упущены пользователями"
+    - id: "NS9A"
+      title: "Future: diagnostics:parity-report (отложено)"
+      details:
+        - "CLI команда для автоматизированного сравнения выходов legacy vs new engine (пока legacy в репо)"
+      status: "deferred"
+      priority: "low"
     - id: "NS10"
       title: "Интеграция внешних FX источников"
       details:
