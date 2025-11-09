@@ -8,6 +8,7 @@ from typing import Any, Protocol, runtime_checkable
 from application.dto.models import (
     AccountDTO,
     CurrencyDTO,
+    ExchangeRateEventDTO,
     RichTransactionDTO,
     TradingBalanceDTO,
     TransactionDTO,
@@ -34,6 +35,17 @@ class BalanceRepository(Protocol):
 
 
 @runtime_checkable
+class ExchangeRateEventsRepository(Protocol):
+    """Audit trail of exchange rate updates.
+
+    Events are append-only; repository provides listing (filtered by code, limited) and insertion.
+    Listing ordering: newest first (occurred_at DESC, id DESC).
+    """
+    def add_event(self, code: str, rate: Decimal, occurred_at: datetime, policy_applied: str, source: str | None) -> ExchangeRateEventDTO: ...
+    def list_events(self, code: str | None = None, limit: int | None = None) -> list[ExchangeRateEventDTO]: ...
+
+
+@runtime_checkable
 class UnitOfWork(Protocol):
     """Транзакционная граница приложения."""
 
@@ -52,6 +64,9 @@ class UnitOfWork(Protocol):
     # Optional balances repo (required for SQL balance caching scenarios)
     @property
     def balances(self) -> BalanceRepository: ...  # type: ignore[override]
+    # Optional FX audit events repository
+    @property
+    def exchange_rate_events(self) -> ExchangeRateEventsRepository: ...  # type: ignore[override]
 
     def commit(self) -> None: ...
     def rollback(self) -> None: ...
@@ -81,7 +96,7 @@ class AccountRepository(Protocol):
 class TransactionRepository(Protocol):
     def add(self, dto: TransactionDTO) -> TransactionDTO: ...
     def list_between(self, start: datetime, end: datetime, meta: dict[str, Any] | None = None) -> list[TransactionDTO]: ...
-    def aggregate_trading_balance(self, as_of: datetime, base_currency: str | None = None) -> TradingBalanceDTO: ...
+    def aggregate_trading_balance(self, start: datetime | None, end: datetime | None, base_currency: str | None = None) -> TradingBalanceDTO: ...
     def ledger(
         self,
         account_full_name: str,

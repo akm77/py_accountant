@@ -205,14 +205,17 @@ class GetTradingBalance:
     uow: UnitOfWork
     clock: Clock
 
-    def __call__(self, base_currency: str | None = None, as_of: datetime | None = None) -> TradingBalanceDTO:
+    def __call__(self, base_currency: str | None = None, *, start: datetime | None = None, end: datetime | None = None, as_of: datetime | None = None) -> TradingBalanceDTO:
+        # Derive window: prefer explicit start/end; fallback to as_of as end with open start
+        win_start = start
+        win_end = end or as_of or self.clock.now()
         # Infer base if not provided
         inferred_base = base_currency
         if inferred_base is None:
             base_obj: CurrencyDTO | None = getattr(self.uow.currencies, "get_base", lambda: None)()
             if base_obj is not None:
                 inferred_base = base_obj.code
-        tb = self.uow.transactions.aggregate_trading_balance(as_of=as_of or self.clock.now(), base_currency=inferred_base)
+        tb = self.uow.transactions.aggregate_trading_balance(win_start, win_end, base_currency=inferred_base)
         if inferred_base:
             total_base = Decimal("0")
             for line in tb.lines:
@@ -244,11 +247,12 @@ class GetTradingBalanceDetailed:
     uow: UnitOfWork
     clock: Clock
 
-    def __call__(self, base_currency: str | None, as_of: datetime | None = None) -> TradingBalanceDTO:
+    def __call__(self, base_currency: str | None, *, start: datetime | None = None, end: datetime | None = None, as_of: datetime | None = None) -> TradingBalanceDTO:
         if not base_currency:
             raise DomainError("base_currency is required for detailed trading balance")
-        query_time = as_of or self.clock.now()
-        tb = self.uow.transactions.aggregate_trading_balance(as_of=query_time, base_currency=base_currency)
+        win_start = start
+        win_end = end or as_of or self.clock.now()
+        tb = self.uow.transactions.aggregate_trading_balance(win_start, win_end, base_currency=base_currency)
         total_base = Decimal("0")
         for line in tb.lines:
             cur_obj = self.uow.currencies.get_by_code(line.currency_code)

@@ -8,6 +8,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
+    Index,
     Integer,
     Numeric,
     String,
@@ -48,6 +49,10 @@ class JournalORM(Base):
     memo: Mapped[str | None] = mapped_column(String(1024))
     meta: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
+    __table_args__ = (
+        Index("ix_journals_occurred_at", "occurred_at"),
+    )
+
 
 class TransactionLineORM(Base):
     __tablename__ = "transaction_lines"
@@ -58,6 +63,12 @@ class TransactionLineORM(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
     currency_code: Mapped[str] = mapped_column(String(10), nullable=False)
     exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
+
+    __table_args__ = (
+        Index("ix_tx_lines_account_full_name", "account_full_name"),
+        Index("ix_tx_lines_currency_code", "currency_code"),
+        Index("ix_tx_lines_account_journal", "account_full_name", "journal_id"),
+    )
 
 
 class BalanceORM(Base):
@@ -70,6 +81,20 @@ class BalanceORM(Base):
 
     __table_args__ = (
         UniqueConstraint("account_full_name", name="uq_balances_account"),
+    )
+
+
+class ExchangeRateEventORM(Base):
+    __tablename__ = "exchange_rate_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    rate: Mapped[Decimal] = mapped_column(Numeric(20, 10), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    policy_applied: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    __table_args__ = (
+        Index("ix_fx_events_code_occurred_at", "code", "occurred_at"),
     )
 
 

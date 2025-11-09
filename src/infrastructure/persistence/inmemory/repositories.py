@@ -8,6 +8,7 @@ from typing import Any
 from application.dto.models import (
     AccountDTO,
     CurrencyDTO,
+    ExchangeRateEventDTO,
     RichTransactionDTO,
     TradingBalanceDTO,
     TradingBalanceLineDTO,
@@ -16,6 +17,7 @@ from application.dto.models import (
 from application.interfaces.ports import (
     AccountRepository,
     CurrencyRepository,
+    ExchangeRateEventsRepository,
     TransactionRepository,
 )
 
@@ -112,13 +114,16 @@ class InMemoryTransactionRepository(TransactionRepository):  # type: ignore[misc
         return cur.exchange_rate or Decimal("1")
 
     def aggregate_trading_balance(
-        self, as_of: datetime, base_currency: str | None = None
+        self, start: datetime | None, end: datetime | None, base_currency: str | None = None
     ) -> TradingBalanceDTO:  # noqa: D401
         debit: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
         credit: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-
+        # Default window: all time
+        from datetime import UTC as _UTC, datetime as _DT
+        s = start or _DT.fromtimestamp(0, tz=_UTC)
+        e = end or _DT.now(tz=_UTC)
         for tx in self._transactions.values():
-            if tx.occurred_at > as_of:
+            if not (s <= tx.occurred_at <= e):
                 continue
             for line in tx.lines:
                 amt = line.amount
@@ -126,21 +131,13 @@ class InMemoryTransactionRepository(TransactionRepository):  # type: ignore[misc
                     debit[line.currency_code] += amt
                 else:
                     credit[line.currency_code] += amt
-
         lines: list[TradingBalanceLineDTO] = []
         for cur in sorted(set(debit.keys()) | set(credit.keys())):
             total_debit = debit[cur]
             total_credit = credit[cur]
             balance = total_debit - total_credit
-            lines.append(
-                TradingBalanceLineDTO(
-                    currency_code=cur,
-                    total_debit=total_debit,
-                    total_credit=total_credit,
-                    balance=balance,
-                )
-            )
-        return TradingBalanceDTO(as_of=as_of, lines=lines, base_currency=base_currency)
+            lines.append(TradingBalanceLineDTO(currency_code=cur, total_debit=total_debit, total_credit=total_credit, balance=balance))
+        return TradingBalanceDTO(as_of=e, lines=lines, base_currency=base_currency)
 
     def ledger(
         self,
@@ -191,3 +188,26 @@ class InMemoryTransactionRepository(TransactionRepository):  # type: ignore[misc
                 else:
                     bal -= amt
         return bal
+
+
+class InMemoryExchangeRateEventsRepository(ExchangeRateEventsRepository):  # type: ignore[misc]
+    def __init__(self) -> None:
+        self._events: list[ExchangeRateEventDTO] = []
+        self._next_id = 1
+
+    def add_event(self, code: str, rate: Decimal, occurred_at: datetime, policy_applied: str, source: str | None) -> ExchangeRateEventDTO:  # noqa: D401
+        dto = ExchangeRateEventDTO(id=self._next_id, code=code.upper(), rate=rate, occurred_at=occurred_at, policy_applied=policy_applied, source=source)
+        self._next_id += 1
+        self._events.append(dto)
+        return dto
+
+    def list_events(self, code: str | None = None, limit: int | None = None) -> list[ExchangeRateEventDTO]:  # noqa: D401
+        items = self._events
+        if code:
+            up = code.upper()
+            items = [e for e in items if e.code == up]
+        # newest first
+        items = sorted(items, key=lambda e: (e.occurred_at, e.id or 0), reverse=True)
+        if limit is not None and limit >= 0:
+            items = items[:limit]
+        return list(items)

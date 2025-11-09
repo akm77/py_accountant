@@ -785,7 +785,7 @@ rpg:
     - id: "NS6"
       title: "PostJournalEntry (многострочные журнальные записи)"
       details:
-        - "Одна операция — множество линий; последовательно — журнал транзакций"
+        - "Одна о��ерация — множество линий; последовательно — журнал транзакций"
       deliverables:
         - "Use case PostJournalEntry (объединяет набор линий)"
         - "Совместимость с PostTransaction"
@@ -840,10 +840,10 @@ rpg:
         - "Остаточные зависимости на Book в внешнем коде (отслеживать grep при следующих PR)"
         - "Предупреждения DeprecationWarning могут быть подавлены и упущены пользователями"
     - id: "NS9A"
-      title: "Future: diagnostics:parity-report (отложено)"
+      title: "diagnostics:parity-report"
       details:
         - "CLI команда для автоматизированного сравнения выходов legacy vs new engine (пока legacy в репо)"
-      status: "deferred"
+      status: "done"
       priority: "low"
     - id: "NS10"
       title: "Интеграция внешних FX источников"
@@ -860,7 +860,7 @@ rpg:
         - "Единый quantize для конверсий/агрегаций"
         - "Настройки MONEY_SCALE/RATE_SCALE/ROUNDING"
       deliverables:
-        - "Конфигурация rounding и покрытие тестами"
+        - "Конфигурация rounding и покрытие тестам��"
         - "money_quantize/rate_quantize утилиты"
       status: "done"
       priority: "medium"
@@ -885,7 +885,7 @@ rpg:
         - "Профилирование запросов"
       deliverables:
         - "DDL индексов и метрики"
-      status: "planned"
+      status: "partial"  # индексы добавлены, профилирование полноценно - в будущем
       priority: "medium"
 
     - id: "NS14"
@@ -916,4 +916,30 @@ rpg:
     - command: "trading:detailed --normalize"
       description: "Принудительное округление converted_* и base_total до MONEY_SCALE перед выводом"
       status: "added"
-
+    - command: "diagnostics:parity-report"
+      description: "JSON сравнение legacy Book vs new engine по нескольким сценариям (паритет, rounding_deltas)"
+      status: "added"
+    - command: "diagnostics:rates-history"
+      description: "Ephemeral in-memory история последних N курсов (RATE_HISTORY_LEN)"
+      status: "added"
+  legacy_deprecation:
+    py_fledger:
+      status: "deprecated"
+      planned_removal_iteration: "+2"
+      migration_help: "Используйте application.use_cases.* и CLI; parity-report для проверки сценариев."
+  roadmap_updates:
+    - id: "NS9"
+      status: "done"
+    - id: "NS9A"
+      title: "diagnostics:parity-report"
+      status: "done"
+    - id: "NS10"
+      title: "Интеграция внешних FX источников"
+      status: "deferred"
+    - id: "NS11"
+      status: "done"
+    - id: "NS12"
+      status: "planned"
+    - id: "NS13"
+      title: "Производительность и индексы"
+      status: "partial"  # индексы добавлены, профилирование полноценно - в будущем

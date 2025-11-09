@@ -15,12 +15,14 @@ from application.dto.models import (
     TradingBalanceDTO,
     TradingBalanceLineDTO,
     TransactionDTO,
+    ExchangeRateEventDTO,
 )
 from application.interfaces.ports import (
     AccountRepository,
     BalanceRepository,
     CurrencyRepository,
     TransactionRepository,
+    ExchangeRateEventsRepository,
 )
 from infrastructure.persistence.sqlalchemy.models import (
     AccountORM,
@@ -28,6 +30,7 @@ from infrastructure.persistence.sqlalchemy.models import (
     CurrencyORM,
     JournalORM,
     TransactionLineORM,
+    ExchangeRateEventORM,
 )
 
 
@@ -188,8 +191,13 @@ class SqlAlchemyTransactionRepository(TransactionRepository):  # type: ignore[mi
             results.append(TransactionDTO(id=f"journal:{j.id}", occurred_at=j.occurred_at, lines=lines, memo=j.memo, meta=j.meta or {}))
         return results
 
-    def aggregate_trading_balance(self, as_of: datetime, base_currency: str | None = None) -> TradingBalanceDTO:  # noqa: D401
-        stmt = select(TransactionLineORM)  # all lines
+    def aggregate_trading_balance(self, start: datetime | None, end: datetime | None, base_currency: str | None = None) -> TradingBalanceDTO:  # noqa: D401
+        # If no window provided, use full table with current time as as_of
+        from datetime import UTC as _UTC
+        from datetime import datetime as _DT
+        s = start or _DT.fromtimestamp(0, tz=_UTC)
+        e = end or _DT.now(tz=_UTC)
+        stmt = select(TransactionLineORM).join(JournalORM, JournalORM.id == TransactionLineORM.journal_id).where(JournalORM.occurred_at.between(s, e))
         rows = self.session.execute(stmt).scalars().all()
         debit: dict[str, Decimal] = {}
         credit: dict[str, Decimal] = {}
@@ -203,7 +211,7 @@ class SqlAlchemyTransactionRepository(TransactionRepository):  # type: ignore[mi
             d = debit.get(cur_code, Decimal("0"))
             c = credit.get(cur_code, Decimal("0"))
             lines.append(TradingBalanceLineDTO(currency_code=cur_code, total_debit=d, total_credit=c, balance=d - c))
-        return TradingBalanceDTO(as_of=as_of, lines=lines, base_currency=base_currency)
+        return TradingBalanceDTO(as_of=e, lines=lines, base_currency=base_currency)
 
     def ledger(
         self,
@@ -253,3 +261,24 @@ class SqlAlchemyTransactionRepository(TransactionRepository):  # type: ignore[mi
             else:
                 total -= r.amount
         return total
+
+
+class SqlAlchemyExchangeRateEventsRepository(ExchangeRateEventsRepository):  # type: ignore[misc]
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add_event(self, code: str, rate: Decimal, occurred_at: datetime, policy_applied: str, source: str | None) -> ExchangeRateEventDTO:  # noqa: D401
+        row = ExchangeRateEventORM(code=code.upper(), rate=rate, occurred_at=occurred_at, policy_applied=policy_applied, source=source)
+        self.session.add(row)
+        self.session.flush()
+        return ExchangeRateEventDTO(id=row.id, code=row.code, rate=row.rate, occurred_at=row.occurred_at, policy_applied=row.policy_applied, source=row.source)
+
+    def list_events(self, code: str | None = None, limit: int | None = None) -> list[ExchangeRateEventDTO]:  # noqa: D401
+        stmt = select(ExchangeRateEventORM)
+        if code:
+            stmt = stmt.where(ExchangeRateEventORM.code == code.upper())
+        stmt = stmt.order_by(ExchangeRateEventORM.occurred_at.desc(), ExchangeRateEventORM.id.desc())
+        if limit is not None and limit >= 0:
+            stmt = stmt.limit(limit)
+        rows = self.session.execute(stmt).scalars().all()
+        return [ExchangeRateEventDTO(id=r.id, code=r.code, rate=r.rate, occurred_at=r.occurred_at, policy_applied=r.policy_applied, source=r.source) for r in rows]

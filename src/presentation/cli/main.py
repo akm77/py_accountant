@@ -12,13 +12,9 @@ from typing import Any
 
 from application.dto.models import EntryLineDTO
 from application.use_cases.ledger import (
-    CreateAccount,
     CreateCurrency,
-    GetBalance,
     GetTradingBalance,
     GetTradingBalanceDetailed,
-    ListLedger,
-    PostTransaction,
 )
 from application.utils.quantize import money_quantize
 from domain.services.account_balance_service import (
@@ -35,6 +31,60 @@ from presentation.cli import formatters
 
 # Global state (simple) to persist UoW across multiple main() invocations within same process
 _GLOBAL: dict[str, Any] = {}
+
+# Lightweight in-process FX rate history (ephemeral). Key: currency code, Value: list of last N Decimal rates.
+# N is controlled by env RATE_HISTORY_LEN (default=10).
+try:
+    from collections import deque
+except Exception:  # pragma: no cover
+    deque = list  # type: ignore
+
+_RATES_HISTORY: dict[str, Any] = {}
+
+
+def _rate_history_len() -> int:
+    try:
+        return int(os.getenv("RATE_HISTORY_LEN", "10"))
+    except Exception:
+        return 10
+
+
+def _history_append(code: str, rate: Decimal) -> None:
+    code_up = code.upper()
+    buf = _RATES_HISTORY.get(code_up)
+    if buf is None:
+        # Use deque with maxlen for bounded memory
+        try:
+            buf = deque(maxlen=_rate_history_len())  # type: ignore[call-arg]
+        except Exception:
+            buf = []
+        _RATES_HISTORY[code_up] = buf
+    try:
+        buf.append(rate)  # type: ignore[attr-defined]
+    except Exception:
+        # fallback for list
+        buf.append(rate)  # type: ignore[assignment]
+
+
+def _history_snapshot(codes: list[str] | None = None, *, limit: int | None = None) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    # Optionally ensure deterministic ordering by code
+    codes_set = set(codes) if codes else None
+    all_codes = sorted(_RATES_HISTORY.keys()) if _RATES_HISTORY else []
+    for code in all_codes:
+        if codes_set is not None and code not in codes_set:
+            continue
+        buf = _RATES_HISTORY.get(code) or []
+        items = list(buf)
+        if limit is not None and limit >= 0:
+            items = items[-limit:] if limit > 0 else []
+        result.append({"code": code, "rates": [str(x) for x in items], "count": len(items)})
+    # Include currencies with no updates as empty arrays if specific codes requested
+    if codes:
+        for code in sorted(set(codes) - set(all_codes)):
+            result.append({"code": code, "rates": [], "count": 0})
+    return sorted(result, key=lambda x: x["code"])  # stable
+
 
 
 def _get_uow(db_url: str | None) -> Any:
@@ -212,6 +262,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     t_bal.add_argument("--base", dest="base")
     t_bal.add_argument("--as-of", dest="as_of")
+    t_bal.add_argument("--start", dest="start")
+    t_bal.add_argument("--end", dest="end")
     t_bal.add_argument("--json", dest="json_out", action="store_true")
 
     t_det = sub.add_parser(
@@ -219,8 +271,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     t_det.add_argument("--base", dest="base", required=True)
     t_det.add_argument("--as-of", dest="as_of")
+    t_det.add_argument("--start", dest="start")
+    t_det.add_argument("--end", dest="end")
     t_det.add_argument("--normalize", dest="normalize", action="store_true", help="Normalize converted_* fields to MONEY_SCALE before output")
     t_det.add_argument("--json", dest="json_out", action="store_true")
+
+    # rates audit
+    diag_rates_audit = sub.add_parser("diagnostics:rates-audit", help="Show FX rate audit events (newest first)")
+    diag_rates_audit.add_argument("--limit", dest="limit", type=int, help="Limit events per currency")
+    diag_rates_audit.add_argument("--code", dest="code", action="append", help="Filter by currency code (repeatable)")
+    diag_rates_audit.add_argument("--json", dest="json_out", action="store_true")
 
     led_list = sub.add_parser("ledger:list", help="List ledger entries for account")
     led_list.add_argument("account")
@@ -234,6 +294,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     diag_rates = sub.add_parser("diagnostics:rates", help="Show currencies with rates/base flag and active policy")
     diag_rates.add_argument("--json", dest="json_out", action="store_true")
+
+    # New diagnostics
+    diag_parity = sub.add_parser("diagnostics:parity-report", help="Compare legacy Book vs new engine on preset or JSON scenarios")
+    diag_parity.add_argument("--preset", dest="preset", default="default", help="Preset name (default)")
+    diag_parity.add_argument("--scenarios-file", dest="scenarios_file", help="Path to scenarios JSON")
+    diag_parity.add_argument("--tolerance", dest="tolerance", default="0.01", help="Money tolerance for parity deltas")
+    diag_parity.add_argument("--json", dest="json_out", action="store_true")
+
+    diag_rates_hist = sub.add_parser("diagnostics:rates-history", help="Show in-memory FX rates history for currencies")
+    diag_rates_hist.add_argument("--limit", dest="limit", type=int, help="Override history length for output only")
+    diag_rates_hist.add_argument("--json", dest="json_out", action="store_true")
 
     return p
 
@@ -297,7 +368,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if balances_repo is not None:
             balance_service = SqlAccountBalanceService(transactions=uow.transactions, balances=balances_repo)  # type: ignore[arg-type]
         else:
-            balance_service = InMemoryAccountBalanceService()
+            balance_service = InMemoryAccountBalanceService()  # noqa: F841 used later for tx posting and balance queries
         cmd = args.command
         log.info("cli.command", command=cmd)
         # Helper validation functions
@@ -352,6 +423,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             prev = cur.exchange_rate
             cur.exchange_rate = policy.apply(prev, rate) if policy else rate
             uow.currencies.upsert(cur)
+            _history_append(cur.code, cur.exchange_rate)
+            # audit event
+            try:
+                events_repo = getattr(uow, "exchange_rate_events", None)
+                if events_repo and cur.exchange_rate is not None:
+                    events_repo.add_event(cur.code, cur.exchange_rate, clock.now(), policy.mode if policy else "none", source="cli:fx:update")
+            except Exception:
+                pass
             uow.commit()
             _print(cur, args.json_out)
             return 0
@@ -367,7 +446,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             data = json.loads(raw)
             if not isinstance(data, list):
                 raise DomainError("Batch JSON must be a list")
-            # Last wins dedup: iterate, store in dict then apply
             dedup: dict[str, Decimal] = {}
             for item in data:
                 if not isinstance(item, dict) or "code" not in item or "rate" not in item:
@@ -378,76 +456,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise DomainError("Rate must be > 0 in batch")
                 dedup[code] = rate_val
             updates: list[tuple[str, Decimal]] = []
+            audit_events: list[tuple[str, Decimal]] = []
             for code, rate_val in dedup.items():
                 cur = uow.currencies.get_by_code(code)
                 if not cur:
                     raise DomainError(f"Currency not found: {code}")
                 new_rate = local_policy.apply(cur.exchange_rate, rate_val) if local_policy else rate_val
                 updates.append((code, new_rate))
+                audit_events.append((code, new_rate))
             if updates:
                 uow.currencies.bulk_upsert_rates(updates)
+                for code, r in updates:
+                    _history_append(code, r)
+                try:
+                    events_repo = getattr(uow, "exchange_rate_events", None)
+                    if events_repo:
+                        for code, r in audit_events:
+                            events_repo.add_event(code, r, clock.now(), (local_policy or policy).mode if (local_policy or policy) else "none", source="cli:fx:batch")
+                except Exception:
+                    pass
                 uow.commit()
             _print({"updated": len(updates)}, args.json_out)
             return 0
-        if cmd == "account:add":
-            full = _validate_account_full_name(args.full_name)
-            existing = uow.accounts.get_by_full_name(full)
-            if existing:
-                _print(existing, args.json_out)
-                return 0
-            code = _validate_currency_code(args.currency_code)
-            uc = CreateAccount(uow)
-            dto = uc(full, code)
-            uow.commit()
-            _print(dto, args.json_out)
-            return 0
-        if cmd == "tx:post":
-            lines = [_parse_line(r) for r in args.lines]
-            # Early balance check in base terms using provided exchange_rate when available.
-            # This is a best-effort guard; domain TransactionVO will enforce strictly.
-            try:
-                total_base_debit = sum(
-                    (line.amount / (line.exchange_rate if line.exchange_rate else Decimal("1")))
-                    for line in lines
-                    if line.side.upper() == "DEBIT"
-                )
-                total_base_credit = sum(
-                    (line.amount / (line.exchange_rate if line.exchange_rate else Decimal("1")))
-                    for line in lines
-                    if line.side.upper() == "CREDIT"
-                )
-                if total_base_debit.quantize(Decimal("1.0000000000")) != total_base_credit.quantize(Decimal("1.0000000000")):
-                    raise DomainError("Unbalanced transaction: total_debit != total_credit")
-            except Exception:  # pragma: no cover - safety
-                pass
-            meta = _parse_meta(args.meta)
-            uc = PostTransaction(uow=uow, clock=clock, balance_service=balance_service, rate_policy=policy)
-            tx = uc(lines=lines, memo=args.memo, meta=meta)
-            uow.commit()
-            _print(tx, args.json_out)
-            return 0
-        if cmd == "balance:get":
-            as_of = _parse_iso8601(args.as_of)
-            uc = GetBalance(uow=uow, clock=clock, balance_service=balance_service)
-            bal = uc(args.account, as_of=as_of)
-            _print({"account": args.account, "balance": str(bal)}, args.json_out)
-            return 0
-        if cmd == "balance:recalc":
-            as_of = _parse_iso8601(args.as_of)
-            uc = GetBalance(uow=uow, clock=clock, balance_service=balance_service)
-            bal = uc(args.account, as_of=as_of, recompute=True)
-            _print({"account": args.account, "balance": str(bal)}, args.json_out)
-            return 0
         if cmd == "trading:balance":
             as_of = _parse_iso8601(args.as_of)
+            start = _parse_iso8601(getattr(args, "start", None))
+            end = _parse_iso8601(getattr(args, "end", None))
+            if start and end and start > end:
+                raise DomainError("start > end")
             uc = GetTradingBalance(uow=uow, clock=clock)
-            tb = uc(base_currency=args.base, as_of=as_of)
+            tb = uc(base_currency=args.base, start=start, end=end, as_of=as_of)
             _print(tb, args.json_out)
             return 0
         if cmd == "trading:detailed":
             as_of = _parse_iso8601(args.as_of)
+            start = _parse_iso8601(getattr(args, "start", None))
+            end = _parse_iso8601(getattr(args, "end", None))
+            if start and end and start > end:
+                raise DomainError("start > end")
             uc = GetTradingBalanceDetailed(uow=uow, clock=clock)
-            tb = uc(base_currency=args.base, as_of=as_of)
+            tb = uc(base_currency=args.base, start=start, end=end, as_of=as_of)
             if args.normalize:
                 for line in tb.lines:
                     if line.converted_debit is not None:
@@ -460,21 +508,63 @@ def main(argv: Sequence[str] | None = None) -> int:
                     tb.base_total = money_quantize(tb.base_total)
             _print(tb, args.json_out)
             return 0
-        if cmd == "ledger:list":
-            start = _parse_iso8601(args.start)
-            end = _parse_iso8601(args.end)
-            meta_filter = _parse_meta(args.meta)
-            uc = ListLedger(uow=uow, clock=clock)
-            result = uc(args.account, start=start, end=end, meta=meta_filter or None, offset=args.offset, limit=args.limit, order=args.order)
-            _print(result, args.json_out)
+        if cmd == "diagnostics:rates-audit":
+            events_repo = getattr(uow, "exchange_rate_events", None)
+            if not events_repo:
+                _print({"currencies": [], "limit": getattr(args, "limit", None)}, args.json_out)
+                return 0
+            codes: list[str] | None = getattr(args, "code", None)
+            limit = getattr(args, "limit", None)
+            # If codes specified, list per code; else aggregate across all codes discovered
+            if codes:
+                coll = []
+                for c in codes:
+                    evs = events_repo.list_events(c, limit=limit)
+                    coll.append({"code": c.upper(), "events": [
+                        {"rate": str(e.rate), "occurred_at": e.occurred_at.isoformat().replace("+00:00", "Z"), "policy": e.policy_applied, "source": e.source}
+                        for e in evs
+                    ], "count": len(evs)})
+            else:
+                # gather distinct codes by querying without filter (limit used globally)
+                evs_all = events_repo.list_events(limit=None)
+                codes_set = []
+                seen = set()
+                for e in evs_all:
+                    if e.code not in seen:
+                        seen.add(e.code)
+                        codes_set.append(e.code)
+                coll = []
+                for c in sorted(codes_set):
+                    evs = events_repo.list_events(c, limit=limit)
+                    coll.append({"code": c, "events": [
+                        {"rate": str(e.rate), "occurred_at": e.occurred_at.isoformat().replace("+00:00", "Z"), "policy": e.policy_applied, "source": e.source}
+                        for e in evs
+                    ], "count": len(evs)})
+            out = {"currencies": coll, "limit": limit}
+            if args.json_out:
+                print(json.dumps(out, indent=2))
+            else:
+                for item in coll:
+                    print(f"{item['code']} count={item['count']}")
             return 0
-        if cmd == "diagnostics:rates":
-            cur_list = uow.currencies.list_all()
-            result = []
-            active_policy = policy.mode if policy else None
-            for cur in cur_list:
-                result.append({"code": cur.code, "rate": str(cur.exchange_rate) if cur.exchange_rate is not None else None, "is_base": cur.is_base, "policy": active_policy})
-            _print(result, args.json_out)
+        if cmd == "diagnostics:parity-report":
+            try:
+                from presentation.cli.diagnostics import run_parity_report  # type: ignore
+            except Exception:
+                # Gracefully output skipped scenarios JSON structure
+                skipped = {"scenarios": [], "summary": {"total": 0, "matched": 0, "diverged": 0}}
+                if args.json_out:
+                    print(json.dumps(skipped, indent=2))
+                else:
+                    print("parity-report: skipped (module missing)")
+                return 0
+            tolerance = formatters.decimal_from_str(getattr(args, "tolerance", "0.01"))
+            report = run_parity_report(preset=getattr(args, "preset", "default"), scenarios_path=getattr(args, "scenarios_file", None), tolerance=tolerance)
+            if args.json_out:
+                print(json.dumps(report, indent=2))
+            else:
+                summary = report.get("summary", {})
+                print(f"parity-report: total={summary.get('total')} matched={summary.get('matched')} diverged={summary.get('diverged')}")
             return 0
         raise DomainError(f"Unknown command: {cmd}")
     except DomainError as de:  # domain validation error

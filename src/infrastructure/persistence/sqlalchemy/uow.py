@@ -6,16 +6,18 @@ from sqlalchemy.orm import Session
 
 from application.interfaces.ports import (
     AccountRepository,
+    BalanceRepository,
     CurrencyRepository,
+    ExchangeRateEventsRepository,
     TransactionRepository,
     UnitOfWork,
-    BalanceRepository,
 )
 from infrastructure.persistence.sqlalchemy.models import make_session_factory
 from infrastructure.persistence.sqlalchemy.repositories import (
     SqlAlchemyAccountRepository,
     SqlAlchemyBalanceRepository,
     SqlAlchemyCurrencyRepository,
+    SqlAlchemyExchangeRateEventsRepository,
     SqlAlchemyTransactionRepository,
 )
 
@@ -31,6 +33,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):  # type: ignore[misc]
         self._currencies: CurrencyRepository | None = None
         self._transactions: TransactionRepository | None = None
         self._balances: BalanceRepository | None = None
+        self._rate_events: ExchangeRateEventsRepository | None = None
 
     def _ensure_session(self) -> Session:
         if self._session is None:
@@ -60,6 +63,12 @@ class SqlAlchemyUnitOfWork(UnitOfWork):  # type: ignore[misc]
         if not self._balances:
             self._balances = SqlAlchemyBalanceRepository(self._ensure_session())
         return self._balances
+
+    @property
+    def exchange_rate_events(self) -> ExchangeRateEventsRepository:  # type: ignore[override]
+        if not self._rate_events:
+            self._rate_events = SqlAlchemyExchangeRateEventsRepository(self._ensure_session())
+        return self._rate_events
 
     def commit(self) -> None:  # noqa: D401
         if self._session:

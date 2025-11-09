@@ -80,3 +80,13 @@ class RichTransactionDTO:
 class RateUpdateInput:
     code: str
     rate: Decimal
+
+
+@dataclass(slots=True)
+class ExchangeRateEventDTO:
+    id: int | None
+    code: str
+    rate: Decimal
+    occurred_at: datetime
+    policy_applied: str
+    source: str | None = None
