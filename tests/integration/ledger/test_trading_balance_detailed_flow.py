@@ -4,7 +4,12 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from application.dto.models import EntryLineDTO
-from application.use_cases.ledger import CreateAccount, CreateCurrency, GetTradingBalanceDetailed, PostTransaction
+from application.use_cases.ledger import (
+    CreateAccount,
+    CreateCurrency,
+    GetTradingBalanceDetailed,
+    PostTransaction,
+)
 from infrastructure.persistence.inmemory.clock import FixedClock
 from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
 

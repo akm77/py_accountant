@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 import pytest
 import structlog

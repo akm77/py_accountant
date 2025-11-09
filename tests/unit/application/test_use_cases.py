@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from application.dto.models import EntryLineDTO, RateUpdateInput, CurrencyDTO
+from application.dto.models import CurrencyDTO, EntryLineDTO, RateUpdateInput
 from application.use_cases.exchange_rates import UpdateExchangeRates
 from application.use_cases.ledger import (
     CreateAccount,
@@ -127,7 +127,7 @@ def test_get_trading_balance_infers_base_when_missing():
     uow = InMemoryUnitOfWork()
     uow.currencies.upsert(CurrencyDTO(code="USD"))
     uow.currencies.set_base("USD")
-    from application.use_cases.ledger import PostTransaction, CreateAccount, CreateCurrency
+    from application.use_cases.ledger import CreateAccount, CreateCurrency, PostTransaction
     CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
     CreateAccount(uow)("Assets:Cash", "USD")
     CreateAccount(uow)("Income:Sales", "USD")
@@ -148,7 +148,7 @@ def test_rounding_money_and_rates():
     uow.currencies.upsert(CurrencyDTO(code="JPY"))
     updater = UpdateExchangeRates(uow)
     updater([RateUpdateInput(code="JPY", rate=Decimal("150.1234567890"))])
-    from application.use_cases.ledger import PostTransaction, CreateAccount, CreateCurrency
+    from application.use_cases.ledger import CreateAccount, CreateCurrency, PostTransaction
     CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
     CreateCurrency(uow)("JPY", exchange_rate=Decimal("150.1234567890"))
     CreateAccount(uow)("Assets:CashUSD", "USD")
