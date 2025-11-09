@@ -1,0 +1,889 @@
+rpg:
+  metadata:
+    project_name: "py_accountant"
+    description: "Монорепозиторий: домен/приложение/инфраструктура/презентация + пакет py_fledger (двойная запись). Цель — Clean Architecture."
+    last_updated: "2025-11-09"
+    environments:
+      - name: "test"
+        description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
+        env_vars:
+          - name: "ENV"
+            required: true
+            notes: "ENV=test"
+          - name: "DATABASE_URL"
+            required: true
+            notes: "sqlite+pysqlite:///:memory: или локальный Postgres"
+          - name: "LOG_LEVEL"
+            required: false
+            notes: "DEBUG"
+          - name: "JSON_LOGS"
+            required: false
+            notes: "false"
+          - name: "LOG_FILE"
+            required: false
+            notes: "Путь к файлу логов. Включает файловый хендлер только при JSON_LOGS=true."
+          - name: "LOG_ROTATION"
+            required: false
+            notes: "Ротация: 'time' (по времени, по умолчанию) или 'size' (по размеру)."
+          - name: "LOG_MAX_BYTES"
+            required: false
+            notes: "Максимальный размер файла (для 'size'), по умолчанию 10MiB."
+          - name: "LOG_BACKUP_COUNT"
+            required: false
+            notes: "Число резервных файлов, по умолчанию 7."
+          - name: "LOG_ROTATE_WHEN"
+            required: false
+            notes: "Гранулярность для 'time' (например 'midnight')."
+          - name: "LOG_ROTATE_UTC"
+            required: false
+            notes: "Использовать UTC для тайм-ротации (true по умолчанию)."
+      - name: "production"
+        description: "Продакшен: Postgres, структурированные JSON-логи, минимальные права."
+        env_vars:
+          - name: "ENV"
+            required: true
+            notes: "ENV=production"
+          - name: "DATABASE_URL"
+            required: true
+            notes: "postgresql+asyncpg://..."
+          - name: "LOG_LEVEL"
+            required: true
+            notes: "INFO или WARN"
+          - name: "JSON_LOGS"
+            required: true
+            notes: "true"
+          - name: "LOG_FILE"
+            required: false
+            notes: "Рекомендуется указать путь до файла для ротации JSON логов."
+          - name: "LOG_ROTATION"
+            required: false
+            notes: "'time' (по умолчанию, ротация в полночь) или 'size'."
+          - name: "LOG_MAX_BYTES"
+            required: false
+            notes: "Размер для 'size' ротации (например 10485760 для 10MiB)."
+          - name: "LOG_BACKUP_COUNT"
+            required: false
+            notes: "Количество архивов логов (по умолчанию 7)."
+          - name: "LOG_ROTATE_WHEN"
+            required: false
+            notes: "Период ротации при 'time' (по умолчанию midnight)."
+          - name: "LOG_ROTATE_UTC"
+            required: false
+            notes: "Использовать UTC (true) или локальное время."
+
+  nodes:
+    modules:
+      - name: "application"
+        path: "src/application"
+        description: "Сценарии (use cases), DTO и интерфейсы портов (репозитории, UoW, Clock)."
+      - name: "domain"
+        path: "src/domain"
+        description: "Чистый домен: value-объекты, агрегаты, сервисы (баланс, курсы)."
+      - name: "infrastructure"
+        path: "src/infrastructure"
+        description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
+      - name: "presentation"
+        path: "src/presentation"
+        description: "API/CLI: контроллеры, валидация, презентеры."
+      - name: "config"
+        path: "src/infrastructure/config"
+        description: "Конфигурация приложения на pydantic-settings; выбор профиля окружения."
+      - name: "logging"
+        path: "src/infrastructure/logging"
+        description: "Структурированное логирование на structlog; единая инициалиация логгера."
+      - name: "py_accountant"
+        path: "src/py_accountant"
+        description: "Публичный пакет-оболочка корневого проекта (версия, утилиты)."
+      - name: "py_fledger"
+        path: "src/py_fledger"
+        description: "Пакет двойной записи. RPG для него хранится отдельно и не изменяется."
+
+    files:
+      - name: "__init__.py"
+        parent_module: "py_accountant"
+        description: "Публичный API версии пакета."
+      - name: "alembic.ini"
+        parent_module: "infrastructure"
+        description: "Конфигурация Alembic."
+      - name: "alembic/env.py"
+        parent_module: "infrastructure"
+        description: "Скрипт миграций Alembic с поддержкой DATABASE_URL."
+      - name: "docker-compose.yml"
+        parent_module: "infrastructure"
+        description: "Поднимает Postgres и pgAdmin, доступные снаружи."
+      - name: ".env.example"
+        parent_module: "infrastructure"
+        description: "Пример переменных окружения (DATABASE_URL, LOG_LEVEL, JSON_LOGS, ENV)."
+      - name: ".env"
+        parent_module: "infrastructure"
+        description: "Локальные переменные окружения (dev)."
+      - name: "src/application/dto/models.py"
+        parent_module: "application"
+        description: "DTO: CurrencyDTO (exchange_rate), AccountDTO, EntryLineDTO, TransactionDTO (lines, memo, meta), TradingBalanceLineDTO (converted_*, rate_used, rate_fallback), TradingBalanceDTO (base_total), RichTransactionDTO, RateUpdateInput"
+      - name: "src/application/interfaces/ports.py"
+        parent_module: "application"
+        description: "Порты: Clock, UnitOfWork, CurrencyRepository, AccountRepository, TransactionRepository, BalanceRepository."
+      - name: "src/infrastructure/persistence/inmemory/repositories.py"
+        parent_module: "infrastructure"
+        description: "In-memory реализации репозиториев для unit-тестов."
+      - name: "src/infrastructure/persistence/inmemory/uow.py"
+        parent_module: "infrastructure"
+        description: "In-memory UnitOfWork для unit-тестов."
+      - name: "src/infrastructure/persistence/inmemory/clock.py"
+        parent_module: "infrastructure"
+        description: "Системные/фиксированные часы для тестов."
+      - name: "src/domain/value_objects.py"
+        parent_module: "domain"
+        description: "Value Objects: CurrencyCode, AccountName, EntrySide, ExchangeRate, EntryLine, TransactionVO, DomainError"
+      - name: "src/application/use_cases/ledger.py"
+        parent_module: "application"
+        description: "Use cases: CreateCurrency, CreateAccount, PostTransaction, UpdateCurrenciesFromTransaction, GetBalance, GetLedger, ListLedger, GetTradingBalance, GetTradingBalanceDetailed"
+      - name: "src/infrastructure/persistence/sqlalchemy/models.py"
+        parent_module: "infrastructure"
+        description: "ORM модели: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, BalanceORM"
+      - name: "src/domain/services/account_balance_service.py"
+        parent_module: "domain"
+        description: "Сервисы баланса: InMemoryAccountBalanceService, SqlAccountBalanceService (инкрементальный и пересчёт)"
+      - name: "alembic/versions/0001_initial.py"
+        parent_module: "infrastructure"
+        description: "Первичная миграция Alembic: создание currencies, accounts, journals, transaction_lines, balances"
+      - name: "src/presentation/cli/main.py"
+        parent_module: "presentation"
+        description: "CLI точка входа: main(argv), парсинг флагов/команд, вызов use cases, форматирование human/json"
+      - name: "src/presentation/cli/formatters.py"
+        parent_module: "presentation"
+        description: "Помощники CLI: безопасный парсинг Decimal, сериализация dataclass/Decimal/datetime, human-форматирование"
+
+    components:
+      - name: "IUnitOfWork"
+        parent_file: "src/application/interfaces/uow.py"
+        type: "class"
+        description: "Контракт транзакционной границы; предоставляет доступ к репозиториям и управляет commit/rollback."
+        testable: true
+        test_priority: "high"
+
+      - name: "ICurrencyRepository"
+        parent_file: "src/application/interfaces/repositories.py"
+        type: "class"
+        description: "Порт доступа к валютам: get_by_code, create, update_rate, list_all, get_base."
+        testable: true
+        test_priority: "high"
+
+      - name: "IAccountRepository"
+        parent_file: "src/application/interfaces/repositories.py"
+        type: "class"
+        description: "Порт счётов: get_by_full_name, create, list, дерево."
+        testable: true
+        test_priority: "high"
+
+      - name: "ITransactionRepository"
+        parent_file: "src/application/interfaces/repositories.py"
+        type: "class"
+        description: "Порт транзакций: add, агрегаты debits/credits по валютам и периодам, леджер."
+        testable: true
+        test_priority: "high"
+
+      - name: "CreateAccount"
+        parent_file: "src/application/use_cases/create_account.py"
+        type: "class"
+        description: "Use case создания счёта; валидация имени, связь с валютой, дерево."
+        testable: true
+        test_priority: "high"
+
+      - name: "PostEntry"
+        parent_file: "src/application/use_cases/post_entry.py"
+        type: "class"
+        description: "Use case создания журналов и транзакций; балансировка дебет/кредит; обновление exchange_rate."
+        testable: true
+        test_priority: "high"
+
+      - name: "GetTradingBalance"
+        parent_file: "src/application/use_cases/get_trading_balance.py"
+        type: "class"
+        description: "Use case вычисления торгового баланса по валютам и в базовой."
+        testable: true
+        test_priority: "high"
+
+      - name: "BaseSettings"
+        parent_file: "src/infrastructure/config/settings.py"
+        type: "class"
+        description: "Pydantic BaseSettings: DATABASE_URL, LOG_LEVEL, JSON_LOGS, ENV."
+        testable: true
+        test_priority: "high"
+
+      - name: "TestSettings"
+        parent_file: "src/infrastructure/config/settings.py"
+        type: "class"
+        description: "Профиль тестовой среды (ENV=test): значения по умолчанию, безопасные флаги."
+        testable: true
+        test_priority: "high"
+
+      - name: "ProdSettings"
+        parent_file: "src/infrastructure/config/settings.py"
+        type: "class"
+        description: "Профиль продакшена (ENV=production): строгие требования к переменным."
+        testable: true
+        test_priority: "high"
+
+      - name: "SettingsFactory"
+        parent_file: "src/infrastructure/config/settings.py"
+        type: "function"
+        description: "Создание экземпляра настроек на основе ENV (test/production)."
+        testable: true
+        test_priority: "high"
+
+      - name: "StructlogConfig"
+        parent_file: "src/infrastructure/logging/config.py"
+        type: "function"
+        description: "Инициализация structlog с учётом настроек (JSON_LOGS, LOG_LEVEL)."
+        testable: true
+        test_priority: "medium"
+
+      - name: "AppLogger"
+        parent_file: "src/infrastructure/logging/config.py"
+        type: "function"
+        description: "Фабрика get_logger(name) на основе structlog."
+        testable: true
+        test_priority: "medium"
+
+      - name: "SqlAlchemyUnitOfWork"
+        parent_file: "src/infrastructure/persistence/sqlalchemy/uow.py"
+        type: "class"
+        description: "Реализация UoW на SQLAlchemy; sessionmaker, транзакции."
+        testable: true
+        test_priority: "medium"
+
+      - name: "SqlAlchemy*Repository"
+        parent_file: "src/infrastructure/persistence/sqlalchemy/repositories.py"
+        type: "class"
+        description: "Реализации портов репозиториев на SQLAlchemy."
+        testable: true
+        test_priority: "medium"
+
+      - name: "HTTP API"
+        parent_file: "src/presentation/api/__init__.py"
+        type: "function"
+        description: "Точка входа API; связывает роуты с use cases через DI."
+        testable: true
+        test_priority: "medium"
+
+      - name: "CLI"
+        parent_file: "src/presentation/cli/main.py"
+        type: "function"
+        description: "Командная утилита: полноценные команды currency/*, fx/*, account:add, tx:post, balance:*, trading:*, ledger:list; глобальные флаги; вывод human/json."
+        testable: true
+        test_priority: "high"
+
+      # Обновляем интерфейсы на реальные пути
+      - name: "Clock"
+        parent_file: "src/application/interfaces/ports.py"
+        type: "protocol"
+        description: "Абстракция времени: now() -> datetime"
+        testable: true
+        test_priority: "high"
+
+      - name: "UnitOfWork"
+        parent_file: "src/application/interfaces/ports.py"
+        type: "protocol"
+        description: "Транзакционная граница: accounts/currencies/transactions/balances, commit/rollback"
+        testable: true
+        test_priority: "high"
+
+      - name: "CurrencyRepository"
+        parent_file: "src/application/interfaces/ports.py"
+        type: "protocol"
+        description: "Порт валют: get_by_code, upsert, list_all, get_base/set_base/clear_base, bulk_upsert_rates"
+        testable: true
+        test_priority: "high"
+
+      - name: "AccountRepository"
+        parent_file: "src/application/interfaces/ports.py"
+        type: "protocol"
+        description: "Порт счетов: get_by_full_name, create, list"
+        testable: true
+        test_priority: "high"
+
+      - name: "TransactionRepository"
+        parent_file: "src/application/interfaces/ports.py"
+        type: "protocol"
+        description: "Порт транзакций: add, list_between, aggregate_trading_balance, ledger (offset/limit/order/meta)"
+        testable: true
+        test_priority: "high"
+
+      # Domain value objects & errors
+      - name: "DomainError"
+        parent_file: "src/domain/value_objects.py"
+        type: "class"
+        description: "Общая доменная ошибка"
+        testable: true
+        test_priority: "high"
+      - name: "CurrencyCode"
+        parent_file: "src/domain/value_objects.py"
+        type: "class"
+        description: "VO валюты с нормализацией и валидацией"
+        testable: true
+        test_priority: "high"
+      - name: "AccountName"
+        parent_file: "src/domain/value_objects.py"
+        type: "class"
+        description: "VO полного имени счёта (иерархия)"
+        testable: true
+        test_priority: "high"
+      - name: "EntrySide"
+        parent_file: "src/domain/value_objects.py"
+        type: "enum"
+        description: "DEBIT/CREDIT флаг"
+        testable: true
+        test_priority: "medium"
+      - name: "ExchangeRate"
+        parent_file: "src/domain/value_objects.py"
+        type: "class"
+        description: "VO курса (положительный Decimal)"
+        testable: true
+        test_priority: "medium"
+      - name: "EntryLine"
+        parent_file: "src/domain/value_objects.py"
+        type: "class"
+        description: "Строка проводки: side, account, amount, currency, exchange_rate"
+        testable: true
+        test_priority: "high"
+      - name: "TransactionVO"
+        parent_file: "src/domain/value_objects.py"
+        type: "class"
+        description: "Балансированный агрегат транзакции"
+        testable: true
+        test_priority: "high"
+
+      # Use cases (updated)
+      - name: "CreateCurrency"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Создание/обновление валюты"
+        testable: true
+        test_priority: "high"
+      - name: "CreateAccount"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Создание счёта через VO"
+        testable: true
+        test_priority: "high"
+      - name: "PostTransaction"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Публикация транзакции (балансировка через TransactionVO)"
+        testable: true
+        test_priority: "high"
+      - name: "UpdateCurrenciesFromTransaction"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Обновление exchange_rate по линиям"
+        testable: true
+        test_priority: "medium"
+      - name: "GetBalance"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Баланс счёта (кэш или агрегация)"
+        testable: true
+        test_priority: "high"
+      - name: "GetLedger"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Журнал проводок счёта"
+        testable: true
+        test_priority: "medium"
+      - name: "ListLedger"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Пагинация/сортировка/фильтрация леджера"
+        testable: true
+        test_priority: "high"
+      - name: "GetTradingBalance"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Агрегация trading balance (optional base conversion)"
+        testable: true
+        test_priority: "high"
+      - name: "GetTradingBalanceDetailed"
+        parent_file: "src/application/use_cases/ledger.py"
+        type: "class"
+        description: "Детализированная конверсия trading balance: converted_* + rate_used/rate_fallback"
+        testable: true
+        test_priority: "medium"
+
+      # Planned domain services (placeholders)
+      - name: "AccountBalanceService"
+        parent_file: "src/domain/services/account_balance_service.py"
+        type: "class"
+        description: "Инкрементальное кэширование балансов (InMemory + SQL caching реализованы)"
+        testable: true
+        test_priority: "medium"
+      - name: "ExchangeRatePolicy"
+        parent_file: "src/domain/services/exchange_rate_policy.py"
+        type: "class"
+        description: "Стратегия обновления курсов (last_write / weighted_average реализованы)"
+        testable: true
+        test_priority: "medium"
+
+      # DTO components (updated)
+      - name: "EntryLineDTO"
+        parent_file: "src/application/dto/models.py"
+        type: "dataclass"
+        description: "DTO строки проводки"
+        testable: true
+        test_priority: "high"
+      - name: "TransactionDTO"
+        parent_file: "src/application/dto/models.py"
+        type: "dataclass"
+        description: "DTO транзакции"
+        testable: true
+        test_priority: "high"
+      - name: "TradingBalanceLineDTO"
+        parent_file: "src/application/dto/models.py"
+        type: "dataclass"
+        description: "Показатели валюты + converted_* + rate_used/rate_fallback"
+        testable: true
+        test_priority: "medium"
+      - name: "TradingBalanceDTO"
+        parent_file: "src/application/dto/models.py"
+        type: "dataclass"
+        description: "Сводка торгового баланса (lines, base_currency, base_total)"
+        testable: true
+        test_priority: "high"
+      - name: "RichTransactionDTO"
+        parent_file: "src/application/dto/models.py"
+        type: "dataclass"
+        description: "Расширенная транзакция для леджера"
+        testable: true
+        test_priority: "medium"
+      - name: "RateUpdateInput"
+        parent_file: "src/application/dto/models.py"
+        type: "dataclass"
+        description: "Вход для batch обновления курсов (code, rate)"
+        testable: true
+        test_priority: "medium"
+
+  tests:
+    unit_tests:
+      - target_component: "Ports & DTOs"
+        test_file: "tests/unit/application/test_ports_and_dtos.py"
+        test_functions: ["test_dto_shapes", "test_ports_protocols"]
+        coverage_status: "exists"
+      - target_component: "InMemory Adapters"
+        test_file: "tests/unit/application/test_inmemory_adapters.py"
+        test_functions: ["test_inmemory_currency_repo", "test_inmemory_account_repo", "test_inmemory_transaction_repo_balance", "test_inmemory_uow_basic", "test_fixed_clock"]
+        coverage_status: "exists"
+      - target_component: "Settings"
+        test_file: "tests/unit/test_settings.py"
+        test_functions: ["test_settings_test_profile_defaults", "test_settings_prod_profile_requires_db_url", "test_env_overrides", "test_forced_env_switch"]
+        coverage_status: "exists"
+      - target_component: "Logging"
+        test_file: "tests/unit/test_logging.py"
+        test_functions: ["test_structlog_init_console", "test_structlog_init_json", "test_structlog_json_file_rotation"]
+        coverage_status: "exists"
+      - target_component: "Domain Value Objects"
+        test_file: "tests/unit/domain/test_value_objects.py"
+        test_functions: ["test_currency_code_normalization","test_account_name_segments_and_parent","test_exchange_rate_and_entry_line","test_transaction_balancing"]
+        coverage_status: "exists"
+      - target_component: "Use Cases Ledger"
+        test_file: "tests/unit/application/test_use_cases.py"
+        test_functions: ["test_post_transaction_and_balance_and_ledger","test_trading_balance_use_case_with_rates","test_create_currency_and_account"]
+        coverage_status: "exists"
+      - target_component: "Domain Services"
+        test_file: "tests/unit/domain/test_account_balance_service.py"
+        test_functions: ["test_incremental_balance_updates","test_recompute_before_cache_time"]
+        coverage_status: "exists"
+      - target_component: "Exchange Rate Policy"
+        test_file: "tests/unit/domain/test_exchange_rate_policy.py"
+        test_functions: ["test_policy_last_write","test_policy_weighted_average"]
+        coverage_status: "exists"
+      - target_component: "ListLedger validation"
+        test_file: "tests/unit/application/test_list_ledger_validation.py"
+        test_functions: ["test_invalid_account_name", "test_start_greater_than_end", "test_negative_offset", "test_negative_limit", "test_invalid_order", "test_meta_not_dict", "test_limit_zero_returns_empty"]
+        coverage_status: "exists"
+      - target_component: "Trading Balance Detailed"
+        test_file: "tests/unit/application/test_trading_balance_detailed.py"
+        test_functions: ["test_get_trading_balance_detailed_requires_base_currency", "test_get_trading_balance_detailed_basic_conversion", "test_get_trading_balance_detailed_fallback_rate"]
+        coverage_status: "exists"
+      - target_component: "Negative Tests"
+        test_file: "tests/unit/application/test_negative_scenarios.py"
+        test_functions: ["test_unbalanced_entry_lines", "test_missing_exchange_rate", "test_duplicate_transaction_id", "test_ledger_date_range", "test_empty_transaction_lines", "test_invalid_account_name_format", "test_large_number_of_lines"]
+        coverage_status: "exists"
+      - target_component: "RecalculateAccountBalance"
+        test_file: "tests/unit/application/test_recalculate_balance.py"
+        test_functions: ["test_recalculate_inmemory_matches_direct", "test_recalculate_sql_service_force_refresh_cache"]
+        coverage_status: "exists"
+      - target_component: "UpdateExchangeRates Negative"
+        test_file: "tests/unit/application/test_update_exchange_rates_negative.py"
+        test_functions: ["test_set_base_unknown_currency_errors","test_invalid_currency_code_length","test_invalid_currency_code_empty","test_zero_rate_errors","test_negative_rate_errors"]
+        coverage_status: "exists"
+      - target_component: "CLI Errors"
+        test_file: "tests/unit/presentation/test_cli_errors.py"
+        test_functions: [
+          "test_currency_set_base_unknown",
+          "test_fx_update_invalid_rate",
+          "test_account_add_unknown_currency",
+          "test_tx_post_missing_account",
+          "test_tx_post_invalid_line_format",
+          "test_ledger_list_invalid_account_name",
+          "test_unknown_policy_flag",
+          "test_fx_batch_file_not_found",
+          "test_fx_batch_invalid_json_structure",
+          "test_fx_batch_invalid_rate",
+          "test_tx_post_negative_amount",
+          "test_ledger_list_invalid_meta_item",
+          "test_unexpected_error",
+          "test_balance_get_unknown_account",
+          "test_trading_detailed_missing_base",
+        ]
+        coverage_status: "exists"
+    integration_tests:
+      - integration_point: "Presentation -> Application (CLI)"
+        test_description: "E2E CLI сценарии: валюты/счета/проводки/баланс/trading/ledger"
+        test_file: "tests/e2e/cli/test_cli_flow.py"
+        coverage_status: "exists"
+      - integration_point: "Presentation -> Application (API)"
+        test_description: "API/CLI сценарии вызывают use cases. HTTP API — отложено."
+        test_file: "tests/e2e/api/test_endpoints.py"
+        coverage_status: "deferred"
+      - integration_point: "Infrastructure logging -> All layers"
+        test_description: "Единая конфигурация логирования доступна в Presentation/Application."
+        test_file: "tests/integration/test_logging_integration.py"
+        coverage_status: "needed"
+      - integration_point: "Config (settings) -> Infrastructure/Application"
+        test_description: "Выбор профиля ENV влияет на DATABASE_URL, уровни логов и формат."
+        test_file: "tests/integration/test_settings_integration.py"
+        coverage_status: "needed"
+      - integration_point: "Ledger pagination & meta"
+        test_description: "Проверка offset/limit/order/meta фильтрации"
+        test_file: "tests/integration/ledger/test_ledger_pagination.py"
+        coverage_status: "exists"
+      - integration_point: "SQL balance cache flow"
+        test_description: "Инкрементальное обновление и форсированный пересчёт"
+        test_file: "tests/integration/ledger/test_balance_cache_flow.py"
+        coverage_status: "exists"
+      - integration_point: "Trading Balance Detailed SQLAlchemy"
+        test_description: "Проверка detailed конверсии на SQLAlchemy UoW"
+        test_file: "tests/integration/ledger/test_trading_balance_detailed_flow.py"
+        coverage_status: "exists"
+      - integration_point: "Alembic initial migration"
+        test_description: "Upgrade/downgrade создаёт и удаляет таблицы"
+        test_file: "tests/integration/ledger/test_alembic_migration.py"
+        coverage_status: "exists"
+      - integration_point: "Alembic migration 0002 is_base"
+        test_description: "Проверка наличия/отсутствия is_base при upgrade/downgrade"
+        test_file: "tests/integration/ledger/test_migration_is_base_column.py"
+        coverage_status: "exists"
+    perf_tests:
+      - target: "CLI performance smoke"
+        test_file: "tests/perf/test_cli_perf.py"
+        markers: ["slow"]
+        coverage_status: "exists"
+
+  edges:
+    inter_module_flows:
+      - from: "presentation"
+        to: "application"
+        data_type: "DTO запрос/ответ"
+        description: "Контроллеры вызывают use cases."
+      - from: "application"
+        to: "domain"
+        data_type: "Entities/Services"
+        description: "Use cases управляют доменом."
+      - from: "infrastructure"
+        to: "application"
+        data_type: "Реализации портов (репозитории/UoW)"
+        description: "Адаптеры предоставляют реализацию интерфейсов."
+      - from: "py_fledger"
+        to: "application"
+        data_type: "Возможное внутреннее использование доменных сервисов"
+        description: "Пакет учёта используется из use cases при необходимости."
+      - from: "config"
+        to: "infrastructure"
+        data_type: "Settings (DATABASE_URL, LOG_LEVEL, JSON_LOGS, ENV)"
+        description: "Репозитории, UоW и логирование используют настройки."
+      - from: "config"
+        to: "application"
+        data_type: "Settings DTO"
+        description: "Use cases получают значения конфигурации через провайдер."
+      - from: "logging"
+        to: "presentation"
+        data_type: "structlog logger"
+        description: "API/CLI получают единый logger через фабрику."
+      - from: "logging"
+        to: "application"
+        data_type: "structlog logger"
+        description: "Use cases логируют шаги и метаданные."
+
+    intra_module_dependencies:
+      - from: "alembic/env.py"
+        to: "alembic.ini"
+        dependency_type: "configuration"
+        description: "env.py читает sqlalchemy.url или DATABASE_URL."
+      - from: "docker-compose.yml"
+        to: "Postgres/pgAdmin"
+        dependency_type: "runtime"
+        description: "Инфраструктурные сервисы для интеграционных тестов."
+
+    component_relationships:
+      - from: "PostEntry"
+        to: "ITransactionRepository"
+        relationship: "uses"
+        description: "Создание транзакций и журналов."
+      - from: "PostEntry"
+        to: "ICurrencyRepository"
+        relationship: "uses"
+        description: "Обновление exchange_rate по факту."
+      - from: "GetTradingBalance"
+        to: "ITransactionRepository"
+        relationship: "uses"
+        description: "Агрегаты по валютам и периодам."
+      - from: "GetTradingBalance"
+        to: "ICurrencyRepository"
+        relationship: "uses"
+        description: "Получение текущих курсов."
+      - from: "AppLogger"
+        to: "StructlogConfig"
+        relationship: "uses"
+        description: "Фабрика логгеров опирается на единую конфигурацию structlog."
+      - from: "SettingsFactory"
+        to: "BaseSettings"
+        relationship: "uses"
+        description: "Фабрика выбирает профиль (Test/Prod) и создаёт экземпляр настроек."
+      - from: "PostTransaction"
+        to: "TransactionVO"
+        relationship: "constructs"
+        description: "Строит и валидирует агрегат перед сохранением"
+      - from: "GetTradingBalance"
+        to: "TradingBalanceDTO"
+        relationship: "produces"
+        description: "Формирует DTO с base_total"
+      - from: "UpdateCurrenciesFromTransaction"
+        to: "CurrencyDTO"
+        relationship: "updates"
+        description: "Обновляет exchange_rate из линий"
+
+  implementation_order:
+    - "Define ports (interfaces) and DTOs [DONE]"
+    - "Introduce Settings (pydantic-settings) and Logging (structlog) [DONE]"
+    - "Create in-memory adapters for unit tests [DONE]"
+    - "Extract use cases from py_fledger.Book (phase 1: ledger core, trading balance, posting) [DONE]"
+    - "Introduce Domain entities/services (value objects & balance services, SQL caching) [DONE]"
+    - "Implement SQLAlchemy repositories and UoW [DONE]"
+    - "Add AccountBalanceService & ExchangeRatePolicy [DONE]"
+    - "Wire Presentation/API/CLI to use cases [DONE (CLI), API deferred]"
+    - "Add integration and e2e tests (ledger pagination & trading balance conversion done; e2e pending) [IN PROGRESS]"
+    - "Implement SQL balance caching table + pagination/meta filtering in ledger [DONE]"
+  testing_strategy:
+    priorities:
+      high: ["Use cases","Ports/UoW contracts","Trading balance calc","Domain VO validation","Domain Services"]
+      medium: ["Repositories SQLAlchemy","Ledger pagination","Exchange rate updates"]
+      low: ["CLI","Deprecated EntryDTO removal"]
+    edge_cases:
+      - "Несбалансированные линии (ожидается DomainError)"
+      - "Отсутствующий exchange_rate для конвертации base_total"
+      - "Повторная транзакция с тем же id (ошибка)"
+      - "Ledger вне диапазона дат (пустой список)"
+      - "Пустой набор линий транзакции"
+      - "Некорректный формат имени счёта"
+      - "Большое число линий (производительность)"
+      - "Удаление deprecated EntryDTO из кода"
+      - "Запрос баланса с as_of до последнего кэша (ожидается пересчёт)"
+
+  next_steps:
+    - id: "NS1"
+      title: "Ledger: pagination/filtering/sorting"
+      details:
+        - "Параметры offset/limit и защита от выходов за границы"
+        - "Сортировка ASC/DESC по occurred_at"
+        - "Фильтрация по meta (exact match)"
+        - "Диапазоны дат с валидацией (start <= end)"
+      deliverables:
+        - "Расширить TransactionRepository.ledger(...)"
+        - "Новый use case ListLedger (обертка над ledger с валидацией входа)"
+        - "Интеграционные тесты: пагинация, порядок, meta"
+      status: "done"
+      priority: "high"
+      risks:
+        - "Производительность на больших объёмах — добавить индексы по occurred_at, account_full_name"
+      acceptance:
+        - "Тесты ledger_pagination и meta фильтров зелёные"
+        - "Совместимость с существующими GetLedger тестами"
+
+    - id: "NS2"
+      title: "SQL balance caching (таблица Balance)"
+      details:
+        - "Хранить последнюю учтённую транзакцию и сумму по счёту"
+        - "Инкрементальное обновление при постинге транзакций (в транзакции БД)"
+        - "Форсированный пересчёт при разрыве"
+      deliverables:
+        - "ORM-модель Balance: account_id, transaction_id, amount, created_at"
+        - "AccountBalanceService для SQL-адаптера"
+        - "Интеграционные тесты атомарности обновлений"
+      status: "done"
+      priority: "high"
+      risks:
+        - "Консистентность/гонки — оборачивать в транзакцию и блокировки по счёту"
+      acceptance:
+        - "Сценарий постинга нескольких транзакций обновляет кэш без полного пересчёта"
+        - "Пересчёт даёт идентичный результат полной агрегации"
+
+    - id: "NS3"
+      title: "GetTradingBalanceDetailed"
+      details:
+        - "Расширенное представление: converted_debit/credit/balance + rate_used/rate_fallback"
+        - "Итоговый base_total и base_currency обязательны"
+      deliverables:
+        - "Новый use case GetTradingBalanceDetailed"
+        - "Unit/Integration тесты на конверсию"
+      status: "done"
+      priority: "medium"
+      risks:
+        - "Отсутствующие курсы — fallback"
+      acceptance:
+        - "Тесты detailed conversion зелёные"
+    - id: "NS4"
+      title: "Управление курсами (UpdateExchangeRates batch, базовая валюта)"
+      details:
+        - "Use case UpdateExchangeRates для пакета транзакций"
+        - "Явное определение base currency и хранимого признака"
+        - "Инференс base в GetTradingBalance если аргумент не передан"
+      deliverables:
+        - "Use case UpdateExchangeRates (batch)"
+        - "Расширение CurrencyDTO/base-флага и методы репозитория"
+        - "Тесты политики обновления курсов и базовой валюты"
+      status: "done"
+      priority: "medium"
+      risks:
+        - "Историчность курсов (audit) — отложено"
+      acceptance:
+        - "Политика last_write/weighted_average проверена тестами"
+        - "Singleton base enforced"
+        - "Инференс base работает"
+
+    - id: "NS5"
+      title: "RecalculateAccountBalance"
+      details:
+        - "Use case принудительного пересчёта для счёта/диапазона"
+      deliverables:
+        - "Реализация и unit тесты (интеграция с сервисом баланса)"
+      status: "done"
+      priority: "medium"
+      acceptance:
+        - "Пересчёт возвращает корректное значение и обновляет кэш"
+
+    - id: "NS6"
+      title: "PostJournalEntry (многострочные журнальные записи)"
+      details:
+        - "Одна операция — множество линий; последовательно — журнал транзакций"
+      deliverables:
+        - "Use case PostJournalEntry (объединяет набор линий)"
+        - "Совместимость с PostTransaction"
+      status: "planned"
+      priority: "low"
+
+    - id: "NS7"
+      title: "Alembic миграции"
+      details:
+        - "Первичные миграции для SQL моделей"
+        - "Миграция Balance таблицы"
+      deliverables:
+        - "alembic revision + upgrade/downgrade"
+      status: "done"
+      priority: "medium"
+      risks:
+        - "Расхождение моделей и схемы"
+      acceptance:
+        - "Upgrade создаёт таблицы, downgrade удаляет"
+
+    - id: "NS8"
+      title: "Удаление EntryDTO (legacy)"
+      details:
+        - "Полная миграция тестов/клиентов на EntryLineDTO/TransactionDTO"
+      deliverables:
+        - "Удаление кода, чистка импорта"
+      status: "done"
+      priority: "low"
+      acceptance:
+        - "Нет упоминаний EntryDTO в коде/тестах"
+
+    - id: "NS9"
+      title: "Депрекация py_fledger.Book и полная миграция"
+      details:
+        - "Сопоставление функционала и тест на паритет результатов"
+      deliverables:
+        - "Документ миграции и удаление book.py после достижения паритета"
+      status: "planned"
+      priority: "medium"
+
+    - id: "NS10"
+      title: "Интеграция внешних FX источников"
+      details:
+        - "Поддержка провайдеров курсов (отложено)"
+      deliverables:
+        - "Интерфейс провайдера + адаптеры"
+      status: "deferred"
+      priority: "low"
+
+    - id: "NS11"
+      title: "Политика округления и Decimal context"
+      details:
+        - "Единый quantize для конверсий/агрегаций"
+        - "Настройки MONEY_SCALE/RATE_SCALE/ROUNDING"
+      deliverables:
+        - "Конфигурация rounding и покрытие тестами"
+        - "money_quantize/rate_quantize утилиты"
+      status: "done"
+      priority: "medium"
+      acceptance:
+        - "Converted_* и base_total квантованы по MONEY_SCALE"
+        - "Курсы квантованы по RATE_SCALE"
+
+    - id: "NS12"
+      title: "Документация и гайд миграции Book -> UseCases"
+      details:
+        - "README раздел Domain & Use Cases"
+        - "Миграционный гайд"
+      deliverables:
+        - "Обновлённый README и примеры сценариев"
+      status: "planned"
+      priority: "medium"
+
+    - id: "NS13"
+      title: "Производительность и индексы"
+      details:
+        - "Индексы по ключевым полям (occured_at, account, currency)"
+        - "Профилирование запросов"
+      deliverables:
+        - "DDL индексов и метрики"
+      status: "planned"
+      priority: "medium"
+
+    - id: "NS14"
+      title: "E2E API/CLI wiring"
+      details:
+        - "Связка presentation -> application через DI"
+        - "E2E сценарии: создание валют/счетов/проводок, баланс, леджер, trading balance"
+        - "CLI: полноценный набор команд (currency:add,set-base,list; fx:update,batch; account:add; tx:post; balance:get,recalc; trading:balance,detailed; ledger:list)"
+      deliverables:
+        - "Точки входа CLI + e2e тесты"
+        - "Глобальные флаги (--db-url, --log-level, --json-logs, --policy, --json)"
+        - "Форматы вывода human/json (Decimal -> str, datetime -> ISO8601)"
+      status: "done (CLI); API deferred"
+      priority: "high"
+      acceptance:
+        - "Команды работают, тесты зелёные (unit/e2e/perf)"
+        - "json вывод сериализует Decimal как строку и datetime как ISO"
+        - "DomainError -> exit code 2"
+        - "Перфоманс-дымовой тест (1000 tx) проходит без логических ошибок"
+
+  cli_extensions:
+    - command: "diagnostics:rates"
+      description: "Список валют с текущими курсами, флаг is_base и активной глобальной политикой (human/json)"
+      status: "added"
+    - command: "fx:batch --policy"
+      description: "Локальный override политики обновления курсов (last_write|weighted_average)"
+      status: "added"
+    - command: "trading:detailed --normalize"
+      description: "Принудительное округление converted_* и base_total до MONEY_SCALE перед выводом"
+      status: "added"
+

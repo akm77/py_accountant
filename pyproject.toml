@@ -4,14 +4,23 @@ version = "0.1.0"
 description = ""
 authors = ["akm77 <aleksey.kotryakhov@gmail.com>"]
 readme = "README.md"
-packages = [{ include = "py_accountant", from = "src" }]
+packages = [
+    { include = "py_accountant", from = "src" },
+    { include = "py_fledger", from = "src" }
+]
 
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"
 sqlalchemy = "^2.0.0"
+psycopg = "^3.1.0"
+pydantic = "^2.7.0"
+pydantic-settings = "^2.2.1"
 
 # Dev-only dependencies managed via poetry groups
 poetry-core = ">=2.0.0"
+asyncpg = "^0.30.0"
+alembic = "^1.17.1"
+structlog = "^25.5.0"
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0"
 ruff = ">=0.6.0"
@@ -52,5 +61,8 @@ minversion = "8.0"
 addopts = "-ra -q"
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+  "slow: performance or long-running tests",
+]
 
-# Enable Ruff as a pre-commit hook (reference only; actual hook in .pre-commit-config.yaml)
+# Enable Ruff as a pre-commit hook (reference only; actual hook in .pre-commit-config.yaml

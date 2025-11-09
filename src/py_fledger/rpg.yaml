@@ -1,0 +1,277 @@
+rpg:
+  metadata:
+    project_name: "py_fledger"
+    description: "Мультивалютный double-entry модуль на SQLAlchemy 2.0 с деревом счетов, журналом и кэшированием балансов"
+
+  nodes:
+    modules:
+      - name: "py_fledger"
+        path: "src/py_fledger"
+        description: "Основной пакет: ошибки, модели ORM, логика книги (Book), документация"
+
+    files:
+      - name: "__init__.py"
+        parent_module: "py_fledger"
+        description: "Экспорт публичного API: Book, FError, фабрика book(url)"
+      - name: "errors.py"
+        parent_module: "py_fledger"
+        description: "Доменные ошибки (FError)"
+      - name: "models.py"
+        parent_module: "py_fledger"
+        description: "SQLAlchemy модели (Currency, Account, Transaction, JournalEntry, Balance) и Database обёртка"
+      - name: "book.py"
+        parent_module: "py_fledger"
+        description: "Высокоуровневый API: Book, Entry, DTO (SafeAccount, RichTransaction), операции учёта"
+      - name: "README.md"
+        parent_module: "py_fledger"
+        description: "Документация по использованию, концепциям и API"
+      - name: "rpg.yaml"
+        parent_module: "py_fledger"
+        description: "Repository Planning Graph (структурный и функциональный план)"
+
+    components:
+      - name: "FError"
+        parent_file: "errors.py"
+        type: "class"
+        description: "Доменная ошибка для бизнес-валидации"
+        testable: true
+        test_priority: "low"
+
+      - name: "Base"
+        parent_file: "models.py"
+        type: "class"
+        description: "Declarative base SQLAlchemy"
+        testable: false
+        test_priority: "low"
+
+      - name: "Currency"
+        parent_file: "models.py"
+        type: "class"
+        description: "Валюта (code, exchangeRate). Первая — базовая (курс=1.0)"
+        testable: true
+        test_priority: "medium"
+
+      - name: "Account"
+        parent_file: "models.py"
+        type: "class"
+        description: "Счёт с иерархией и вычислением full_name"
+        testable: true
+        test_priority: "high"
+
+      - name: "Transaction"
+        parent_file: "models.py"
+        type: "class"
+        description: "Транзакция: amount, credit, meta, exchangeRate, связи"
+        testable: true
+        test_priority: "high"
+
+      - name: "JournalEntry"
+        parent_file: "models.py"
+        type: "class"
+        description: "Журнальная запись (контейнер транзакций)"
+        testable: true
+        test_priority: "medium"
+
+      - name: "Balance"
+        parent_file: "models.py"
+        type: "class"
+        description: "Кэш изолированных балансов счёта"
+        testable: true
+        test_priority: "high"
+
+      - name: "Database"
+        parent_file: "models.py"
+        type: "class"
+        description: "Обёртка engine/session, поддержка in-memory SQLite"
+        testable: true
+        test_priority: "medium"
+
+      - name: "SafeAccount"
+        parent_file: "book.py"
+        type: "class"
+        description: "DTO безопасного счёта с деревом дочерних"
+        testable: true
+        test_priority: "medium"
+
+      - name: "RichTransaction"
+        parent_file: "book.py"
+        type: "class"
+        description: "DTO расширенной транзакции для внешнего API"
+        testable: true
+        test_priority: "medium"
+
+      - name: "Book"
+        parent_file: "book.py"
+        type: "class"
+        description: "Фасад: валюты, счета, проводки, баланс, история, trading balance"
+        testable: true
+        test_priority: "high"
+
+      - name: "Entry"
+        parent_file: "book.py"
+        type: "class"
+        description: "Цепочная сборка и commit проводки"
+        testable: true
+        test_priority: "high"
+
+      - name: "book"
+        parent_file: "book.py"
+        type: "function"
+        description: "Фабрика Book(url)"
+        testable: true
+        test_priority: "low"
+
+  tests:
+    unit_tests:
+      - target_component: "Book"
+        test_file: "tests/unit/py_fledger/test_py_fledger.py"
+        test_functions: ["test_create_currencies","test_create_accounts","test_balances","test_history","test_helpers","test_multi_currency"]
+        coverage_status: "exists"
+      - target_component: "Entry"
+        test_file: "tests/unit/py_fledger/test_py_fledger.py"
+        test_functions: ["test_transactions_user1_top_up","test_throw_on_create_tx_for_non_existing_account","test_partial_transfer_usdt_to_huntington","test_user1_rub_top_up"]
+        coverage_status: "exists"
+      - target_component: "Account/Currency"
+        test_file: "tests/unit/py_fledger/test_py_fledger.py"
+        test_functions: ["test_throw_on_account_create_with_non_existing_parent","test_throw_on_wrong_account_name"]
+        coverage_status: "exists"
+
+    integration_tests:
+      - integration_point: "Entry commit -> JournalEntry/Transaction/Currency"
+        test_description: "Commit создаёт JournalEntry, Transaction и обновляет exchangeRate"
+        test_file: "tests/integration/py_fledger/test_commit_flow.py"
+        coverage_status: "needed"
+      - integration_point: "Book.balance -> Balance cache"
+        test_description: "Инкрементальный пересчёт и кэширование баланса"
+        test_file: "tests/integration/py_fledger/test_balance_cache.py"
+        coverage_status: "needed"
+      - integration_point: "Book.ledger -> filters/pagination"
+        test_description: "История с meta, датами, order, limit/offset"
+        test_file: "tests/integration/py_fledger/test_ledger_filters.py"
+        coverage_status: "needed"
+      - integration_point: "Book.trading_balance -> aggregation"
+        test_description: "Подсчёт валютных позиций и пересчёт в базовую"
+        test_file: "tests/integration/py_fledger/test_trading_balance.py"
+        coverage_status: "needed"
+
+  edges:
+    inter_module_flows:
+      - from: "book.py"
+        to: "models.py"
+        data_type: "ORM сущности, сессии"
+        description: "Book использует модели и сессии для доменных операций"
+      - from: "book.py"
+        to: "errors.py"
+        data_type: "FError"
+        description: "Исключения доменной валидации"
+      - from: "tests"
+        to: "book.py"
+        data_type: "Публичный API (Book/Entry)"
+        description: "Тесты вызывают фасадные методы"
+
+    intra_module_dependencies:
+      - from: "book.py"
+        to: "models.py"
+        dependency_type: "import"
+        description: "Импорт ORM сущностей и Database"
+      - from: "__init__.py"
+        to: "book.py"
+        dependency_type: "import"
+        description: "Переэкспорт публичного API"
+      - from: "models.py (Transaction)"
+        to: "models.py (Account)"
+        dependency_type: "composition"
+        description: "FK accountId"
+      - from: "models.py (Transaction)"
+        to: "models.py (JournalEntry)"
+        dependency_type: "composition"
+        description: "FK journalId"
+      - from: "models.py (Account)"
+        to: "models.py (Currency)"
+        dependency_type: "composition"
+        description: "FK currencyId"
+      - from: "models.py (Balance)"
+        to: "models.py (Account)"
+        dependency_type: "composition"
+        description: "FK accountId"
+      - from: "models.py (Balance)"
+        to: "models.py (Transaction)"
+        dependency_type: "composition"
+        description: "FK transactionId (точка до которой учтён баланс)"
+      - from: "models.py (Account hook)"
+        to: "models.py (Account.parent)"
+        dependency_type: "composition"
+        description: "Хук reconstruct full_name"
+
+    component_relationships:
+      - from: "Book"
+        to: "Database"
+        relationship: "uses"
+        description: "Создание сессий и управление схемой"
+      - from: "Book"
+        to: "Account/Currency/Transaction/JournalEntry/Balance"
+        relationship: "uses"
+        description: "CRUD и вычисления"
+      - from: "Book"
+        to: "SafeAccount/RichTransaction"
+        relationship: "uses"
+        description: "Формирование DTO для выдачи наружу"
+      - from: "Entry"
+        to: "Book"
+        relationship: "uses"
+        description: "Доступ к поиску счетов и валют"
+      - from: "Entry"
+        to: "Transaction/JournalEntry"
+        relationship: "uses"
+        description: "Создание транзакций и журналов"
+      - from: "Entry"
+        to: "Currency"
+        relationship: "uses"
+        description: "Обновление exchangeRate после commit"
+      - from: "Account"
+        to: "Currency"
+        relationship: "uses"
+        description: "Деноминация счёта"
+      - from: "Transaction"
+        to: "Account"
+        relationship: "uses"
+        description: "Принадлежность транзакции счёту"
+      - from: "Balance"
+        to: "Transaction"
+        relationship: "uses"
+        description: "Ссылка на последнюю учтённую транзакцию"
+      - from: "book(url)"
+        to: "Book"
+        relationship: "calls"
+        description: "Фабрика создаёт экземпляр"
+      - from: "Book"
+        to: "FError"
+        relationship: "uses"
+        description: "Бизнес-валидация и ошибки"
+
+  implementation_order:
+    - "FError"
+    - "Base & ORM Entities (Currency, Account, Transaction, JournalEntry, Balance, hooks)"
+    - "Database"
+    - "DTOs (SafeAccount, RichTransaction)"
+    - "Book facade"
+    - "Entry commit logic"
+    - "Factory book(url)"
+    - "__init__ export"
+    - "Tests (unit -> integration)"
+
+  testing_strategy:
+    priorities:
+      high: ["Account","Transaction","Balance","Book","Entry","ledger","trading_balance"]
+      medium: ["Currency","get_accounts","create_account validations","trading_balance edge cases"]
+      low: ["FError","book factory","check_currency","check_account"]
+    edge_cases:
+      - "Повторный commit Entry"
+      - "Отсутствующий foreign exchangeRate впервые"
+      - "Неверные даты (startDate > endDate)"
+      - "Неверный offset/limit/order"
+      - "Имена счетов с недопустимыми символами"
+      - "Баланс после последовательности credit/debit"
+      - "Trading balance при 0 транзакций"
+      - "Pagination + meta фильтр одновременно"
+

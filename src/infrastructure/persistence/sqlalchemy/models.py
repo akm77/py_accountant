@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    create_engine,
+    func,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class CurrencyORM(Base):
+    __tablename__ = "currencies"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
+    exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
+    is_base: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
+
+
+class AccountORM(Base):
+    __tablename__ = "accounts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(1024), unique=True, nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    parent_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
+
+
+class JournalORM(Base):
+    __tablename__ = "journals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
+    memo: Mapped[str | None] = mapped_column(String(1024))
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+
+
+class TransactionLineORM(Base):
+    __tablename__ = "transaction_lines"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    journal_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    account_full_name: Mapped[str] = mapped_column(String(1024), nullable=False)
+    side: Mapped[str] = mapped_column(String(6), nullable=False)  # DEBIT/CREDIT
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
+
+
+class BalanceORM(Base):
+    __tablename__ = "balances"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_full_name: Mapped[str] = mapped_column(String(1024), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
+    last_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("account_full_name", name="uq_balances_account"),
+    )
+
+
+def make_engine(url: str | None = None):
+    url = url or "sqlite+pysqlite:///:memory:"
+    return create_engine(url, future=True)
+
+
+def make_session_factory(url: str | None = None):
+    engine = make_engine(url)
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
