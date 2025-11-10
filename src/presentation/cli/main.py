@@ -12,13 +12,16 @@ from typing import Any
 
 from application.dto.models import EntryLineDTO
 from application.use_cases.ledger import (
+    CreateAccount,
     CreateCurrency,
+    GetBalance,
     GetTradingBalance,
     GetTradingBalanceDetailed,
+    ListLedger,
+    PostTransaction,
 )
 from application.utils.quantize import money_quantize
 from domain.services.account_balance_service import (
-    InMemoryAccountBalanceService,
     SqlAccountBalanceService,
 )
 from domain.services.exchange_rate_policy import ExchangeRatePolicy
@@ -299,6 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
     diag_parity = sub.add_parser("diagnostics:parity-report", help="Compare legacy Book vs new engine on preset or JSON scenarios")
     diag_parity.add_argument("--preset", dest="preset", default="default", help="Preset name (default)")
     diag_parity.add_argument("--scenarios-file", dest="scenarios_file", help="Path to scenarios JSON")
+    diag_parity.add_argument("--expected-file", dest="expected_file", help="Path to expected results JSON (internal consistency when legacy absent)")
     diag_parity.add_argument("--tolerance", dest="tolerance", default="0.01", help="Money tolerance for parity deltas")
     diag_parity.add_argument("--json", dest="json_out", action="store_true")
 
@@ -368,7 +372,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if balances_repo is not None:
             balance_service = SqlAccountBalanceService(transactions=uow.transactions, balances=balances_repo)  # type: ignore[arg-type]
         else:
-            balance_service = InMemoryAccountBalanceService()  # noqa: F841 used later for tx posting and balance queries
+            balance_service = None  # fallback to repository aggregation for parity with previous behavior
         cmd = args.command
         log.info("cli.command", command=cmd)
         # Helper validation functions
@@ -478,25 +482,67 @@ def main(argv: Sequence[str] | None = None) -> int:
                 uow.commit()
             _print({"updated": len(updates)}, args.json_out)
             return 0
+        if cmd == "account:add":
+            full = _validate_account_full_name(args.full_name)
+            cur_code = _validate_currency_code(args.currency_code)
+            uc_acc = CreateAccount(uow)
+            dto_acc = uc_acc(full, cur_code)
+            uow.commit()
+            _print(dto_acc, args.json_out)
+            return 0
+        if cmd == "tx:post":
+            lines_raw: list[str] = getattr(args, "lines", []) or []
+            dto_lines: list[EntryLineDTO] = [_parse_line(r) for r in lines_raw]
+            meta_items: list[str] = getattr(args, "meta", [])
+            meta_dict = _parse_meta(meta_items) if meta_items else {}
+            uc_post = PostTransaction(uow=uow, clock=clock, balance_service=balance_service, rate_policy=policy)
+            tx = uc_post(dto_lines, memo=args.memo, meta=meta_dict)
+            uow.commit()
+            _print(tx, args.json_out)
+            return 0
+        if cmd == "balance:get":
+            acct = _validate_account_full_name(args.account)
+            as_of = _parse_iso8601(getattr(args, "as_of", None))
+            uc_bal = GetBalance(uow=uow, clock=clock, balance_service=balance_service)
+            bal = uc_bal(acct, as_of=as_of)
+            _print({"account": acct, "balance": str(bal)}, args.json_out)
+            return 0
+        if cmd == "balance:recalc":
+            acct = _validate_account_full_name(args.account)
+            as_of = _parse_iso8601(getattr(args, "as_of", None))
+            uc_bal = GetBalance(uow=uow, clock=clock, balance_service=balance_service)
+            bal = uc_bal(acct, as_of=as_of, recompute=True)
+            _print({"account": acct, "balance": str(bal)}, args.json_out)
+            return 0
+        if cmd == "ledger:list":
+            acct = _validate_account_full_name(args.account)
+            start = _parse_iso8601(getattr(args, "start", None))
+            end = _parse_iso8601(getattr(args, "end", None))
+            meta_items: list[str] = getattr(args, "meta", [])
+            meta_dict = _parse_meta(meta_items) if meta_items else None
+            uc_led = ListLedger(uow=uow, clock=clock)
+            rows = uc_led(acct, start=start, end=end, meta=meta_dict, offset=getattr(args, "offset", 0), limit=getattr(args, "limit", None), order=getattr(args, "order", "ASC"))
+            _print(rows, args.json_out)
+            return 0
         if cmd == "trading:balance":
-            as_of = _parse_iso8601(args.as_of)
+            as_of = _parse_iso8601(getattr(args, "as_of", None))
             start = _parse_iso8601(getattr(args, "start", None))
             end = _parse_iso8601(getattr(args, "end", None))
             if start and end and start > end:
                 raise DomainError("start > end")
-            uc = GetTradingBalance(uow=uow, clock=clock)
-            tb = uc(base_currency=args.base, start=start, end=end, as_of=as_of)
+            uc_tb = GetTradingBalance(uow=uow, clock=clock)
+            tb = uc_tb(base_currency=args.base, start=start, end=end, as_of=as_of)
             _print(tb, args.json_out)
             return 0
         if cmd == "trading:detailed":
-            as_of = _parse_iso8601(args.as_of)
+            as_of = _parse_iso8601(getattr(args, "as_of", None))
             start = _parse_iso8601(getattr(args, "start", None))
             end = _parse_iso8601(getattr(args, "end", None))
             if start and end and start > end:
                 raise DomainError("start > end")
-            uc = GetTradingBalanceDetailed(uow=uow, clock=clock)
-            tb = uc(base_currency=args.base, start=start, end=end, as_of=as_of)
-            if args.normalize:
+            uc_tbd = GetTradingBalanceDetailed(uow=uow, clock=clock)
+            tb = uc_tbd(base_currency=args.base, start=start, end=end, as_of=as_of)
+            if getattr(args, "normalize", False):
                 for line in tb.lines:
                     if line.converted_debit is not None:
                         line.converted_debit = money_quantize(line.converted_debit)
@@ -547,11 +593,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for item in coll:
                     print(f"{item['code']} count={item['count']}")
             return 0
+        if cmd == "diagnostics:rates":
+            cur_list = uow.currencies.list_all()
+            result = []
+            active_policy = policy.mode if policy else None
+            for cur in cur_list:
+                result.append({"code": cur.code, "rate": str(cur.exchange_rate) if cur.exchange_rate is not None else None, "is_base": cur.is_base, "policy": active_policy})
+            _print(result, args.json_out)
+            return 0
+        if cmd == "diagnostics:rates-history":
+            cur_list = uow.currencies.list_all()
+            codes = [c.code for c in cur_list]
+            snap = _history_snapshot(codes, limit=getattr(args, "limit", None))
+            if args.json_out:
+                print(json.dumps(snap, indent=2))
+            else:
+                for item in snap:
+                    print(f"{item['code']}: count={item['count']} rates={item['rates']}")
+            return 0
         if cmd == "diagnostics:parity-report":
             try:
                 from presentation.cli.diagnostics import run_parity_report  # type: ignore
             except Exception:
-                # Gracefully output skipped scenarios JSON structure
+                # Gracefully output skipped scenarios JSON structure when diagnostics module missing entirely.
                 skipped = {"scenarios": [], "summary": {"total": 0, "matched": 0, "diverged": 0}}
                 if args.json_out:
                     print(json.dumps(skipped, indent=2))
@@ -559,7 +623,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print("parity-report: skipped (module missing)")
                 return 0
             tolerance = formatters.decimal_from_str(getattr(args, "tolerance", "0.01"))
-            report = run_parity_report(preset=getattr(args, "preset", "default"), scenarios_path=getattr(args, "scenarios_file", None), tolerance=tolerance)
+            report = run_parity_report(preset=getattr(args, "preset", "default"), scenarios_path=getattr(args, "scenarios_file", None), expected_path=getattr(args, "expected_file", None), tolerance=tolerance)
             if args.json_out:
                 print(json.dumps(report, indent=2))
             else:

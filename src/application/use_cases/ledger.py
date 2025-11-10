@@ -12,6 +12,7 @@ from application.dto.models import (
     EntryLineDTO,
     RichTransactionDTO,
     TradingBalanceDTO,
+    TradingBalanceLineDTO,
     TransactionDTO,
 )
 from application.interfaces.ports import Clock, UnitOfWork
@@ -206,16 +207,37 @@ class GetTradingBalance:
     clock: Clock
 
     def __call__(self, base_currency: str | None = None, *, start: datetime | None = None, end: datetime | None = None, as_of: datetime | None = None) -> TradingBalanceDTO:
-        # Derive window: prefer explicit start/end; fallback to as_of as end with open start
-        win_start = start
+        # Determine window and as_of
+        win_start = start or datetime.fromtimestamp(0, tz=self.clock.now().tzinfo)
         win_end = end or as_of or self.clock.now()
-        # Infer base if not provided
+        # Fall back to repository aggregate (as_of) when full window
+        tb = self.uow.transactions.aggregate_trading_balance(as_of=win_end, base_currency=base_currency)
+        # If start is specified, adjust by subtracting lines before start
+        if start is not None:
+            # Re-aggregate only within window using list_between
+            txs = self.uow.transactions.list_between(win_start, win_end)
+            from collections import defaultdict as _dd
+            debit: dict[str, Decimal] = _dd(lambda: Decimal("0"))
+            credit: dict[str, Decimal] = _dd(lambda: Decimal("0"))
+            for tx in txs:
+                for line in tx.lines:
+                    if line.side.upper() == "DEBIT":
+                        debit[line.currency_code] += line.amount
+                    else:
+                        credit[line.currency_code] += line.amount
+            new_lines: list[TradingBalanceLineDTO] = []
+            for cur in sorted(set(debit.keys()) | set(credit.keys())):
+                d = debit.get(cur, Decimal("0"))
+                c = credit.get(cur, Decimal("0"))
+                new_lines.append(TradingBalanceLineDTO(currency_code=cur, total_debit=d, total_credit=c, balance=d - c))
+            tb.lines = new_lines
+            tb.as_of = win_end
+        # Base conversion identical to previous logic
         inferred_base = base_currency
         if inferred_base is None:
             base_obj: CurrencyDTO | None = getattr(self.uow.currencies, "get_base", lambda: None)()
             if base_obj is not None:
                 inferred_base = base_obj.code
-        tb = self.uow.transactions.aggregate_trading_balance(win_start, win_end, base_currency=inferred_base)
         if inferred_base:
             total_base = Decimal("0")
             for line in tb.lines:
@@ -236,27 +258,17 @@ class GetTradingBalance:
 
 @dataclass
 class GetTradingBalanceDetailed:
-    """Расширенная конверсия торгового баланса.
-
-    Требования:
-    - base_currency обязателен
-    - converted_* всегда заполнены
-    - rate_fallback=True если курс отсутствует (rate_used=1)
-    - base_total = сумма converted_balance
-    """
     uow: UnitOfWork
     clock: Clock
 
     def __call__(self, base_currency: str | None, *, start: datetime | None = None, end: datetime | None = None, as_of: datetime | None = None) -> TradingBalanceDTO:
         if not base_currency:
             raise DomainError("base_currency is required for detailed trading balance")
-        win_start = start
-        win_end = end or as_of or self.clock.now()
-        tb = self.uow.transactions.aggregate_trading_balance(win_start, win_end, base_currency=base_currency)
+        # Reuse GetTradingBalance for windowing then recompute detailed conversion
+        base = GetTradingBalance(self.uow, self.clock)(base_currency=base_currency, start=start, end=end, as_of=as_of)
         total_base = Decimal("0")
-        for line in tb.lines:
+        for line in base.lines:
             cur_obj = self.uow.currencies.get_by_code(line.currency_code)
-            # Determine rate
             if cur_obj and cur_obj.code != base_currency and cur_obj.exchange_rate:
                 rate: Decimal = cur_obj.exchange_rate
                 fallback = False
@@ -264,13 +276,12 @@ class GetTradingBalanceDetailed:
                 rate = Decimal("1")
                 fallback = not (cur_obj and cur_obj.code == base_currency)
             zero = Decimal("0")
-            # Conversion (divide by rate to express in base units)
             line.converted_debit = money_quantize(line.total_debit / rate if rate != zero else line.total_debit)
             line.converted_credit = money_quantize(line.total_credit / rate if rate != zero else line.total_credit)
             line.converted_balance = money_quantize(line.balance / rate if rate != zero else line.balance)
             line.rate_used = rate
             line.rate_fallback = fallback
             total_base += line.converted_balance  # type: ignore[arg-type]
-        tb.base_currency = base_currency
-        tb.base_total = money_quantize(total_base)
-        return tb
+        base.base_currency = base_currency
+        base.base_total = money_quantize(total_base)
+        return base

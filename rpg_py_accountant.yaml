@@ -1,7 +1,7 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    description: "Монорепозиторий: домен/приложение/инфраструктура/презентация + пакет py_fledger (двойная запись). Цель — Clean Architecture."
+    description: "Монорепозиторий: домен/приложение/инфраструктура/презентация. Цель — Clean Architecture."
     last_updated: "2025-11-10"
     environments:
       - name: "test"
@@ -94,9 +94,6 @@ rpg:
       - name: "py_accountant"
         path: "src/py_accountant"
         description: "Публичный пакет-оболочка корневого проекта (версия, утилиты)."
-      - name: "py_fledger"
-        path: "src/py_fledger"
-        description: "Пакет двойной записи (DEPRECATED: parity covered by tests/unit/py_fledger/test_parity_book_vs_use_cases.py; migrate to application.use_cases.*)."
 
     files:
       - name: "__init__.py"
@@ -119,10 +116,10 @@ rpg:
         description: "Локальные переменные окружения (dev)."
       - name: "src/application/dto/models.py"
         parent_module: "application"
-        description: "DTO: CurrencyDTO (exchange_rate), AccountDTO, EntryLineDTO, TransactionDTO (lines, memo, meta), TradingBalanceLineDTO (converted_*, rate_used, rate_fallback), TradingBalanceDTO (base_total), RichTransactionDTO, RateUpdateInput"
+        description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO"
       - name: "src/application/interfaces/ports.py"
         parent_module: "application"
-        description: "Порты: Clock, UnitOfWork, CurrencyRepository, AccountRepository, TransactionRepository, BalanceRepository."
+        description: "Порты: Clock, UnitOfWork, CurrencyRepository, AccountRepository, TransactionRepository, BalanceRepository, ExchangeRateEventsRepository."
       - name: "src/infrastructure/persistence/inmemory/repositories.py"
         parent_module: "infrastructure"
         description: "In-memory реализации репозиториев для unit-тестов."
@@ -140,7 +137,7 @@ rpg:
         description: "Use cases: CreateCurrency, CreateAccount, PostTransaction, UpdateCurrenciesFromTransaction, GetBalance, GetLedger, ListLedger, GetTradingBalance, GetTradingBalanceDetailed"
       - name: "src/infrastructure/persistence/sqlalchemy/models.py"
         parent_module: "infrastructure"
-        description: "ORM модели: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, BalanceORM"
+        description: "ORM модели: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, BalanceORM, ExchangeRateEventORM"
       - name: "src/domain/services/account_balance_service.py"
         parent_module: "domain"
         description: "Сервисы баланса: InMemoryAccountBalanceService, SqlAccountBalanceService (инкрементальный и пересчёт)"
@@ -153,6 +150,9 @@ rpg:
       - name: "src/presentation/cli/formatters.py"
         parent_module: "presentation"
         description: "Помощники CLI: безопасный парсинг Decimal, сериализация dataclass/Decimal/datetime, human-форматирование"
+      - name: "alembic/versions/0004_add_exchange_rate_events.py"
+        parent_module: "infrastructure"
+        description: "Alembic миграция: exchange_rate_events (id, code, rate, occurred_at, policy_applied, source) + индексы"
 
     components:
       - name: "IUnitOfWork"
@@ -310,6 +310,13 @@ rpg:
         testable: true
         test_priority: "high"
 
+      - name: "ExchangeRateEventsRepository"
+        parent_file: "src/application/interfaces/ports.py"
+        type: "protocol"
+        description: "Аудит событий курсов: add_event/list_events (новейшие первыми)"
+        testable: true
+        test_priority: "high"
+
       # Domain value objects & errors
       - name: "DomainError"
         parent_file: "src/domain/value_objects.py"
@@ -461,6 +468,12 @@ rpg:
         description: "Вход для batch обновления курсов (code, rate)"
         testable: true
         test_priority: "medium"
+      - name: "ExchangeRateEventDTO"
+        parent_file: "src/application/dto/models.py"
+        type: "dataclass"
+        description: "DTO события обновления курса: id, code, rate, occurred_at, policy_applied, source"
+        testable: true
+        test_priority: "medium"
 
   tests:
     unit_tests:
@@ -536,16 +549,17 @@ rpg:
           "test_trading_detailed_missing_base",
         ]
         coverage_status: "exists"
-      - target_component: "Parity Book vs Use Cases"
-        test_file: "tests/unit/py_fledger/test_parity_book_vs_use_cases.py"
-        test_functions: [
-          "test_parity_single_tx_usd[None]",
-          "test_parity_single_tx_usd[1.0]",
-          "test_parity_multi_currency_with_rates",
-          "test_parity_ledger_window_and_order",
-          "test_parity_trading_balance_and_detailed",
-          "test_negative_unbalanced_transaction_rejected"
-        ]
+      - target_component: "FX Audit repository"
+        test_file: "tests/unit/test_fx_audit.py"
+        test_functions: ["test_fx_audit_events_basic", "test_fx_audit_limit"]
+        coverage_status: "exists"
+      - target_component: "Trading windows"
+        test_file: "tests/unit/test_trading_windows.py"
+        test_functions: ["test_trading_balance_window_filters_outside"]
+        coverage_status: "exists"
+      - target_component: "Parity internal consistency"
+        test_file: "tests/unit/test_parity_internal_consistency.py"
+        test_functions: ["test_parity_report_skipped_without_expected", "test_parity_report_internal_consistency_with_expected"]
         coverage_status: "exists"
     integration_tests:
       - integration_point: "Presentation -> Application (CLI)"
@@ -584,6 +598,10 @@ rpg:
         test_description: "Проверка наличия/отсутствия is_base при upgrade/downgrade"
         test_file: "tests/integration/ledger/test_migration_is_base_column.py"
         coverage_status: "exists"
+      - integration_point: "Alembic migration 0004 exchange_rate_events"
+        test_description: "Upgrade/downgrade создаёт/удаляет exchange_rate_events"
+        test_file: "tests/integration/ledger/test_alembic_migration.py"
+        coverage_status: "exists"
     perf_tests:
       - target: "CLI performance smoke"
         test_file: "tests/perf/test_cli_perf.py"
@@ -604,18 +622,10 @@ rpg:
         to: "application"
         data_type: "Реализации портов (репозитории/UoW)"
         description: "Адаптеры предоставляют реализацию интерфейсов."
-      - from: "py_fledger"
-        to: "application"
-        data_type: "Возможное внутреннее использование доменных сервисов"
-        description: "Пакет учёта используется из use cases при необходимости."
       - from: "config"
         to: "infrastructure"
         data_type: "Settings (DATABASE_URL, LOG_LEVEL, JSON_LOGS, ENV)"
         description: "Репозитории, UоW и логирование используют настройки."
-      - from: "config"
-        to: "application"
-        data_type: "Settings DTO"
-        description: "Use cases получают значения конфигурации через провайдер."
       - from: "logging"
         to: "presentation"
         data_type: "structlog logger"
@@ -882,33 +892,36 @@ rpg:
       title: "Производительность и индексы"
       details:
         - "Индексы по ключевым полям (occured_at, account, currency)"
-        - "Профилирование запросов"
+        - "Минимальный профильный бенч (1000 tx)"
       deliverables:
         - "DDL индексов и метрики"
-      status: "partial"  # индексы добавлены, профилирование полноценно - в будущем
+      status: "done"
       priority: "medium"
-
-    - id: "NS14"
-      title: "E2E API/CLI wiring"
+    - id: "NS15"
+      title: "FX Audit (exchange_rate_events)"
       details:
-        - "Связка presentation -> application через DI"
-        - "E2E сценарии: создание валют/счетов/проводок, баланс, леджер, trading balance"
-        - "CLI: полноценный набор команд (currency:add,set-base,list; fx:update,batch; account:add; tx:post; balance:get,recalc; trading:balance,detailed; ledger:list)"
+        - "Alembic миграция exchange_rate_events"
+        - "Репозиторий и ORM модель"
+        - "CLI: diagnostics:rates-audit, запись событий в fx:update/batch"
       deliverables:
-        - "Точки входа CLI + e2e тесты"
-        - "Глобальные флаги (--db-url, --log-level, --json-logs, --policy, --json)"
-        - "Форматы вывода human/json (Decimal -> str, datetime -> ISO8601)"
-      status: "done (CLI); API deferred"
+        - "alembic 0004, SqlAlchemy/InMemory repos"
+      status: "done"
       priority: "high"
-      acceptance:
-        - "Команды работают, тесты зелёные (unit/e2e/perf)"
-        - "json вывод сериализует Decimal как строку и datetime как ISO"
-        - "DomainError -> exit code 2"
-        - "Перфоманс-дымовой тест (1000 tx) проходит без логических ошибок"
-
+    - id: "NS16"
+      title: "Trading balance time windows"
+      details:
+        - "Аргументы --start/--end для trading:balance и trading:detailed"
+        - "Фильтрация репозиториями внутри окна"
+      deliverables:
+        - "Use cases + CLI"
+      status: "done"
+      priority: "medium"
   cli_extensions:
     - command: "diagnostics:rates"
       description: "Список валют с текущими курсами, флаг is_base и активной глобальной политикой (human/json)"
+      status: "added"
+    - command: "diagnostics:rates-audit"
+      description: "Аудит последних событий курса по валютам (limit, code, json)"
       status: "added"
     - command: "fx:batch --policy"
       description: "Локальный override политики обновления курсов (last_write|weighted_average)"
@@ -917,16 +930,16 @@ rpg:
       description: "Принудительное округление converted_* и base_total до MONEY_SCALE перед выводом"
       status: "added"
     - command: "diagnostics:parity-report"
-      description: "JSON сравнение legacy Book vs new engine по нескольким сценариям (паритет, rounding_deltas)"
-      status: "added"
+      description: "JSON parity; при отсутствии legacy — skipped или internal consistency через --expected-file"
+      status: "updated"
     - command: "diagnostics:rates-history"
       description: "Ephemeral in-memory история последних N курсов (RATE_HISTORY_LEN)"
       status: "added"
   legacy_deprecation:
     py_fledger:
-      status: "deprecated"
-      planned_removal_iteration: "+2"
-      migration_help: "Используйте application.use_cases.* и CLI; parity-report для проверки сценариев."
+      status: "removed"
+      planned_removal_iteration: null
+      migration_help: "Используйте application.use_cases.* и CLI; diagnostics:parity-report для проверки сценариев (без legacy — internal expected/skip)."
   roadmap_updates:
     - id: "NS9"
       status: "done"
@@ -942,4 +955,4 @@ rpg:
       status: "planned"
     - id: "NS13"
       title: "Производительность и индексы"
-      status: "partial"  # индексы добавлены, профилирование полноценно - в будущем
+      status: "done"

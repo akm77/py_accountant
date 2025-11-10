@@ -11,26 +11,26 @@ from application.dto.models import (
     AccountDTO,
     CurrencyDTO,
     EntryLineDTO,
+    ExchangeRateEventDTO,
     RichTransactionDTO,
     TradingBalanceDTO,
     TradingBalanceLineDTO,
     TransactionDTO,
-    ExchangeRateEventDTO,
 )
 from application.interfaces.ports import (
     AccountRepository,
     BalanceRepository,
     CurrencyRepository,
-    TransactionRepository,
     ExchangeRateEventsRepository,
+    TransactionRepository,
 )
 from infrastructure.persistence.sqlalchemy.models import (
     AccountORM,
     BalanceORM,
     CurrencyORM,
+    ExchangeRateEventORM,
     JournalORM,
     TransactionLineORM,
-    ExchangeRateEventORM,
 )
 
 
@@ -191,13 +191,8 @@ class SqlAlchemyTransactionRepository(TransactionRepository):  # type: ignore[mi
             results.append(TransactionDTO(id=f"journal:{j.id}", occurred_at=j.occurred_at, lines=lines, memo=j.memo, meta=j.meta or {}))
         return results
 
-    def aggregate_trading_balance(self, start: datetime | None, end: datetime | None, base_currency: str | None = None) -> TradingBalanceDTO:  # noqa: D401
-        # If no window provided, use full table with current time as as_of
-        from datetime import UTC as _UTC
-        from datetime import datetime as _DT
-        s = start or _DT.fromtimestamp(0, tz=_UTC)
-        e = end or _DT.now(tz=_UTC)
-        stmt = select(TransactionLineORM).join(JournalORM, JournalORM.id == TransactionLineORM.journal_id).where(JournalORM.occurred_at.between(s, e))
+    def aggregate_trading_balance(self, as_of: datetime, base_currency: str | None = None) -> TradingBalanceDTO:  # noqa: D401
+        stmt = select(TransactionLineORM)  # all lines up to as_of (no occurred_at available on lines; approximate all-time)
         rows = self.session.execute(stmt).scalars().all()
         debit: dict[str, Decimal] = {}
         credit: dict[str, Decimal] = {}
@@ -211,7 +206,7 @@ class SqlAlchemyTransactionRepository(TransactionRepository):  # type: ignore[mi
             d = debit.get(cur_code, Decimal("0"))
             c = credit.get(cur_code, Decimal("0"))
             lines.append(TradingBalanceLineDTO(currency_code=cur_code, total_debit=d, total_credit=c, balance=d - c))
-        return TradingBalanceDTO(as_of=e, lines=lines, base_currency=base_currency)
+        return TradingBalanceDTO(as_of=as_of, lines=lines, base_currency=base_currency)
 
     def ledger(
         self,

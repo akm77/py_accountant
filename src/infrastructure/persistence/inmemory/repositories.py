@@ -113,17 +113,11 @@ class InMemoryTransactionRepository(TransactionRepository):  # type: ignore[misc
             return Decimal("1")
         return cur.exchange_rate or Decimal("1")
 
-    def aggregate_trading_balance(
-        self, start: datetime | None, end: datetime | None, base_currency: str | None = None
-    ) -> TradingBalanceDTO:  # noqa: D401
+    def aggregate_trading_balance(self, as_of: datetime, base_currency: str | None = None) -> TradingBalanceDTO:  # noqa: D401
         debit: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
         credit: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-        # Default window: all time
-        from datetime import UTC as _UTC, datetime as _DT
-        s = start or _DT.fromtimestamp(0, tz=_UTC)
-        e = end or _DT.now(tz=_UTC)
         for tx in self._transactions.values():
-            if not (s <= tx.occurred_at <= e):
+            if tx.occurred_at > as_of:
                 continue
             for line in tx.lines:
                 amt = line.amount
@@ -136,8 +130,15 @@ class InMemoryTransactionRepository(TransactionRepository):  # type: ignore[misc
             total_debit = debit[cur]
             total_credit = credit[cur]
             balance = total_debit - total_credit
-            lines.append(TradingBalanceLineDTO(currency_code=cur, total_debit=total_debit, total_credit=total_credit, balance=balance))
-        return TradingBalanceDTO(as_of=e, lines=lines, base_currency=base_currency)
+            lines.append(
+                TradingBalanceLineDTO(
+                    currency_code=cur,
+                    total_debit=total_debit,
+                    total_credit=total_credit,
+                    balance=balance,
+                )
+            )
+        return TradingBalanceDTO(as_of=as_of, lines=lines, base_currency=base_currency)
 
     def ledger(
         self,

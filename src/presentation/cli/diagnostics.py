@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -135,30 +136,81 @@ def _post_new(uow: InMemoryUnitOfWork, clock: FixedClock, memo: str, lines: list
     PostTransaction(uow, clock, rate_policy=policy)(dto_lines, memo=memo, meta={})
 
 
-def run_parity_report(*, preset: str = "default", scenarios_path: str | None, tolerance: Decimal) -> dict[str, Any]:
+def run_parity_report(*, preset: str = "default", scenarios_path: str | None, expected_path: str | None = None, tolerance: Decimal) -> dict[str, Any]:
     # Prepare scenarios
     if scenarios_path:
         scenarios = _load_scenarios_from_file(scenarios_path)
     else:
         scenarios = _default_scenarios() if preset == "default" else _default_scenarios()
+    expected_map: dict[str, Any] = {}
+    if expected_path and os.path.exists(expected_path):  # type: ignore[name-defined]
+        try:
+            raw_expected = json.loads(open(expected_path, encoding="utf-8").read())
+            if isinstance(raw_expected, dict):
+                expected_map = raw_expected
+        except Exception:
+            expected_map = {}
     report: dict[str, Any] = {"scenarios": [], "summary": {"total": 0, "matched": 0, "diverged": 0}}
-
-    # Attempt legacy setup
     legacy_available = True
     try:
         lb = _setup_legacy("sqlite+pysqlite:///:memory:")
     except Exception:
         legacy_available = False
         lb = None
-
     now = datetime.now(UTC)
     for sc in scenarios:
         result: dict[str, Any] = {"name": sc.name, "status": "skipped", "differences": {}, "tolerance": str(tolerance)}
         if not legacy_available:
-            result["status"] = "skipped"
-            result["reason"] = "legacy_unavailable"
+            # Internal consistency mode if expected provided
+            if expected_map:
+                # Build new engine state
+                uow = InMemoryUnitOfWork()
+                clock = FixedClock(now)
+                cur_codes = sorted({ln[3].upper() for ln in sc.lines})
+                for code in cur_codes:
+                    CreateCurrency(uow)(code)
+                base_cur = cur_codes[0] if cur_codes else None
+                if base_cur:
+                    uow.currencies.set_base(base_cur)
+                accs = sorted({ln[1] for ln in sc.lines})
+                acc_currency: dict[str, str] = {}
+                for side, account, amount, currency, rate, meta in sc.lines:
+                    acc_currency.setdefault(account, currency.upper())
+                for acc in accs:
+                    line_currency = acc_currency.get(acc, base_cur or (cur_codes[0] if cur_codes else "USD"))
+                    CreateAccount(uow)(acc, line_currency)
+                _post_new(uow, clock, sc.name, sc.lines)
+                # Compare vs expected
+                differences: dict[str, Any] = {"balances": {}, "trading_balance": {}, "rounding_deltas": []}
+                matched = True
+                expected_entry = expected_map.get(sc.name, {}) if isinstance(expected_map.get(sc.name, {}), dict) else {}
+                expected_balances: dict[str, str] = expected_entry.get("balances", {}) if isinstance(expected_entry.get("balances", {}), dict) else {}
+                for acc in accs:
+                    new_bal = GetBalance(uow, clock)(acc)
+                    q_new = money_quantize(new_bal)
+                    exp_val = Decimal(str(expected_balances.get(acc, "0")))
+                    q_exp = money_quantize(exp_val)
+                    delta = (q_exp - q_new).copy_abs()
+                    if delta > tolerance:
+                        matched = False
+                        differences["rounding_deltas"].append({"account": acc, "expected": str(q_exp), "new": str(q_new), "delta": str(delta)})
+                    differences["balances"][acc] = {"expected": str(q_exp), "new": str(q_new), "delta": str(delta)}
+                exp_base_total = Decimal(str(expected_entry.get("base_total", "0")))
+                tb_new = GetTradingBalanceDetailed(uow, clock)(base_cur or (cur_codes[0] if cur_codes else "USD")) if (base_cur or cur_codes) else None
+                new_base_total = money_quantize(tb_new.base_total) if tb_new and tb_new.base_total is not None else money_quantize(Decimal("0"))
+                delta_bt = (money_quantize(exp_base_total) - new_base_total).copy_abs()
+                if delta_bt > tolerance:
+                    matched = False
+                    differences["rounding_deltas"].append({"trading_base_total": True, "expected": str(money_quantize(exp_base_total)), "new": str(new_base_total), "delta": str(delta_bt)})
+                differences["trading_balance"] = {"base_total": {"expected": str(money_quantize(exp_base_total)), "new": str(new_base_total), "delta": str(delta_bt)}}
+                result["status"] = "matched" if matched else "diverged"
+                result["differences"] = differences
+            else:
+                result["status"] = "skipped"
+                result["reason"] = "legacy_unavailable"
             report["scenarios"].append(result)
             continue
+        # Legacy path unchanged below
         # Setup new engine per scenario for isolation
         uow = InMemoryUnitOfWork()
         clock = FixedClock(now)
