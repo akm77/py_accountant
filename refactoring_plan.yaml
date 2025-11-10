@@ -198,36 +198,77 @@ refactoring_plan:
 
     - id: "ASYNC-06"
       title: "Use cases: переход на async с минимальным шумом"
-      status: "planned"
+      status: "done"
       depends_on: ["ASYNC-05"]
       changes:
-        - "Ключевые use cases, где есть I/O, сделать async (или ввести слой ApplicationService с async методами)"
-        - "В местах, где синхронный код, использовать бридж UoW shim для совместимости"
+        - "Добавлен параллельный пакет src/application/use_cases_async с Async* use cases (валюты, счета, леджер, балансы, trading, fx audit)"
+        - "Сигнатуры соответствуют sync-парам; взаимодействие только через AsyncUnitOfWork/Async*Repository"
+        - "Существующие sync use cases оставлены без изменений (CLI совместимость)"
       deliverables:
-        - "ledger.py: async версии методов, согласованные с async UoW"
+        - "src/application/use_cases_async/__init__.py"
+        - "src/application/use_cases_async/currencies.py"
+        - "src/application/use_cases_async/accounts.py"
+        - "src/application/use_cases_async/ledger.py"
+        - "src/application/use_cases_async/fx_audit.py"
+        - "tests/unit/application/test_async_use_cases_smoke.py"
       tests:
-        - "Обновить unit тесты use cases -> pytest.mark.asyncio"
+        - "Smoke: создание валют/базы, счёта, транзакции; ledger/баланс/trading; edge: limit=0, offset<0"
+        - "Ошибки: set_base для несуществующей валюты; create_account без валюты; post_tx без аккаунта"
       acceptance:
-        - "Существующие сценарии зелёные и не теряют функциональность"
+        - "Все существующие sync тесты зелёные; новые async smoke тесты проходят"
+        - "Докстроки присутствуют у всех новых функций"
       risks:
-        - "Увязка с CLI синхронным запуском — потребуется обёртка"
+        - "Смешивание sync/async — исключено за счёт отдельных модулей use_cases_async"
+      completion_notes:
+        completed_at: "2025-11-10"
+        commit_ref: "REF_PLACEHOLDER"
+        summary: "Введены Async* use cases в отдельном пакете без изменения sync слоя; добавлен smoke-тестовый сценарий."
+        verification:
+          - "pytest: 152 passed, 1 skipped (включая новые async smoke тесты)"
+          - "grep use_cases_async: >= 5 async функций/классов"
+          - "ruff/flake8: нет ошибок в новых файлах"
+        follow_up:
+          - "ASYNC-07: CLI/Presentation обёртки поверх async use cases (run_sync)"
 
     - id: "ASYNC-07"
       title: "CLI/Presentation: синхронные обёртки поверх async use cases"
-      status: "planned"
+      status: "done"
       depends_on: ["ASYNC-06"]
       changes:
-        - "В CLI точке входа — запуск async use cases через asyncio.run/anyio.run"
-        - "Единый helper run_sync(coro) для безопасного выполнения в отсутствии активного цикла"
+        - "Добавлен общий helper run_sync(coro) (guard на running loop, закрытие корутины перед RuntimeError, PEP695 generic)"
+        - "Helper размещён в src/infrastructure/utils/asyncio_utils.py (переименовано с asyncio.py для избежания теневого импорта)"
+        - "Создан модуль фасадов src/presentation/async_bridge.py: синхронные функции над async use cases"
+        - "Переключён CLI (presentation/cli/main.py) на фасады: currency:add|list|set-base, account:add, tx:post, balance:get|recalc, trading:balance|detailed, ledger:list, fx:update, fx:batch"
+        - "Сохранены формат/сигнатуры CLI и коды ошибок; сообщения без изменений"
+        - "В фасадах реализовано ensure_schema для Async SQLAlchemy (create_all один раз на engine)"
+        - "Проверка балансированности транзакций поддерживает мультивалютные строки с курсами (для trading:detailed тестов)"
       deliverables:
-        - "src/presentation/cli/main.py: интеграция с async use cases"
-        - "Helper: infrastructure/utils/asyncio.py (run_coro_safely)"
+        - "src/infrastructure/utils/asyncio_utils.py (run_sync)"
+        - "src/presentation/async_bridge.py (синхронные фасады поверх async use cases)"
+        - "Обновлённый src/presentation/cli/main.py (импорты и вызовы через фасады)"
+        - "tests/unit/presentation/test_run_sync.py (unit для run_sync + smoke фасадов)"
       tests:
-        - "CLI e2e остаются зелёными"
+        - "Unit: run_sync вне/внутри event loop (RuntimeError с подсказкой; без RuntimeWarning — корутина закрывается)"
+        - "Unit: фасады currency (smoke) и DomainError при set_base без валюты"
+        - "E2E/CLI: весь существующий набор зелёный (включая perf сценарии)"
       acceptance:
-        - "perf test_cli_perf.py не деградирует существенно"
+        - "Все unit/integration/e2e/perf тесты зелёные; формат CLI вывода не изменился"
+        - "ruff: устранены замечания (UP047 generic, SIM105 suppress, import shadowing)"
       risks:
-        - "Двойной run loop в тестовой среде — защитные проверки"
+        - "Изменение поведения CLI — минимизировано за счёт точечных фасадов и сохранённого формата"
+      completion_notes:
+        completed_at: "2025-11-10"
+        commit_ref: "REF_PLACEHOLDER"
+        summary: |
+          Введены синхронные фасады над async use cases и helper run_sync. CLI переведён на фасады
+          без изменения UX/формата. Исправлены технические моменты: переименование asyncio.py -> asyncio_utils.py,
+          generic по PEP 695, suppress при закрытии корутины. Добавлены unit‑тесты; все e2e/perf проходят.
+        verification:
+          - "pytest: все тесты зелёные (unit/e2e/perf); новый test_run_sync.py — зелёный"
+          - "grep presentation/cli/main.py — вызовы идут через presentation.async_bridge"
+          - "ruff: нет новых ошибок (UP047/SIM105 учтены)"
+        follow_up:
+          - "ASYNC-08: перенести maintenance/TTL и прочие вспомогательные CLI пути на фасады при необходимости"
 
     - id: "ASYNC-08"
       title: "FX Audit/TTL: адаптация async путей"

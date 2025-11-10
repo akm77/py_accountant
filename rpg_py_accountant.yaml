@@ -106,6 +106,9 @@ rpg:
       - name: "application"
         path: "src/application"
         description: "Сценарии (use cases), DTO и интерфейсы портов (репозитории, UoW, Clock)."
+      - name: "use_cases_async"
+        path: "src/application/use_cases_async"
+        description: "Async use cases: currencies/accounts/ledger/trading/fx audit (параллельно sync)."
       - name: "domain"
         path: "src/domain"
         description: "Чистый домен: value-объекты, агрегаты, сервисы (баланс, курсы)."
@@ -130,6 +133,12 @@ rpg:
       - name: "repositories_async"
         path: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
         description: "Async репозитории: Currency, Account, Transaction, Balance, ExchangeRateEvents (эквивалентная семантика sync)."
+      - name: "asyncio_utils"
+        path: "src/infrastructure/utils/asyncio_utils.py"
+        description: "Helper run_sync(coro): безопасный запуск корутин из sync-контекста (guard на running loop, PEP695 generic)."
+      - name: "async_bridge"
+        path: "src/presentation/async_bridge.py"
+        description: "Синхронные фасады над async use cases для CLI (currency/account/tx/ledger/balance/trading/FX)."
 
     files:
       - name: "__init__.py"
@@ -156,6 +165,21 @@ rpg:
       - name: "src/application/interfaces/ports.py"
         parent_module: "application"
         description: "Порты: Clock, UnitOfWork, CurrencyRepository, AccountRepository, TransactionRepository, BalanceRepository, ExchangeRateEventsRepository."
+      - name: "src/application/use_cases_async/__init__.py"
+        parent_module: "use_cases_async"
+        description: "Пакет экспорта Async* use cases (currencies/accounts/ledger/trading/fx_audit)."
+      - name: "src/application/use_cases_async/currencies.py"
+        parent_module: "use_cases_async"
+        description: "Async валютные кейсы: AsyncCreateCurrency, AsyncSetBaseCurrency, AsyncListCurrencies."
+      - name: "src/application/use_cases_async/accounts.py"
+        parent_module: "use_cases_async"
+        description: "Async аккаунты: AsyncCreateAccount, AsyncGetAccount, AsyncListAccounts."
+      - name: "src/application/use_cases_async/ledger.py"
+        parent_module: "use_cases_async"
+        description: "Async леджер и баланс: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance."
+      - name: "src/application/use_cases_async/fx_audit.py"
+        parent_module: "use_cases_async"
+        description: "Async FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents."
       - name: "src/infrastructure/persistence/sqlalchemy/models.py"
         parent_module: "infrastructure"
         description: "ORM модели: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, BalanceORM, ExchangeRateEventORM, ExchangeRateEventArchiveORM"
@@ -171,6 +195,12 @@ rpg:
       - name: "docs/RUNNING_MIGRATIONS.md"
         parent_module: "infrastructure"
         description: "Helper для CI: запуск Alembic миграций, примеры GitHub Actions/GitLab, checklist."
+      - name: "src/infrastructure/utils/asyncio_utils.py"
+        parent_module: "infrastructure"
+        description: "run_sync(coro): запрет nested loop, корректное закрытие корутины при ошибке."
+      - name: "src/presentation/async_bridge.py"
+        parent_module: "presentation"
+        description: "Слой фасадов для CLI, ensure_schema(), маппинг параметров 1-в-1 с командами."
 
     components:
       - name: "SqlAlchemyUnitOfWork"
@@ -208,6 +238,27 @@ rpg:
         testable: true
         test_priority: "high"
 
+      - name: "AsyncUseCases"
+        parent_file: "src/application/use_cases_async/*"
+        type: "module"
+        description: "Async аналоги основных use cases; тонкая оркестрация поверх AsyncUnitOfWork."
+        testable: true
+        test_priority: "medium"
+
+      - name: "run_sync"
+        parent_file: "src/infrastructure/utils/asyncio_utils.py"
+        type: "function"
+        description: "Generic PEP695 синхронный запуск корутин; проверка активного event loop, close() + RuntimeError."
+        testable: true
+        test_priority: "high"
+
+      - name: "AsyncBridgeFacades"
+        parent_file: "src/presentation/async_bridge.py"
+        type: "module"
+        description: "Фасады: create_currency_sync, set_base_currency_sync, list_currencies_sync, create_account_sync, post_transaction_sync, list_transactions_between_sync, get_ledger_sync, get_account_balance_sync, get_trading_balance_sync, get_trading_balance_detailed_sync, add/list FX событий, set/bulk rates."
+        testable: true
+        test_priority: "high"
+
   tests:
     unit_tests:
       - target_component: "Async repositories"
@@ -222,6 +273,16 @@ rpg:
             "test_ledger_pagination_order_and_edges",
             "test_balances_cache_upsert_get_clear",
             "test_fx_events_list_filters_and_limits",
+          ]
+        coverage_status: "added"
+      - target_component: "Async use cases smoke"
+        test_file: "tests/unit/application/test_async_use_cases_smoke.py"
+        test_functions:
+          [
+            "test_async_use_cases_smoke",
+            "test_async_set_base_missing_currency_raises",
+            "test_async_create_account_missing_currency",
+            "test_async_post_transaction_missing_account",
           ]
         coverage_status: "added"
       - target_component: "FX Audit repository (sync)"
@@ -269,3 +330,20 @@ rpg:
       title: "Async Protocols для UoW и репозиториев"
       status: "done"
       notes: "ports.py дополнен AsyncUnitOfWork и Async*Repository Protocol; sync контракты сохранены; добавлен структурный тест test_async_ports_protocols.py."
+    - id: "ASYNC-06"
+      title: "Use cases: переход на async с минимальным шумом"
+      status: "done"
+      notes: |
+        Добавлен пакет application/use_cases_async с async вариантами ключевых сценариев:
+        - Валюты: AsyncCreateCurrency, AsyncSetBaseCurrency, AsyncListCurrencies
+        - Счета: AsyncCreateAccount, AsyncGetAccount, AsyncListAccounts
+        - Транзакции/Леджер: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance
+        - FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents
+        Добавлен unit smoke тест tests/unit/application/test_async_use_cases_smoke.py (создание валют/счёта/транзакции, леджер, балансы, edge: limit=0/offset<0, ошибки). Существующие sync use cases не изменялись. Все новые функции имеют докстроки.
+    - id: "ASYNC-07"
+      title: "CLI/Presentation: синхронные обёртки поверх async use cases"
+      status: "done"
+      notes: |
+        CLI теперь использует async use cases через синхронные фасады (presentation/async_bridge.py) и общий helper run_sync.
+        Публичное поведение CLI (формат вывода, тексты ошибок) не изменилось; perf/e2e тесты зелёные.
+        Добавлена защита от вложенного event loop, исправлены замечания линтера (UP047, SIM105, import shadowing).

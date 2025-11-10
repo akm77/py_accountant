@@ -331,3 +331,51 @@ with wrapper:
     wrapper.commit()
     wrapper.rollback()
 ```
+
+### 15. Async use cases (Application Layer)
+
+Рекомендуемый путь для интеграции на async — использовать `AsyncUnitOfWork` и async use cases из `application.use_cases_async`.
+
+```python
+import asyncio
+from datetime import datetime, UTC
+from decimal import Decimal
+from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from application.use_cases_async import (
+    AsyncCreateCurrency,
+    AsyncSetBaseCurrency,
+    AsyncCreateAccount,
+    AsyncPostTransaction,
+    AsyncGetAccountBalance,
+)
+from application.dto.models import EntryLineDTO
+
+class SystemClock:
+    def now(self) -> datetime:
+        return datetime.now(UTC)
+
+async def main() -> None:
+    uow = AsyncSqlAlchemyUnitOfWork("sqlite+aiosqlite:///./example_async.db")
+    async with uow:  # открываем транзакционную границу
+        # Валюты
+        await AsyncCreateCurrency(uow)("USD")
+        await AsyncSetBaseCurrency(uow)("USD")
+        # Счета
+        await AsyncCreateAccount(uow)("Assets:Cash", "USD")
+        # Транзакция
+        lines = [
+            EntryLineDTO("DEBIT", "Assets:Cash", Decimal("100"), "USD"),
+            EntryLineDTO("CREDIT", "Assets:Cash", Decimal("100"), "USD"),
+        ]
+        await AsyncPostTransaction(uow, SystemClock())(lines, memo="Init")
+        # Баланс
+        bal = await AsyncGetAccountBalance(uow, SystemClock())("Assets:Cash")
+        print("Balance:", bal)
+
+asyncio.run(main())
+```
+
+Заметки:
+- Все async use cases принимают `AsyncUnitOfWork` и используют только awaitable-методы репозиториев.
+- Существующие sync use cases остаются для CLI/обратной совместимости (перенос в ASYNC-07).
+- Методы list возвращают списки, параметры `meta` передаются прозрачно (можно `None` или `{}`).
