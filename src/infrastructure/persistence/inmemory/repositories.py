@@ -194,6 +194,7 @@ class InMemoryTransactionRepository(TransactionRepository):  # type: ignore[misc
 class InMemoryExchangeRateEventsRepository(ExchangeRateEventsRepository):  # type: ignore[misc]
     def __init__(self) -> None:
         self._events: list[ExchangeRateEventDTO] = []
+        self._archive: list[dict[str, Any]] = []  # simulate archive table rows
         self._next_id = 1
 
     def add_event(self, code: str, rate: Decimal, occurred_at: datetime, policy_applied: str, source: str | None) -> ExchangeRateEventDTO:  # noqa: D401
@@ -212,3 +213,49 @@ class InMemoryExchangeRateEventsRepository(ExchangeRateEventsRepository):  # typ
         if limit is not None and limit >= 0:
             items = items[:limit]
         return list(items)
+
+    # TTL helpers
+    def list_old_events(self, cutoff: datetime, limit: int) -> list[ExchangeRateEventDTO]:  # noqa: D401
+        # normalize cutoff to aware UTC if naive
+        if cutoff.tzinfo is None:
+            from datetime import UTC
+            cutoff = cutoff.replace(tzinfo=UTC)
+        items = [e for e in self._events if (e.occurred_at.replace(tzinfo=e.occurred_at.tzinfo or cutoff.tzinfo)) < cutoff]
+        items.sort(key=lambda e: (e.occurred_at, e.id or 0))
+        return items[: max(0, limit)]
+
+    def delete_events_by_ids(self, ids: list[int]) -> int:  # noqa: D401
+        before = len(self._events)
+        ids_set = set(ids)
+        self._events = [e for e in self._events if (e.id or -1) not in ids_set]
+        return before - len(self._events)
+
+    def archive_events(self, rows: list[ExchangeRateEventDTO], archived_at: datetime) -> int:  # noqa: D401
+        cnt = 0
+        for e in rows:
+            if e.id is None:
+                continue
+            self._archive.append({
+                "source_id": e.id,
+                "code": e.code,
+                "rate": e.rate,
+                "occurred_at": e.occurred_at,
+                "policy_applied": e.policy_applied,
+                "source": e.source,
+                "archived_at": archived_at,
+            })
+            cnt += 1
+        return cnt
+
+    def move_events_to_archive(self, cutoff: datetime, limit: int, archived_at: datetime) -> tuple[int, int]:  # noqa: D401
+        rows = self.list_old_events(cutoff, limit)
+        if not rows:
+            return (0, 0)
+        archived = self.archive_events(rows, archived_at)
+        deleted = self.delete_events_by_ids([int(e.id) for e in rows if e.id is not None])
+        return archived, deleted
+
+    # helper for tests
+    def _archive_rows(self) -> list[dict[str, Any]]:
+        return list(self._archive)
+

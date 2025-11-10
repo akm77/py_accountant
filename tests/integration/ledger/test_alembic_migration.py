@@ -17,7 +17,7 @@ def test_alembic_upgrade_creates_tables(tmp_path):
     engine = create_engine(db_url, future=True)
     insp = inspect(engine)
     tables = set(insp.get_table_names())
-    expected = {"currencies", "accounts", "journals", "transaction_lines", "balances", "exchange_rate_events"}
+    expected = {"currencies", "accounts", "journals", "transaction_lines", "balances", "exchange_rate_events", "exchange_rate_events_archive"}
     for t in expected:
         assert t in tables
 
@@ -34,3 +34,4 @@ def test_alembic_downgrade_removes_tables(tmp_path):
     remaining = set(insp.get_table_names())
     # Only Alembic's version table may remain (exchange_rate_events removed)
     assert "exchange_rate_events" not in remaining
+    assert "exchange_rate_events_archive" not in remaining

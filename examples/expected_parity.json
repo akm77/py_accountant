@@ -1,0 +1,16 @@
+{
+  "single_currency_basic": {
+    "balances": {
+      "Assets:Cash": "100",
+      "Income:Sales": "-100"
+    },
+    "base_total": "0"
+  },
+  "multi_currency_cross": {
+    "balances": {
+      "Assets:Cash": "100",
+      "Income:Sales": "-125"
+    },
+    "base_total": "-25"
+  }
+}

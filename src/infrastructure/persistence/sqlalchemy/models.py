@@ -98,6 +98,22 @@ class ExchangeRateEventORM(Base):
     )
 
 
+class ExchangeRateEventArchiveORM(Base):
+    __tablename__ = "exchange_rate_events_archive"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    rate: Mapped[Decimal] = mapped_column(Numeric(20, 10), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    policy_applied: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    archived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_fx_events_archive_code_occurred_at", "code", "occurred_at"),
+    )
+
+
 def make_engine(url: str | None = None):
     url = url or "sqlite+pysqlite:///:memory:"
     return create_engine(url, future=True)

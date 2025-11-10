@@ -1,15 +1,14 @@
-"""Diagnostics helpers for parity reporting between legacy Book and new use cases.
+"""Diagnostics helpers for parity reporting without legacy engine.
 
-The parity report executes predefined or user-supplied scenarios against both engines:
-- Legacy Book (if available)
-- In-memory UnitOfWork + use cases
+The parity report runs predefined or user-supplied scenarios only against the new
+use cases (in-memory UnitOfWork). If an expected-file is provided, it validates
+internal consistency against that reference. Otherwise scenarios are marked as
+"skipped" with reason "legacy_unavailable" to preserve output stability.
 
-If legacy is not importable, report marks all scenarios as 'skipped' with reason.
-This module is intentionally lightweight and avoids new external dependencies.
+No imports or runtime checks for legacy modules remain.
 """
 from __future__ import annotations
 
-import importlib
 import json
 import os
 from dataclasses import dataclass
@@ -68,7 +67,8 @@ def _default_scenarios() -> list[Scenario]:
 
 
 def _load_scenarios_from_file(path: str) -> list[Scenario]:
-    raw = json.loads(open(path, encoding="utf-8").read())
+    with open(path, encoding="utf-8") as fh:
+        raw = json.loads(fh.read())
     if not isinstance(raw, list):
         raise DomainError("Scenarios JSON must be a list")
     scenarios: list[Scenario] = []
@@ -93,30 +93,6 @@ def _load_scenarios_from_file(path: str) -> list[Scenario]:
             lines.append((side, account, amount, currency, rate, meta))
         scenarios.append(Scenario(name=name, lines=lines))
     return scenarios
-
-
-def _setup_legacy(test_db_url: str) -> Any:
-    try:
-        legacy_mod = importlib.import_module("py_fledger.book")
-    except Exception as exc:
-        raise DomainError("Legacy Book not importable") from exc
-    legacy_book = getattr(legacy_mod, "Book", None)
-    if legacy_book is None:
-        raise DomainError("Legacy Book class missing")
-    lb = legacy_book(test_db_url)
-    lb.init()
-    return lb
-
-
-def _post_legacy(lb: Any, memo: str, lines: list[tuple[str, str, Decimal, str, Decimal | None, dict | None]]):
-    e = lb.entry(memo)
-    for side, account, amount, currency, rate, meta in lines:
-        _ = currency
-        if side.upper() == "DEBIT":
-            e.debit(account, float(amount), meta or {}, float(rate) if rate else None)
-        else:
-            e.credit(account, float(amount), meta or {}, float(rate) if rate else None)
-    e.commit()
 
 
 def _post_new(uow: InMemoryUnitOfWork, clock: FixedClock, memo: str, lines: list[tuple[str, str, Decimal, str, Decimal | None, dict | None]]):
@@ -145,175 +121,61 @@ def run_parity_report(*, preset: str = "default", scenarios_path: str | None, ex
     expected_map: dict[str, Any] = {}
     if expected_path and os.path.exists(expected_path):  # type: ignore[name-defined]
         try:
-            raw_expected = json.loads(open(expected_path, encoding="utf-8").read())
+            with open(expected_path, encoding="utf-8") as fh:
+                raw_expected = json.loads(fh.read())
             if isinstance(raw_expected, dict):
                 expected_map = raw_expected
         except Exception:
             expected_map = {}
     report: dict[str, Any] = {"scenarios": [], "summary": {"total": 0, "matched": 0, "diverged": 0}}
-    legacy_available = True
-    try:
-        lb = _setup_legacy("sqlite+pysqlite:///:memory:")
-    except Exception:
-        legacy_available = False
-        lb = None
     now = datetime.now(UTC)
     for sc in scenarios:
         result: dict[str, Any] = {"name": sc.name, "status": "skipped", "differences": {}, "tolerance": str(tolerance)}
-        if not legacy_available:
-            # Internal consistency mode if expected provided
-            if expected_map:
-                # Build new engine state
-                uow = InMemoryUnitOfWork()
-                clock = FixedClock(now)
-                cur_codes = sorted({ln[3].upper() for ln in sc.lines})
-                for code in cur_codes:
-                    CreateCurrency(uow)(code)
-                base_cur = cur_codes[0] if cur_codes else None
-                if base_cur:
-                    uow.currencies.set_base(base_cur)
-                accs = sorted({ln[1] for ln in sc.lines})
-                acc_currency: dict[str, str] = {}
-                for side, account, amount, currency, rate, meta in sc.lines:
-                    acc_currency.setdefault(account, currency.upper())
-                for acc in accs:
-                    line_currency = acc_currency.get(acc, base_cur or (cur_codes[0] if cur_codes else "USD"))
-                    CreateAccount(uow)(acc, line_currency)
-                _post_new(uow, clock, sc.name, sc.lines)
-                # Compare vs expected
-                differences: dict[str, Any] = {"balances": {}, "trading_balance": {}, "rounding_deltas": []}
-                matched = True
-                expected_entry = expected_map.get(sc.name, {}) if isinstance(expected_map.get(sc.name, {}), dict) else {}
-                expected_balances: dict[str, str] = expected_entry.get("balances", {}) if isinstance(expected_entry.get("balances", {}), dict) else {}
-                for acc in accs:
-                    new_bal = GetBalance(uow, clock)(acc)
-                    q_new = money_quantize(new_bal)
-                    exp_val = Decimal(str(expected_balances.get(acc, "0")))
-                    q_exp = money_quantize(exp_val)
-                    delta = (q_exp - q_new).copy_abs()
-                    if delta > tolerance:
-                        matched = False
-                        differences["rounding_deltas"].append({"account": acc, "expected": str(q_exp), "new": str(q_new), "delta": str(delta)})
-                    differences["balances"][acc] = {"expected": str(q_exp), "new": str(q_new), "delta": str(delta)}
-                exp_base_total = Decimal(str(expected_entry.get("base_total", "0")))
-                tb_new = GetTradingBalanceDetailed(uow, clock)(base_cur or (cur_codes[0] if cur_codes else "USD")) if (base_cur or cur_codes) else None
-                new_base_total = money_quantize(tb_new.base_total) if tb_new and tb_new.base_total is not None else money_quantize(Decimal("0"))
-                delta_bt = (money_quantize(exp_base_total) - new_base_total).copy_abs()
-                if delta_bt > tolerance:
-                    matched = False
-                    differences["rounding_deltas"].append({"trading_base_total": True, "expected": str(money_quantize(exp_base_total)), "new": str(new_base_total), "delta": str(delta_bt)})
-                differences["trading_balance"] = {"base_total": {"expected": str(money_quantize(exp_base_total)), "new": str(new_base_total), "delta": str(delta_bt)}}
-                result["status"] = "matched" if matched else "diverged"
-                result["differences"] = differences
-            else:
-                result["status"] = "skipped"
-                result["reason"] = "legacy_unavailable"
+        if not expected_map:
+            result["status"] = "skipped"
+            result["reason"] = "legacy_unavailable"
             report["scenarios"].append(result)
             continue
-        # Legacy path unchanged below
-        # Setup new engine per scenario for isolation
+        # Build new engine state
         uow = InMemoryUnitOfWork()
         clock = FixedClock(now)
-        # Baseline currencies inferred from lines
         cur_codes = sorted({ln[3].upper() for ln in sc.lines})
         for code in cur_codes:
             CreateCurrency(uow)(code)
-        # Set first currency as base for deterministic parity if only one currency
         base_cur = cur_codes[0] if cur_codes else None
         if base_cur:
             uow.currencies.set_base(base_cur)
-        # Accounts inferred from lines
         accs = sorted({ln[1] for ln in sc.lines})
-        # Map account -> currency from scenario lines (first match wins)
         acc_currency: dict[str, str] = {}
-        for side, account, amount, currency, rate, meta in sc.lines:
+        for _, account, _, currency, _, _ in sc.lines:
             acc_currency.setdefault(account, currency.upper())
         for acc in accs:
             line_currency = acc_currency.get(acc, base_cur or (cur_codes[0] if cur_codes else "USD"))
             CreateAccount(uow)(acc, line_currency)
-        # Legacy parallel setup
-        # currencies
-        for code in cur_codes:
-            try:
-                lb.create_currency(code)
-            except Exception:
-                pass
-        # accounts (legacy requires parent chains). Parents use base currency; leaf uses its own.
-        for acc in accs:
-            parts = acc.split(":")
-            leaf_currency = acc_currency.get(acc, base_cur or (cur_codes[0] if cur_codes else parts[-1]))
-            chain = []
-            for i in range(1, len(parts) + 1):
-                chain.append(":".join(parts[:i]))
-            for name in chain:
-                cur_for_node = leaf_currency if name == acc else (base_cur or leaf_currency)
-                try:
-                    lb.create_account(name, cur_for_node)
-                except Exception:
-                    # ignore if already exists or any benign error
-                    pass
-        # Post transactions
-        try:
-            _post_legacy(lb, sc.name, sc.lines)
-        except Exception as exc:
-            result["status"] = "diverged"
-            result["reason"] = f"legacy_error:{exc}"
-            result["differences"] = {"error": "legacy_post_failed"}
-            report["scenarios"].append(result)
-            continue
         _post_new(uow, clock, sc.name, sc.lines)
-        # Collect parity data
-        differences: dict[str, Any] = {"balances": {}, "trading_balance": {}, "transactions": {}, "rounding_deltas": []}
+        # Compare vs expected
+        differences: dict[str, Any] = {"balances": {}, "trading_balance": {}, "rounding_deltas": []}
         matched = True
-        # Balances per account with quantization
+        expected_entry = expected_map.get(sc.name, {}) if isinstance(expected_map.get(sc.name, {}), dict) else {}
+        expected_balances: dict[str, str] = expected_entry.get("balances", {}) if isinstance(expected_entry.get("balances", {}), dict) else {}
         for acc in accs:
-            try:
-                legacy_bal = Decimal(str(int(lb.balance(acc))))
-            except Exception:
-                legacy_bal = Decimal("0")
             new_bal = GetBalance(uow, clock)(acc)
-            q_legacy = money_quantize(legacy_bal)
             q_new = money_quantize(new_bal)
-            delta = (q_legacy - q_new).copy_abs()
+            exp_val = Decimal(str(expected_balances.get(acc, "0")))
+            q_exp = money_quantize(exp_val)
+            delta = (q_exp - q_new).copy_abs()
             if delta > tolerance:
                 matched = False
-                differences["rounding_deltas"].append({"account": acc, "legacy": str(q_legacy), "new": str(q_new), "delta": str(delta)})
-            differences["balances"][acc] = {"legacy": str(q_legacy), "new": str(q_new), "delta": str(delta)}
-        # Trading balance detailed parity
-        base_code = base_cur
-        if base_code:
-            tb_new = GetTradingBalanceDetailed(uow, clock)(base_code)
-            try:
-                tb_leg = lb.trading_balance()
-                legacy_base_total = Decimal(str(int(tb_leg.get("base", 0))))
-            except Exception:
-                legacy_base_total = Decimal("0")
-            q_legacy_total = money_quantize(legacy_base_total)
-            q_new_total = money_quantize(tb_new.base_total or Decimal("0"))
-            tb_delta = (q_legacy_total - q_new_total).copy_abs()
-            if tb_delta > tolerance:
-                matched = False
-                differences["rounding_deltas"].append({"trading_base_total": True, "legacy": str(q_legacy_total), "new": str(q_new_total), "delta": str(tb_delta)})
-            differences["trading_balance"] = {"base_total": {"legacy": str(q_legacy_total), "new": str(q_new_total), "delta": str(tb_delta)}}
-            # Detailed per-currency lines (new engine only, legacy has aggregate). Provide converted_balance parity info.
-            cur_lines = {}
-            for line in tb_new.lines:
-                cur_lines[line.currency_code] = {
-                    "balance": str(money_quantize(line.balance)),
-                    "converted_balance": str(money_quantize(line.converted_balance or Decimal("0"))),
-                    "rate_used": str(line.rate_used) if line.rate_used is not None else None,
-                    "fallback": line.rate_fallback,
-                }
-            differences["trading_balance"]["lines"] = cur_lines
-        # Transaction counts heuristic
-        try:
-            legacy_tx_count = len(lb.ledger(accs[0])) if accs else 0
-        except Exception:
-            legacy_tx_count = 0
-        new_tx_count = 1
-        if legacy_tx_count < 1:
+                differences["rounding_deltas"].append({"account": acc, "expected": str(q_exp), "new": str(q_new), "delta": str(delta)})
+            differences["balances"][acc] = {"expected": str(q_exp), "new": str(q_new), "delta": str(delta)}
+        exp_base_total = Decimal(str(expected_entry.get("base_total", "0")))
+        tb_new = GetTradingBalanceDetailed(uow, clock)(base_cur or (cur_codes[0] if cur_codes else "USD")) if (base_cur or cur_codes) else None
+        new_base_total = money_quantize(tb_new.base_total) if tb_new and tb_new.base_total is not None else money_quantize(Decimal("0"))
+        delta_bt = (money_quantize(exp_base_total) - new_base_total).copy_abs()
+        if delta_bt > tolerance:
             matched = False
-        differences["transactions"] = {"count": {"legacy": legacy_tx_count, "new": new_tx_count}}
+            differences["rounding_deltas"].append({"trading_base_total": True, "expected": str(money_quantize(exp_base_total)), "new": str(new_base_total), "delta": str(delta_bt)})
+        differences["trading_balance"] = {"base_total": {"expected": str(money_quantize(exp_base_total)), "new": str(new_base_total), "delta": str(delta_bt)}}
         result["status"] = "matched" if matched else "diverged"
         result["differences"] = differences
         report["scenarios"].append(result)

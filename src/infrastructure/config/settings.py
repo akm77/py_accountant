@@ -36,6 +36,12 @@ class BaseAppSettings(BaseSettings):
     rate_scale: int = Field(alias="RATE_SCALE", default=10)
     rounding: str = Field(alias="ROUNDING", default="ROUND_HALF_EVEN")  # name of decimal rounding constant
 
+    # FX TTL / archival settings (NS20)
+    fx_ttl_mode: Literal["none", "delete", "archive"] = Field(alias="FX_TTL_MODE", default="none")
+    fx_ttl_retention_days: int = Field(alias="FX_TTL_RETENTION_DAYS", default=90)
+    fx_ttl_batch_size: int = Field(alias="FX_TTL_BATCH_SIZE", default=1000)
+    fx_ttl_dry_run: bool = Field(alias="FX_TTL_DRY_RUN", default=False)
+
 
 class TestSettings(BaseAppSettings):
     """Тестовая среда.

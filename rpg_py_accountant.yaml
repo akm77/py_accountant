@@ -37,6 +37,18 @@ rpg:
           - name: "LOG_ROTATE_UTC"
             required: false
             notes: "Использовать UTC для тайм-ротации (true по умолчанию)."
+          - name: "FX_TTL_MODE"
+            required: false
+            notes: "none|delete|archive (по умолчанию none)"
+          - name: "FX_TTL_RETENTION_DAYS"
+            required: false
+            notes: "Число дней хранения событий (например 90)"
+          - name: "FX_TTL_BATCH_SIZE"
+            required: false
+            notes: "Размер партии TTL/архива (например 1000)"
+          - name: "FX_TTL_DRY_RUN"
+            required: false
+            notes: "Сухой прогон (true/false)"
       - name: "production"
         description: "Продакшен: Postgres, структурированные JSON-логи, минимальные права."
         env_vars:
@@ -70,6 +82,18 @@ rpg:
           - name: "LOG_ROTATE_UTC"
             required: false
             notes: "Использовать UTC (true) или локальное время."
+          - name: "FX_TTL_MODE"
+            required: false
+            notes: "Режим TTL для exchange_rate_events: none|delete|archive"
+          - name: "FX_TTL_RETENTION_DAYS"
+            required: false
+            notes: "Порог давности в днях (рекомендуемо 90+)"
+          - name: "FX_TTL_BATCH_SIZE"
+            required: false
+            notes: "Размер партии (по умолчанию 1000)"
+          - name: "FX_TTL_DRY_RUN"
+            required: false
+            notes: "Сухой прогон, не изменяет БД"
 
   nodes:
     modules:
@@ -153,6 +177,9 @@ rpg:
       - name: "alembic/versions/0004_add_exchange_rate_events.py"
         parent_module: "infrastructure"
         description: "Alembic миграция: exchange_rate_events (id, code, rate, occurred_at, policy_applied, source) + индексы"
+      - name: "alembic/versions/0005_exchange_rate_events_archive.py"
+        parent_module: "infrastructure"
+        description: "Alembic миграция: exchange_rate_events_archive (id, source_id, code, rate, occurred_at, policy_applied, source, archived_at) + индексы"
 
     components:
       - name: "IUnitOfWork"
@@ -313,7 +340,7 @@ rpg:
       - name: "ExchangeRateEventsRepository"
         parent_file: "src/application/interfaces/ports.py"
         type: "protocol"
-        description: "Аудит событий курсов: add_event/list_events (новейшие первыми)"
+        description: "Аудит событий курсов: add_event/list_events (новейшие первыми); TTL-хелперы: list_old_events, delete_events_by_ids, archive_events, move_events_to_archive."
         testable: true
         test_priority: "high"
 
@@ -602,6 +629,14 @@ rpg:
         test_description: "Upgrade/downgrade создаёт/удаляет exchange_rate_events"
         test_file: "tests/integration/ledger/test_alembic_migration.py"
         coverage_status: "exists"
+      - integration_point: "Alembic migration 0005 exchange_rate_events_archive"
+        test_description: "Upgrade/downgrade создаёт/удаляет exchange_rate_events_archive"
+        test_file: "tests/integration/ledger/test_alembic_migration.py"
+        coverage_status: "exists"
+      - integration_point: "CLI maintenance:fx-ttl"
+        test_description: "Удаление и архивирование событий по порогу давности; dry-run"
+        test_file: "tests/integration/ledger/test_fx_ttl_cli.py"
+        coverage_status: "added"
     perf_tests:
       - target: "CLI performance smoke"
         test_file: "tests/perf/test_cli_perf.py"
@@ -706,7 +741,7 @@ rpg:
       - "Ledger вне диапазона дат (пустой список)"
       - "Пустой набор линий транзакции"
       - "Некорректный формат имени счёта"
-      - "Большое число линий (производительность)"
+      - "Большое число линий (производит��льность)"
       - "Удаление deprecated EntryDTO из кода"
       - "Запрос баланса с as_of до последнего кэша (ожидается пересчёт)"
 
@@ -916,6 +951,32 @@ rpg:
         - "Use cases + CLI"
       status: "done"
       priority: "medium"
+    - id: "NS20"
+      title: "Архивирование событий курсов (exchange_rate_events_archive)"
+      details:
+        - "Миграция Alembic для новой таблицы архивирования событий курсов"
+        - "Новая ORM модель и репозиторий для архивных событий"
+        - "CLI команда для обслуживания TTL и архивирования"
+      deliverables:
+        - "alembic 0005, ExchangeRateEventArchiveORM, maintenance:fx-ttl CLI"
+      status: "done"
+      priority: "medium"
+    - id: "NS17"
+      title: "Внешние провайдеры курсов (health, source=provider:*)"
+      status: "deferred"
+    - id: "NS21"
+      title: "Интеграция с приложениями (SDK-паттерны, Telegram Bot, встраивание)"
+      details:
+        - "Гайд по использованию пакета как библиотеки: UoW (SqlAlchemyUnitOfWork), use cases, Clock, Policy"
+        - "Пример интеграции с Telegram Bot: обработчики команд, транзакции, баланс, аудит"
+        - "Рекомендации по многопоточности/конкурентности: один UoW на операцию, короткие транзакции, закрытие сессий"
+        - "Настройка окружения и миграций: Alembic, DATABASE_URL, LOG_LEVEL, JSON_LOGS"
+        - "Фоновое обслуживание: maintenance:fx-ttl как cron/джоб"
+      deliverables:
+        - "docs/INTEGRATION_GUIDE.md (Telegram Bot, сервисы/воркеры, веб-приложения)"
+        - "Примеры кода и минимальный harness для smoke"
+      status: "done"
+      priority: "high"
   cli_extensions:
     - command: "diagnostics:rates"
       description: "Список валют с текущими курсами, флаг is_base и активной глобальной политикой (human/json)"
@@ -934,6 +995,9 @@ rpg:
       status: "updated"
     - command: "diagnostics:rates-history"
       description: "Ephemeral in-memory история последних N курсов (RATE_HISTORY_LEN)"
+      status: "added"
+    - command: "maintenance:fx-ttl"
+      description: "Обслуживание TTL/архива exchange_rate_events (--mode/--retention-days/--batch-size/--dry-run/--json)"
       status: "added"
   legacy_deprecation:
     py_fledger:
@@ -955,4 +1019,13 @@ rpg:
       status: "planned"
     - id: "NS13"
       title: "Производительность и индексы"
+      status: "done"
+    - id: "NS20"
+      title: "Архивирование событий курсов (exchange_rate_events_archive)"
+      status: "done"
+    - id: "NS17"
+      title: "Внешние провайдеры курсов (health, source=provider:*)"
+      status: "deferred"
+    - id: "NS21"
+      title: "Интеграция с приложениями (SDK-паттерны, Telegram Bot, встраивание)"
       status: "done"

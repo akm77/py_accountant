@@ -28,6 +28,7 @@ from infrastructure.persistence.sqlalchemy.models import (
     AccountORM,
     BalanceORM,
     CurrencyORM,
+    ExchangeRateEventArchiveORM,
     ExchangeRateEventORM,
     JournalORM,
     TransactionLineORM,
@@ -277,3 +278,60 @@ class SqlAlchemyExchangeRateEventsRepository(ExchangeRateEventsRepository):  # t
             stmt = stmt.limit(limit)
         rows = self.session.execute(stmt).scalars().all()
         return [ExchangeRateEventDTO(id=r.id, code=r.code, rate=r.rate, occurred_at=r.occurred_at, policy_applied=r.policy_applied, source=r.source) for r in rows]
+
+    # TTL helpers
+    def list_old_events(self, cutoff: datetime, limit: int) -> list[ExchangeRateEventDTO]:  # noqa: D401
+        if cutoff.tzinfo is None:
+            from datetime import UTC
+            cutoff = cutoff.replace(tzinfo=UTC)
+        stmt = (
+            select(ExchangeRateEventORM)
+            .where(ExchangeRateEventORM.occurred_at < cutoff)
+            .order_by(ExchangeRateEventORM.occurred_at.asc(), ExchangeRateEventORM.id.asc())
+            .limit(max(0, limit))
+        )
+        rows = self.session.execute(stmt).scalars().all()
+        return [ExchangeRateEventDTO(id=r.id, code=r.code, rate=r.rate, occurred_at=r.occurred_at, policy_applied=r.policy_applied, source=r.source) for r in rows]
+
+    def delete_events_by_ids(self, ids: list[int]) -> int:  # noqa: D401
+        if not ids:
+            return 0
+        # Use ORM delete via primary key load for compatibility across SQLite/PG
+        stmt = select(ExchangeRateEventORM).where(ExchangeRateEventORM.id.in_(ids))
+        rows = self.session.execute(stmt).scalars().all()
+        for r in rows:
+            self.session.delete(r)
+        self.session.flush()
+        return len(rows)
+
+    def archive_events(self, rows: list[ExchangeRateEventDTO], archived_at: datetime) -> int:  # noqa: D401
+        if not rows:
+            return 0
+        objs: list[ExchangeRateEventArchiveORM] = []
+        for e in rows:
+            if e.id is None:
+                continue
+            objs.append(
+                ExchangeRateEventArchiveORM(
+                    source_id=int(e.id),
+                    code=e.code,
+                    rate=e.rate,
+                    occurred_at=e.occurred_at,
+                    policy_applied=e.policy_applied,
+                    source=e.source,
+                    archived_at=archived_at,
+                )
+            )
+        if not objs:
+            return 0
+        self.session.add_all(objs)
+        self.session.flush()
+        return len(objs)
+
+    def move_events_to_archive(self, cutoff: datetime, limit: int, archived_at: datetime) -> tuple[int, int]:  # noqa: D401
+        rows = self.list_old_events(cutoff, limit)
+        if not rows:
+            return 0, 0
+        archived = self.archive_events(rows, archived_at)
+        deleted = self.delete_events_by_ids([int(e.id) for e in rows if e.id is not None])
+        return archived, deleted

@@ -310,6 +310,14 @@ def build_parser() -> argparse.ArgumentParser:
     diag_rates_hist.add_argument("--limit", dest="limit", type=int, help="Override history length for output only")
     diag_rates_hist.add_argument("--json", dest="json_out", action="store_true")
 
+    # Maintenance: FX TTL/archive
+    fx_ttl = sub.add_parser("maintenance:fx-ttl", help="Apply TTL/archive policy for exchange_rate_events")
+    fx_ttl.add_argument("--mode", dest="mode", choices=["none", "delete", "archive"], help="Mode: none|delete|archive")
+    fx_ttl.add_argument("--retention-days", dest="retention_days", type=int, help="Retention days (events older than now-retention)" )
+    fx_ttl.add_argument("--batch-size", dest="batch_size", type=int, help="Batch size for processing")
+    fx_ttl.add_argument("--dry-run", dest="dry_run", action="store_true", help="Do not modify DB; just report counts")
+    fx_ttl.add_argument("--json", dest="json_out", action="store_true")
+
     return p
 
 
@@ -610,6 +618,93 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 for item in snap:
                     print(f"{item['code']}: count={item['count']} rates={item['rates']}")
+            return 0
+        if cmd == "maintenance:fx-ttl":
+            # Settings fallback
+            try:
+                from infrastructure.config.settings import get_settings  # type: ignore
+                s = get_settings()
+            except Exception:
+                s = None
+            mode = getattr(args, "mode", None) or (s.fx_ttl_mode if s else "none")
+            retention_days = getattr(args, "retention_days", None) or (s.fx_ttl_retention_days if s else 90)
+            batch_size = getattr(args, "batch_size", None) or (s.fx_ttl_batch_size if s else 1000)
+            dry_run = bool(getattr(args, "dry_run", False) or (s.fx_ttl_dry_run if s else False))
+            if mode == "none":
+                out = {"scanned": 0, "affected": 0, "archived": 0, "deleted": 0, "mode": mode, "retention_days": retention_days, "batches": 0, "started_at": clock.now().isoformat().replace("+00:00", "Z"), "finished_at": clock.now().isoformat().replace("+00:00", "Z"), "duration_ms": 0}
+                _print(out, args.json_out)
+                return 0
+            if retention_days is None or retention_days < 0:
+                raise DomainError("retention-days must be non-negative integer")
+            if batch_size is None or batch_size <= 0:
+                raise DomainError("batch-size must be positive integer")
+            events_repo = getattr(uow, "exchange_rate_events", None)
+            if not events_repo:
+                _print({"scanned": 0, "affected": 0, "archived": 0, "deleted": 0, "mode": mode, "retention_days": retention_days, "batches": 0, "started_at": clock.now().isoformat().replace("+00:00", "Z"), "finished_at": clock.now().isoformat().replace("+00:00", "Z"), "duration_ms": 0}, args.json_out)
+                return 0
+            started = clock.now()
+            # cutoff in UTC
+            now = clock.now()
+            cutoff = now.replace(tzinfo=UTC) if now.tzinfo is None else now
+            from datetime import timedelta
+            cutoff = cutoff - timedelta(days=int(retention_days))
+            scanned = 0
+            archived = 0
+            deleted = 0
+            affected = 0
+            batches = 0
+            log.info("fx_ttl.start", mode=mode, retention_days=retention_days, batch_size=batch_size, dry_run=dry_run, cutoff=cutoff.isoformat())
+            while True:
+                rows = events_repo.list_old_events(cutoff, batch_size)
+                n = len(rows)
+                if n == 0:
+                    break
+                scanned += n
+                if dry_run:
+                    if mode == "delete":
+                        deleted += n
+                        affected += n
+                    elif mode == "archive":
+                        archived += n
+                        deleted += n
+                        affected += n
+                    batches += 1
+                else:
+                    if mode == "delete":
+                        batch_deleted = events_repo.delete_events_by_ids([int(e.id) for e in rows if e.id is not None])
+                        deleted += batch_deleted
+                        affected += batch_deleted
+                    elif mode == "archive":
+                        arch_count = events_repo.archive_events(rows, archived_at=now if now.tzinfo else now.replace(tzinfo=UTC))
+                        del_count = events_repo.delete_events_by_ids([int(e.id) for e in rows if e.id is not None])
+                        archived += arch_count
+                        deleted += del_count
+                        affected += arch_count
+                    else:
+                        break
+                    uow.commit()
+                    batches += 1
+                if n < batch_size:
+                    break
+            finished = clock.now()
+            dur_ms = int((finished - started).total_seconds() * 1000)
+            log.info("fx_ttl.finish", mode=mode, scanned=scanned, affected=affected, archived=archived, deleted=deleted, batches=batches, duration_ms=dur_ms)
+            out = {
+                "scanned": scanned,
+                "affected": affected,
+                "archived": archived,
+                "deleted": deleted,
+                "mode": mode,
+                "retention_days": retention_days,
+                "batches": batches,
+                "started_at": started.isoformat().replace("+00:00", "Z"),
+                "finished_at": finished.isoformat().replace("+00:00", "Z"),
+                "duration_ms": dur_ms,
+            }
+            if args.json_out:
+                print(json.dumps(out, indent=2))
+            else:
+                print(f"fx-ttl: mode={mode} scanned={scanned} affected={affected} archived={archived} deleted={deleted} batches={batches} cutoff={cutoff.isoformat()}")
             return 0
         if cmd == "diagnostics:parity-report":
             try:

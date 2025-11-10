@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import logging.handlers
 import sys
-from typing import Any
+from typing import Any, IO
 
 import structlog
 
@@ -18,7 +18,7 @@ def _resolve_level(level_name: str) -> int:
         return logging.INFO
 
 
-def configure_logging() -> None:
+def configure_logging(stream: IO[str] | None = None) -> None:
     """Initialize structlog + stdlib logging for console or JSON rendering.
 
     Best practices applied:
@@ -26,6 +26,8 @@ def configure_logging() -> None:
     - Contextvars merged; timestamp ISO; level and logger name added
     - JSON vs human-friendly console based on settings.json_logs
     - Force reconfigure to avoid duplicate handlers between tests/runs
+
+    stream: optional text stream for console handler (defaults to sys.stdout).
     """
     settings = get_settings()
     level_value = _resolve_level(settings.log_level)
@@ -74,8 +76,8 @@ def configure_logging() -> None:
         )
         handlers.append(fh)
     else:
-        # Console/stdout handler
-        sh = logging.StreamHandler(sys.stdout)
+        # Console/stdout handler (or provided stream)
+        sh = logging.StreamHandler(stream or sys.stdout)
         sh.setFormatter(
             structlog.stdlib.ProcessorFormatter(
                 processor=renderer,
@@ -100,7 +102,7 @@ def configure_logging() -> None:
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
+        wrapper_class=structlog.stdlib.BoundLogger,  # type: ignore[arg-type]
         cache_logger_on_first_use=True,
     )
 
