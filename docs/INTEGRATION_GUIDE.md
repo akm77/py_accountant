@@ -2,7 +2,37 @@
 
 > Гайд по встраиванию py-accountant как библиотеки (SDK-паттерн) в приложения: боты, веб-сервисы, воркеры и периодические задачи.
 >
-> Цель: обеспечить простое использование ядра без изменения публичного API и без новых зависимостей в основном пакете.
+> Цель: обеспечить простое использование ��дра без изменения публичного API и без новых зависимостей в основном пакете.
+
+## Runtime vs Migration Database URLs
+
+Для безопасного перехода на async SQLAlchemy введено два URL:
+
+| Назначение | Переменная | Пример | Допустимые драйверы |
+|------------|-----------|--------|---------------------|
+| Миграции (Alembic) | `DATABASE_URL` | `postgresql+psycopg://user:pass@host:5432/db` | `postgresql`, `postgresql+psycopg`, `sqlite`, `sqlite+pysqlite` |
+| Runtime (async) | `DATABASE_URL_ASYNC` | `postgresql+asyncpg://user:pass@host:5432/db` | `postgresql+asyncpg`, `sqlite+aiosqlite` |
+
+Правила:
+- Alembic читает ТОЛЬКО `DATABASE_URL` (или fallback из `alembic.ini`).
+- Если в `DATABASE_URL` указан async драйвер (`asyncpg`, `aiosqlite`) — миграции падают с RuntimeError.
+- Приложение при отсутствии `DATABASE_URL_ASYNC` может нормализовать sync URL в async (см. `normalize_async_url`).
+- CI: шаг миграций использует только sync URL.
+
+Пример `.env`:
+```
+DATABASE_URL=postgresql+psycopg://acc:pass@localhost:5432/ledger
+DATABASE_URL_ASYNC=postgresql+asyncpg://acc:pass@localhost:5432/ledger
+LOG_LEVEL=INFO
+```
+
+Workflow:
+```bash
+poetry run alembic upgrade head   # использует DATABASE_URL (sync)
+poetry run python -m presentation.cli.main trading:detailed --base USD
+```
+
+WARNING: Не прописывать async URL в `alembic.ini` — потеряется защита.
 
 ## 1. Быстрый старт (как библиотека)
 
@@ -11,9 +41,10 @@
 ```python
 from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
 from application.use_cases.ledger import CreateCurrency, CreateAccount, PostTransaction, GetBalance, GetTradingBalance
-from datetime import timezone
+from application.dto.models import EntryLineDTO
+from datetime import timezone, datetime
 from dataclasses import dataclass
-from datetime import datetime
+from decimal import Decimal
 
 @dataclass
 class SystemClock:
@@ -32,10 +63,9 @@ uow.currencies.set_base("USD")
 # 2. Создать счёт
 CreateAccount(uow)("Assets:Cash", "USD")
 # 3. Провести транзакцию
-from application.dto.models import EntryLineDTO
 lines = [
-    EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=100, currency_code="USD"),
-    EntryLineDTO(side="CREDIT", account_full_name="Assets:Cash", amount=0, currency_code="USD"),
+    EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("100"), currency_code="USD"),
+    EntryLineDTO(side="CREDIT", account_full_name="Assets:Cash", amount=Decimal("0"), currency_code="USD"),
 ]
 PostTransaction(uow, clock)(lines, memo="Init balance")
 # 4. Коммит
@@ -64,22 +94,63 @@ Use cases (основные):
 
 Создать валюту с курсом (не базовая):
 ```python
-CreateCurrency(uow)("EUR", exchange_rate=1.1234)
+from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
+from application.use_cases.ledger import CreateCurrency
+from decimal import Decimal
+
+uow = SqlAlchemyUnitOfWork("sqlite+pysqlite:///:memory:")
+CreateCurrency(uow)("EUR", exchange_rate=Decimal("1.1234"))
 ```
 
 Провести многострочную транзакцию:
 ```python
+from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
+from application.use_cases.ledger import CreateCurrency, CreateAccount, PostTransaction
+from application.dto.models import EntryLineDTO
+from datetime import timezone, datetime
+from dataclasses import dataclass
+from decimal import Decimal
+
+@dataclass
+class SystemClock:
+    tz = timezone.utc
+    def now(self) -> datetime:
+        return datetime.now(self.tz)
+
+clock = SystemClock()
+uow = SqlAlchemyUnitOfWork("sqlite+pysqlite:///:memory:")
+CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
+CreateAccount(uow)("Assets:Cash", "USD")
+CreateAccount(uow)("Income:Sales", "USD")
 lines = [
-    EntryLineDTO("DEBIT", "Assets:Cash", amount=150, currency_code="USD"),
-    EntryLineDTO("CREDIT", "Income:Sales", amount=150, currency_code="USD"),
+    EntryLineDTO("DEBIT", "Assets:Cash", amount=Decimal("150"), currency_code="USD"),
+    EntryLineDTO("CREDIT", "Income:Sales", amount=Decimal("150"), currency_code="USD"),
 ]
 PostTransaction(uow, clock)(lines, memo="Sale #42")
 uow.commit()
 ```
 
-Получить подробный trading balance c конвертацией:
+Получить подробный trading balance c конвертаци��й:
 ```python
-from application.use_cases.ledger import GetTradingBalanceDetailed
+from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
+from application.use_cases.ledger import CreateCurrency, CreateAccount, GetTradingBalanceDetailed
+from datetime import timezone, datetime
+from dataclasses import dataclass
+from decimal import Decimal
+
+@dataclass
+class SystemClock:
+    tz = timezone.utc
+    def now(self) -> datetime:
+        return datetime.now(self.tz)
+
+clock = SystemClock()
+uow = SqlAlchemyUnitOfWork("sqlite+pysqlite:///:memory:")
+CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
+CreateCurrency(uow)("EUR", exchange_rate=Decimal("1.12"))
+uow.currencies.set_base("USD")
+CreateAccount(uow)("Assets:Cash", "USD")
+CreateAccount(uow)("Assets:Cash:EUR", "EUR")
 GetTradingBalanceDetailed(uow, clock)(base_currency="USD")
 ```
 
@@ -161,10 +232,12 @@ UoW создаётся внутри каждого обработчика, commi
 from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
 from application.use_cases.exchange_rates import UpdateExchangeRates
 from application.dto.models import RateUpdateInput
+from decimal import Decimal
 
+db_url = "sqlite+pysqlite:///./example.db"
 uow = SqlAlchemyUnitOfWork(db_url)
 try:
-    UpdateExchangeRates(uow)([RateUpdateInput(code="EUR", rate=1.12)])
+    UpdateExchangeRates(uow)([RateUpdateInput(code="EUR", rate=Decimal("1.12"))])
     uow.commit()
 except Exception:
     uow.rollback()
@@ -228,3 +301,33 @@ poetry run python -m presentation.cli.main maintenance:fx-ttl --mode delete --re
 ---
 Документ поддерживается для версии 0.1.x.
 
+## Примеры асинхронного использования
+
+### 13. Пример асинхронной интеграции: веб-приложение
+
+```python
+import asyncio
+from sqlalchemy import text
+from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+
+async def main():
+    uow = AsyncSqlAlchemyUnitOfWork("sqlite+aiosqlite:///./example_async.db")
+    async with uow.session_factory() as s:  # type: ignore[attr-defined]
+        await s.execute(text("CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY, v TEXT)"))
+        await s.commit()
+    async with uow as _:
+        await uow.session.execute(text("INSERT INTO t (v) VALUES ('hello')"))
+
+asyncio.run(main())
+```
+
+### 14. Пример асинхронной интеграции: обёртка для синхронного кода
+
+```python
+from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork, SyncUnitOfWorkWrapper
+
+wrapper = SyncUnitOfWorkWrapper(AsyncSqlAlchemyUnitOfWork("sqlite+aiosqlite:///./example_async.db"))
+with wrapper:
+    wrapper.commit()
+    wrapper.rollback()
+```

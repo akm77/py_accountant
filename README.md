@@ -8,6 +8,15 @@
 - Линт/формат: Ruff
 - Зависимости: Poetry
 
+## ENV переменные: runtime async, миграции sync
+
+- DATABASE_URL — синхронный URL для Alembic миграций (пример: `postgresql+psycopg://...`, `sqlite+pysqlite:///./dev.db`).
+- DATABASE_URL_ASYNC — асинхронный URL для рантайма (пример: `postgresql+asyncpg://...`, `sqlite+aiosqlite://...`).
+
+Порядок:
+- Перед запуском приложения выполните миграции: `poetry run alembic upgrade head` (читает DATABASE_URL).
+- Приложение/воркеры используют DATABASE_URL_ASYNC. Если он не задан — код рантайма нормализует DATABASE_URL в async.
+
 ## Quick Start
 
 ```bash
@@ -47,7 +56,7 @@ poetry run pytest -q tests/docs
 
 ## Parity-report (без legacy)
 
-Ко��анда diagnostics:parity-report сравнивает текущий движок с ожидаемым JSON из expected-file. Если expected не передан — сценарии помечаются как skipped. Формат ожидаемого и отчёта — см. docs/PARITY_REPORT.md.
+Команда diagnostics:parity-report сравнивает текущий движок с ожидаемым JSON из expected-file. Если expected не передан — сценарии помечаются как skipped. Формат ожидаемого и отчёта — см. docs/PARITY_REPORT.md.
 
 Короткий прогон:
 ```bash

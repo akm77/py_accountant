@@ -1,0 +1,311 @@
+refactoring_plan:
+  metadata:
+    name: "SQLAlchemy async + UoW context manager"
+    project: "py_accountant"
+    date: "2025-11-10"
+    drivers:
+      - "Асинхронные репозитории для I/O-эффективности (Postgres/SQLite)"
+      - "UoW как (async) контекстный менеджер по лучшим практикам"
+    scope:
+      modules:
+        - "src/infrastructure/persistence/sqlalchemy/*"
+        - "src/application/interfaces/ports.py (контракты UoW/репозиториев)"
+        - "src/application/use_cases/* (минимальные правки вызовов UoW)"
+        - "tests/* (перевод на pytest-asyncio там, где потребуется)"
+      non_goals:
+        - "Переписывание доменной логики и DTO"
+        - "Смена схемы БД (Alembic остаётся синхронным)"
+        - "Полный перевод CLI на async (будут синхронные шимы)"
+    compatibility_policy:
+      - "Фаза A: двурежимная совместимость (sync-шим поверх async)"
+      - "Фаза B: чистый async во внутренних адаптерах, sync только на краях (CLI)"
+      - "Миграции Alembic — синхронный драйвер (psycopg/psycopg2/sqlite)"
+    dependencies:
+      runtime:
+        add:
+          - "asyncpg (production)"
+          - "aiosqlite (test/local)"
+        keep:
+          - "SQLAlchemy 2.x"
+          - "alembic"
+      test:
+        add:
+          - "pytest-asyncio"
+        maybe:
+          - "anyio (для обёрток/мостов)"
+  iterations:
+    - id: "ASYNC-01"
+      title: "Ввод async-движка и AsyncSession"
+      status: "done"
+      depends_on: []
+      changes:
+        - "Создать фабрику async Engine/Session: create_async_engine, async_sessionmaker"
+        - "Настроить DATABASE_URL на async-драйверы: postgresql+asyncpg://, sqlite+aiosqlite:// (авто-нормализация)"
+        - "Сделать отдельный модуль: src/infrastructure/persistence/sqlalchemy/async_engine.py"
+      deliverables:
+        - "async_engine.py: normalize_async_url, get_async_engine(url), get_async_session_factory(engine)"
+        - "Поддержка DATABASE_URL_ASYNC (опционально) — интеграция позже"
+      tests:
+        - "Smoke: открыть/закрыть AsyncSession, простейший SELECT 1 (SQLite in-memory)"
+        - "Опционально: Postgres smoke при наличии DATABASE_URL(_ASYNC)"
+      acceptance:
+        - "Поднимается AsyncEngine на локальном SQLite; тесты зелёные"
+      risks:
+        - "Конфликты с существующей sync-конфигурацией — требуется чёткое разделение модулей"
+      completion_notes:
+        completed_at: "2025-11-10"
+        commit_ref: "REF_PLACEHOLDER"
+        summary: "Добавлен async_engine.py с normalize_async_url, get_async_engine, get_async_session_factory; зависимости asyncpg, aiosqlite, pytest-asyncio; smoke тесты SQLite и опционально Postgres; без изменений sync UoW/репозиториев."
+        verification:
+          - "pytest: 125 passed (7 новых тестов async, 1 skipped)"
+          - "URL нормализация покрыта параметризированным тестом"
+          - "Пароли в URL не маскируются (render_as_string hide_password=False)"
+        follow_up:
+          - "ASYNC-02: переписать SqlAlchemyUnitOfWork на async контекстный менеджер"
+          - "ASYNC-04: документация Alembic vs runtime URL"
+
+    - id: "ASYNC-02"
+      title: "SqlAlchemyUnitOfWork как async контекстный менеджер"
+      status: "done"
+      depends_on: ["ASYNC-01"]
+      changes:
+        - "Добавлен класс AsyncSqlAlchemyUnitOfWork (__aenter__/__aexit__/commit/rollback/close)"
+        - "Legacy SqlAlchemyUnitOfWork оставлен без изменений для обратной совместимости"
+        - "Транзакция через AsyncSession.begin() + автокоммит/автороллбек в __aexit__"
+        - "Добавлен SyncUnitOfWorkWrapper (async -> sync мост через asyncio.run с проверкой цикла)"
+      deliverables:
+        - "uow.py: class AsyncSqlAlchemyUnitOfWork (новый)"
+        - "uow.py: class SyncUnitOfWorkWrapper"
+        - "Сохранён существующий sync SqlAlchemyUnitOfWork"
+      tests:
+        - "test_async_uow_commit (pytest-asyncio)"
+        - "test_async_uow_rollback (pytest-asyncio)"
+        - "test_sync_wrapper_basic (guard на running loop)"
+      acceptance:
+        - "async with AsyncSqlAlchemyUnitOfWork(...) коммитит или роллбечит транзакцию корректно"
+        - "Существующие sync тесты и CLI не ломаются"
+      risks:
+        - "Вызов asyncio.run() внутри already-running loop — реализована проверка и выбрасывается RuntimeError"
+      completion_notes:
+        completed_at: "2025-11-10"
+        commit_ref: "REF_PLACEHOLDER"
+        summary: "Добавлены AsyncSqlAlchemyUnitOfWork и SyncUnitOfWorkWrapper; legacy sync UoW сохранён; реализованы commit/rollback/close; защита от повторного входа и nested loop; обновлены unit тесты (3 новых)."
+        verification:
+          - "pytest: 128 passed, 1 skipped (добавлены 3 новых async теста)"
+          - "Контекстный менеджер: commit на успех, rollback на исключение"
+          - "Sync wrapper: RuntimeError при попытке использования внутри активного event loop"
+        follow_up:
+          - "ASYNC-03: миграция репозиториев на async def + await session.execute"
+          - "Опционально: anyio.run fallback вместо прямого asyncio.run при nested loop сценариях"
+
+    - id: "ASYNC-03"
+      title: "Перевод репозиториев на async API"
+      status: "done"
+      depends_on: ["ASYNC-02"]
+      changes:
+        - "Создан отдельный файл repositories_async.py с AsyncSqlAlchemy*Repository классами (валюты, счета, транзакции, балансы, fx events)"
+        - "Методы переписаны на async def / await session.execute / await session.flush"
+        - "Добавлены пагинация, сортировка, фильтрация ledger идентичные sync реализации"
+        - "AsyncSqlAlchemyUnitOfWork дополнен ленивыми свойствами accounts/currencies/transactions/balances/exchange_rate_events (async версии)"
+        - "Вынесена общая async фикстура async_uow в tests/conftest.py (pytest_asyncio.fixture)"
+      deliverables:
+        - "repositories_async.py (новый файл)"
+        - "uow.py обновлён: lazy async repo properties + engine property"
+        - "tests/unit/application/test_async_repositories.py (8 unit тестов)"
+        - "tests/integration/test_async_fx_ttl.py (TTL/архив FX events)"
+        - "tests/conftest.py: async_uow фикстура"
+      tests:
+        - "Unit: currency upsert/base, account create/unique, transactions list/meta, aggregate_trading_balance, ledger order/offset/limit/meta edge, balance cache upsert/get/clear, fx events filters/limits"
+        - "Integration: FX TTL archive/delete (move_events_to_archive)"
+        - "Edge: limit<0, limit=0, offset<0, meta=None/{} (покрыто частично)"
+      acceptance:
+        - "Async репозитории возвращают те же DTO и семантику, что и sync"
+        - "Все новые async тесты зелёные; существующие sync тесты не сломаны"
+      risks:
+        - "Забытый await/flush -> покрыто тестами"
+        - "Смешанный вызов sync/async — изоляция за счёт отдельных классов"
+      completion_notes:
+        completed_at: "2025-11-10"
+        commit_ref: "REF_PLACEHOLDER"
+        summary: "Добавлены async репозитории и расширен Async UoW ленивыми свойствами; внедрены unit + integration async тесты; добавлена фикстура async_uow; 136 passed, 1 skipped."
+        verification:
+          - "pytest: 136 passed, 1 skipped ( +8 async unit, +1 async integration )"
+          - "Ledger пагинация и FX TTL подтверждены под async"
+        follow_up:
+          - "ASYNC-05: ввести async протоколы в ports.py"
+          - "Добавить дополнительные edge тесты meta=None/{} при необходимости"
+
+    - id: "ASYNC-04"
+      title: "Сохранение синхронного пути для Alembic и вспомогательных сценариев"
+      status: "done"
+      depends_on: ["ASYNC-01"]
+      changes:
+        - "alembic/env.py: добавлена get_sync_url(), чтение DATABASE_URL (fallback sqlalchemy.url), предупреждение при DATABASE_URL_ASYNC, явный отказ для async драйверов"
+        - "Документация обновлена: MIGRATION_HISTORY.md (Async vs Sync URL), INTEGRATION_GUIDE.md (Runtime vs Migration Database URLs), README.md (ENV переменные)"
+        - "Добавлены smoke-проверки конфигурации URL (docs presence, dual URL consistency, alembic upgrade/downgrade)"
+      deliverables:
+        - "alembic/env.py: комментарии, docstring'и, валидация sync URL, игнор DATABASE_URL_ASYNC"
+        - "tests/integration/alembic/test_sync_migrations_still_work.py"
+        - "tests/integration/config/test_dual_url_consistency.py"
+        - "tests/docs/test_docs_sections_present.py"
+      tests:
+        - "test_sync_migrations_smoke() — upgrade head / downgrade base на sqlite+pysqlite"
+        - "test_alembic_rejects_async_url() — отказ на sqlite+aiosqlite"
+        - "test_dual_url_consistency() — различие драйверов"
+        - "test_required_doc_sections_present() — наличие заголовков в документах"
+      acceptance:
+        - "Alembic upgrade/downgrade работает на sync URL и падает на async URL с понятным сообщением"
+        - "Документация содержит явное разделение путей и примеры"
+        - "Существующие тесты не деградировали"
+      completion_notes:
+        completed_at: "2025-11-10"
+        commit_ref: "REF_PLACEHOLDER"
+        summary: "Закреплено разделение async runtime и sync миграций: env.py валидирует драйвер, добавлены тесты и разделы документации. Все тесты зелёные."
+        verification:
+          - "pytest: все тесты зелёные (+новые integration/docs тесты)"
+          - "grep env.py — нет использования DATABASE_URL_ASYNC как рабочего URL"
+          - "alembic upgrade/downgrade проходит на sqlite+pysqlite"
+      risks:
+        - "Случайное использование async URL в CI — предотвращено RuntimeError и документацией"
+        - "Дублирование нормализации URL — ограничено env.py и async_engine.py"
+
+    - id: "ASYNC-05"
+      title: "Обновление портов (interfaces) для async совместимости"
+      status: "done"
+      depends_on: ["ASYNC-03"]
+      changes:
+        - "В ports.py ввести AsyncUnitOfWork/Async*Repository протоколы"
+        - "Сохранить совместимость: временный адаптер Sync*Repository -> вызывает async через мост"
+      deliverables:
+        - "src/application/interfaces/ports.py: Async протоколы"
+        - "Адаптеры-бриджи (минимально необходимы для CLI)"
+      tests:
+        - "test_ports_protocols: обновить ожидания сигнатур"
+      acceptance:
+        - "Типовые проверки протоколов/DTO проходят"
+      risks:
+        - "Каскадное изменение сигнатур use cases — минимизируем за счёт адаптеров"
+      completion_notes:
+        completed_at: "2025-11-10"
+        commit_ref: "REF_PLACEHOLDER"
+        summary: "Добавлены AsyncUnitOfWork и Async*Repository Protocol в ports.py (ASYNC-05); синхронные интерфейсы сохранены без изменений; добавлен тест test_async_ports_protocols.py (структурные проверки, smoke вызовы)."
+        verification:
+          - "pytest: all existing tests + new async protocol tests green"
+          - "grep ports.py: 'class Async' >= 5 (протоколы)"
+          - "ruff: нет ошибок по новым протоколам"
+        follow_up:
+          - "ASYNC-06: перевод use cases на async def и использование AsyncUnitOfWork"
+
+    - id: "ASYNC-06"
+      title: "Use cases: переход на async с минимальным шумом"
+      status: "planned"
+      depends_on: ["ASYNC-05"]
+      changes:
+        - "Ключевые use cases, где есть I/O, сделать async (или ввести слой ApplicationService с async методами)"
+        - "В местах, где синхронный код, использовать бридж UoW shim для совместимости"
+      deliverables:
+        - "ledger.py: async версии методов, согласованные с async UoW"
+      tests:
+        - "Обновить unit тесты use cases -> pytest.mark.asyncio"
+      acceptance:
+        - "Существующие сценарии зелёные и не теряют функциональность"
+      risks:
+        - "Увязка с CLI синхронным запуском — потребуется обёртка"
+
+    - id: "ASYNC-07"
+      title: "CLI/Presentation: синхронные обёртки поверх async use cases"
+      status: "planned"
+      depends_on: ["ASYNC-06"]
+      changes:
+        - "В CLI точке входа — запуск async use cases через asyncio.run/anyio.run"
+        - "Единый helper run_sync(coro) для безопасного выполнения в отсутствии активного цикла"
+      deliverables:
+        - "src/presentation/cli/main.py: интеграция с async use cases"
+        - "Helper: infrastructure/utils/asyncio.py (run_coro_safely)"
+      tests:
+        - "CLI e2e остаются зелёными"
+      acceptance:
+        - "perf test_cli_perf.py не деградирует существенно"
+      risks:
+        - "Двойной run loop в тестовой среде — защитные проверки"
+
+    - id: "ASYNC-08"
+      title: "FX Audit/TTL: адаптация async путей"
+      status: "planned"
+      depends_on: ["ASYNC-03"]
+      changes:
+        - "ExchangeRateEventsRepository -> async"
+        - "maintenance:fx-ttl — вызывать async через run_sync"
+      deliverables:
+        - "Обновлённый репозиторий и CLI-команда"
+      tests:
+        - "tests/unit/test_fx_audit.py и integration/ledger/test_fx_ttl_cli.py зелёные"
+      acceptance:
+        - "TTL режимы none/delete/archive работают под async адаптером"
+      risks:
+        - "Пакетные операции — балансировать размер батча под async"
+
+    - id: "ASYNC-09"
+      title: "Оптимизации и стабильность (сессии, пул, таймауты)"
+      status: "planned"
+      depends_on: ["ASYNC-03","ASYNC-07","ASYNC-08"]
+      changes:
+        - "Настройка пула и таймаутов для AsyncEngine (connect_timeout, statement_timeout через server_side)"
+        - "Короткоживущие UoW, запрет долгих транзакций, политика ретраев при serialization failures"
+      deliverables:
+        - "Конфиг параметров в settings.py, документация best practices"
+      tests:
+        - "Нагрузочный smoke (перф тесты не падают)"
+      acceptance:
+        - "Отсутствуют подвисания/deadlocks в базовых сценариях"
+      risks:
+        - "Параметры зависят от окружения — разумные дефолты и документация"
+
+    - id: "ASYNC-10"
+      title: "Удаление временных sync-шимов (чистка)"
+      status: "planned"
+      depends_on: ["ASYNC-07","ASYNC-08","ASYNC-09"]
+      changes:
+        - "Удалить sync-адаптеры, если внешний API готов к async полностью"
+        - "Обновить документацию интеграции (docs/INTEGRATION_GUIDE.md) — только async"
+      deliverables:
+        - "Чистый async стек в persistence и UoW"
+      tests:
+        - "Повторный прогон всего набора"
+      acceptance:
+        - "Нет упоминаний sync адаптеров в коде/тестах"
+      risks:
+        - "Внешние интеграции могут ещё полагаться на sync — оставить переходный период"
+
+  edges:
+    - from: "ASYNC-01"
+      to: ["ASYNC-02","ASYNC-04"]
+    - from: "ASYNC-02"
+      to: ["ASYNC-03"]
+    - from: "ASYNC-03"
+      to: ["ASYNC-05","ASYNC-08","ASYNC-09"]
+    - from: "ASYNC-05"
+      to: ["ASYNC-06"]
+    - from: "ASYNC-06"
+      to: ["ASYNC-07"]
+    - from: "ASYNC-07"
+      to: ["ASYNC-10"]
+    - from: "ASYNC-08"
+      to: ["ASYNC-10"]
+    - from: "ASYNC-09"
+      to: ["ASYNC-10"]
+
+  acceptance_overall:
+    - "Все unit и integration тесты зелёные с async UoW/репозиториями"
+    - "CLI и perf-тесты не деградируют существенно"
+    - "Alembic миграции работают без изменений (sync)"
+    - "Документация обновлена (ENV/DATABASE_URL async/sync, best practices UoW)"
+
+  risks_global:
+    - "Смешение sync/async — использовать чёткие мосты и ограничить область их применения"
+    - "Deadlocks/таймауты — короткие транзакции, правильный порядок операций, ретраи"
+    - "Сложные агрегаты в ledger/trading — валидировать SQL и планы выполнения"
+
+  rollback_strategy:
+    - "Фича-флаги/ветка: удерживать sync реализацию до полной стабилизации async"
+    - "Быстрый откат: переключение DI на sync-адаптеры"

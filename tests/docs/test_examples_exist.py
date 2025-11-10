@@ -11,6 +11,7 @@ REQUIRED_DOCS = [
     "docs/PARITY_REPORT.md",
     "docs/ARCHITECTURE_OVERVIEW.md",
     "docs/MIGRATION_HISTORY.md",
+    "docs/RUNNING_MIGRATIONS.md",
 ]
 
 REQUIRED_EXAMPLES = [
@@ -31,5 +32,3 @@ def test_examples_files_exist_and_valid_json():
         txt = path.read_text(encoding="utf-8").strip()
         assert txt, f"Empty file {p}"
         json.loads(txt)
-
-

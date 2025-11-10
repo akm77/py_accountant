@@ -5,8 +5,7 @@ description = ""
 authors = ["akm77 <aleksey.kotryakhov@gmail.com>"]
 readme = "README.md"
 packages = [
-    { include = "py_accountant", from = "src" },
-    { include = "py_fledger", from = "src" }
+    { include = "py_accountant", from = "src" }
 ]
 
 [tool.poetry.dependencies]
@@ -21,10 +20,12 @@ poetry-core = ">=2.0.0"
 asyncpg = "^0.30.0"
 alembic = "^1.17.1"
 structlog = "^25.5.0"
+aiosqlite = "^0.21.0"
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0"
 ruff = ">=0.6.0"
 pre-commit = ">=3.5.0"
+pytest-asyncio = ">=0.23.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
