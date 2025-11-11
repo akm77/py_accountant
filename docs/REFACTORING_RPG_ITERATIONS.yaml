@@ -534,17 +534,47 @@ rpg_plan:
     - id: I18
       name: use_cases.trading_balance_refactor
       scope:
-        - use RawAggregator and ConvertedAggregator
+        - move aggregation from legacy async use case to new module use_cases_async/trading_balance.py
+        - introduce AsyncGetTradingBalanceRaw and AsyncGetTradingBalanceDetailed (async-only path)
+        - use domain RawAggregator / ConvertedAggregator for computation
+        - preserve legacy AsyncGetTradingBalance (deprecated) for backward compatibility
+        - repositories remain CRUD-only (no aggregate_trading_balance usage)
+        - add concise docstrings to new public classes/methods
       dependencies: [I17]
       deliverables:
-        - src/application/use_cases/trading_balance.py
+        - src/application/use_cases_async/trading_balance.py
         - tests/unit/application/test_use_cases_trading_balance.py
+        - updated src/application/use_cases_async/__init__.py (exports)
+        - updated docs/REFACTORING_RPG_ITERATIONS.yaml (this node)
+        - updated rpg_py_accountant.yaml (module/file node for trading_balance use cases)
       tests:
-        - test_trading_balance_raw
-        - test_trading_balance_detailed
+        - test_trading_balance_raw_empty_returns_empty
+        - test_trading_balance_raw_single_currency_aggregate
+        - test_trading_balance_raw_multi_currency_sorted_and_rounded
+        - test_trading_balance_detailed_base_detected_via_get_base
+        - test_trading_balance_detailed_missing_base_raises_validation_error
+        - test_trading_balance_detailed_nonbase_missing_rate_raises_validation_error
+        - test_trading_balance_detailed_non_positive_rate_validation_error (xfail)
+        - test_trading_balance_detailed_multi_currency_correct_conversion_and_used_rate_quantized
+        - test_window_validation_and_meta_type
       acceptance_criteria:
-        - Detailed DTO produced when requested
-      risk_mitigation: "Проверка пустых транзакций."
+        - New async use cases return lists of TradingBalanceLineSimple/Detailed
+        - Domain aggregators (RawAggregator/ConvertedAggregator) are used exclusively
+        - Error classification: ValidationError (domain/validation issues), ValueError (window/meta params), DomainError not used
+        - Repositories remain CRUD-only (no business aggregation methods called)
+        - Public docstrings present on new classes/methods
+        - Full pytest run green (xfail acknowledged)
+      risk_mitigation: |
+        Empty transaction sets return empty lists; strict validation propagates domain errors.
+        xfail test documents non-positive rate scenario unreachable due to domain Currency guard.
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Implemented new async trading balance module integrating domain aggregators.
+        Legacy AsyncGetTradingBalance retained for compatibility and marked conceptually deprecated.
+        All new tests green; xfail captured for non-positive rate scenario. Window/meta validation enforced.
+        rpg graph updated to include new module and file nodes.
+        Added explicit DEPRECATED docstring to legacy AsyncGetTradingBalance (ledger.py) after implementation to guide migration to AsyncGetTradingBalanceRaw/Detailed.
 
     - id: I19
       name: use_cases.fx_audit_refactor

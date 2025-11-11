@@ -82,20 +82,17 @@ class AsyncPostTransaction:
             # LedgerEntry performs side/amount/currency_code validation
             entries.append(LedgerEntry(side=line.side, amount=line.amount, currency_code=line.currency_code))
 
-        # 4. Gather distinct currency codes and load DTOs (second pass to avoid N+1 during projection)
-        codes = {e.currency_code for e in entries}
-        dto_map: dict[str, Any] = {}
-        for code in codes:
-            dto = await self.uow.currencies.get_by_code(code)
-            if not dto:  # Should not happen due to earlier check, but guard to classify resource absence
+        # 4. Load all currencies (not just referenced) to ensure base detection works even when lines omit base
+        all_cur_dtos = await self.uow.currencies.list_all()
+        dto_map: dict[str, Any] = {d.code: d for d in all_cur_dtos}
+        # Guard: ensure all referenced codes exist (classification ValueError)
+        for code in {e.currency_code for e in entries}:
+            if code not in dto_map:
                 raise ValueError(f"Currency not found: {code}")
-            dto_map[code] = dto
-
         # 5. Project DTOs to domain Currency objects
         from domain.currencies import Currency  # local import to keep async module surface concise
         currencies_domain: list[Currency] = []
         for dto in dto_map.values():
-            # exchange_rate -> rate_to_base; base currency has rate_to_base None
             currencies_domain.append(
                 Currency(code=dto.code, is_base=dto.is_base, rate_to_base=dto.exchange_rate)
             )
@@ -243,7 +240,10 @@ class AsyncGetAccountBalance:
 
 @dataclass(slots=True)
 class AsyncGetTradingBalance:
-    """Purpose:
+    """DEPRECATED (I18): use AsyncGetTradingBalanceRaw / AsyncGetTradingBalanceDetailed
+    from application.use_cases_async.trading_balance instead of this legacy aggregator.
+
+    Purpose:
     Aggregate trading balance (debit/credit per currency) and perform optional
     base currency conversion.
 

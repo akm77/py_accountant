@@ -21,26 +21,30 @@ Notes:
 
 """
 
-from .currencies import (
-    AsyncCreateCurrency,
-    AsyncSetBaseCurrency,
-    AsyncListCurrencies,
-)
 from .accounts import (
     AsyncCreateAccount,
     AsyncGetAccount,
     AsyncListAccounts,
 )
-from .ledger import (
-    AsyncPostTransaction,
-    AsyncListTransactionsBetween,
-    AsyncGetLedger,
-    AsyncGetAccountBalance,
-    AsyncGetTradingBalance,
+from .currencies import (
+    AsyncCreateCurrency,
+    AsyncListCurrencies,
+    AsyncSetBaseCurrency,
 )
 from .fx_audit import (
     AsyncAddExchangeRateEvent,
     AsyncListExchangeRateEvents,
+)
+from .ledger import (
+    AsyncGetAccountBalance,
+    AsyncGetLedger,
+    AsyncGetTradingBalance,
+    AsyncListTransactionsBetween,
+    AsyncPostTransaction,
+)
+from .trading_balance import (
+    AsyncGetTradingBalanceDetailed,
+    AsyncGetTradingBalanceRaw,
 )
 
 __all__ = [
@@ -58,8 +62,10 @@ __all__ = [
     "AsyncGetLedger",
     "AsyncGetAccountBalance",
     "AsyncGetTradingBalance",
+    # new trading balance refactored use cases (I18)
+    "AsyncGetTradingBalanceRaw",
+    "AsyncGetTradingBalanceDetailed",
     # fx audit
     "AsyncAddExchangeRateEvent",
     "AsyncListExchangeRateEvents",
 ]
-
