@@ -328,15 +328,27 @@ rpg_plan:
       scope:
         - ensure models.py contains only schema (no business logic)
         - annotate deprecated balance cache table
+        - remove helper factories (make_engine/make_session_factory) from models.py
+        - add module docstring with policy "schema only"
+        - adjust tests to not import removed helpers
       dependencies: [I11]
       deliverables:
         - src/infrastructure/persistence/sqlalchemy/models.py
         - tests/integration/db/test_models_exist.py
+        - tests/integration/ledger/test_performance_indices.py (updated)
       tests:
         - test_tables_present
+        - test_indexes_present_sqlite_memory (still green)
       acceptance_criteria:
         - No aggregation/business methods in models
-      risk_mitigation: "Diff проверка на удаление кода."
+        - Module-level docstring present with schema-only rule
+        - BalanceORM clearly marked DEPRECATED
+        - Integration test asserts minimal set of tables exists
+        - All existing tests green
+      risk_mitigation: "Diff проверка на удаление кода; быстрый grep на aggregate/balance/compute/convert."
+      status: done
+      completed_at: 2025-11-11
+      notes: "models.py очищен: оставлены только ORM схемы, удалены make_engine/make_session_factory; BalanceORM помечен DEPRECATED (удаление в будущей миграции). Добавлен тест tests/integration/db/test_models_exist.py, актуализирован test_performance_indices для прямого create_engine."
 
     - id: I13
       name: infrastructure.repositories.async_crud

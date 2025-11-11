@@ -1,3 +1,11 @@
+"""
+SQLAlchemy ORM schema declarations only (tables, columns, indexes, optional enums).
+No business logic, helpers, or factory functions should live here.
+
+Deprecated: BalanceORM (balances) — kept for backward compatibility; slated for removal
+in a future migration after repository simplification (I13+).
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,10 +21,9 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
-    create_engine,
     func,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -72,6 +79,12 @@ class TransactionLineORM(Base):
 
 
 class BalanceORM(Base):
+    """DEPRECATED: balance cache table.
+
+    Kept temporarily for backward compatibility; removal planned in a later
+    iteration with a dedicated migration, after repository simplification (I13+).
+    """
+
     __tablename__ = "balances"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     account_full_name: Mapped[str] = mapped_column(String(1024), nullable=False)
@@ -112,14 +125,3 @@ class ExchangeRateEventArchiveORM(Base):
     __table_args__ = (
         Index("ix_fx_events_archive_code_occurred_at", "code", "occurred_at"),
     )
-
-
-def make_engine(url: str | None = None):
-    url = url or "sqlite+pysqlite:///:memory:"
-    return create_engine(url, future=True)
-
-
-def make_session_factory(url: str | None = None):
-    engine = make_engine(url)
-    Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
