@@ -80,6 +80,7 @@ migrate:
 
 ```bash
 # Инициализация
+
 export DATABASE_URL=sqlite+pysqlite:///./dev.db
 poetry run alembic upgrade head
 # Запуск приложения (если есть async runtime)
