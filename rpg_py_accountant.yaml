@@ -224,7 +224,7 @@ rpg:
         description: "use_cases_async/currencies: используют доменные сервисы для валидации и выбора базы; репозитории — только CRUD."
       - name: "src/application/use_cases_async/accounts.py"
         parent_module: "use_cases_async"
-        description: "Async аккаунты: AsyncCreateAccount, AsyncGetAccount, AsyncListAccounts."
+        description: "Async аккаунты: AsyncCreateAccount использует domain.Account для валидации и нормализации full_name/currency_code; проверяет существование валюты и уникальность full_name; репозитории — только CRUD. AsyncGetAccount/AsyncListAccounts — passthrough."
       - name: "src/application/use_cases_async/ledger.py"
         parent_module: "use_cases_async"
         description: "Async леджер и баланс: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance."

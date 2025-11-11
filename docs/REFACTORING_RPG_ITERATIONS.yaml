@@ -455,16 +455,40 @@ rpg_plan:
     - id: I16
       name: use_cases.accounts_refactor
       scope:
-        - adapt accounts use cases
+        - Перенести валидацию full_name/currency_code в домен через domain.Account
+        - Нормализация full_name (trim/segments join) и currency_code (upper) в домене
+        - Репозитории остаются CRUD-only; use case проверяет только существование валюты и уникальность full_name
+        - Обновить краткие докстроки у AsyncCreateAccount/AsyncGetAccount/AsyncListAccounts
       dependencies: [I15]
       deliverables:
-        - src/application/use_cases/accounts.py
-        - tests/unit/application/test_use_cases_accounts.py
+        - src/application/use_cases_async/accounts.py (refactored)
+        - tests/unit/application/test_use_cases_accounts.py (new)
+        - docs/REFACTORING_RPG_ITERATIONS.yaml (этот узел расширен)
+        - rpg_py_accountant.yaml (описание узла use_cases_async/accounts обновлено)
       tests:
-        - test_create_account_validation
+        - test_create_account_valid_domain_projection
+        - test_create_account_invalid_full_name_parametrized
+        - test_create_account_invalid_currency_code
+        - test_create_account_missing_currency_raises_value_error
+        - test_create_account_duplicate_raises_value_error
+        - test_get_account_returns_none_for_missing
+        - test_list_accounts_passthrough
+        - test_root_account_parent_path_none
+        - test_account_depth_matches_segments (optional)
       acceptance_criteria:
-        - Domain validation invoked
-      risk_mitigation: "Минимум изменений вне файла."
+        - AsyncCreateAccount использует domain.Account для валидации и нормализации
+        - Ошибки: ValidationError — формат/валидация; ValueError — валюта отсутствует/дубликат
+        - Сигнатуры публичных классов/методов не изменены; краткие докстроки добавлены
+        - Репозитории не содержат бизнес‑логики (CRUD only)
+        - Все новые тесты зелёные; существующие тесты не ломаются
+      risk_mitigation: "Строгое разделение ValidationError vs ValueError, покрыто юнит‑тестами; sync слой не меняется."
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        AsyncCreateAccount теперь создаёт domain.Account для проверки формата имени/глубины/длины и нормализации кода валюты.
+        Затем use case проверяет наличие валюты через repo.currencies.get_by_code и уникальность full_name через repo.accounts.get_by_full_name,
+        выбрасывая ValueError для отсутствующей валюты/дубликата. Создание идёт через repo.accounts.create с доменно-проецированным DTO.
+        AsyncGetAccount/AsyncListAccounts оставлены passthrough; добавлены лаконичные докстроки. Добавлен модуль тестов, покрывающий edge‑кейсы.
 
     - id: I17
       name: use_cases.ledger_refactor

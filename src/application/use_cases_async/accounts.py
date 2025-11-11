@@ -4,87 +4,78 @@ from dataclasses import dataclass
 
 from application.dto.models import AccountDTO
 from application.interfaces.ports import AsyncUnitOfWork
+from domain.accounts import Account
 
 
 @dataclass(slots=True)
 class AsyncCreateAccount:
-    """Purpose:
-    Create a new account bound to an existing currency.
+    """Create a new account bound to an existing currency.
 
-    Parameters:
-    - uow: AsyncUnitOfWork.
-    - full_name: Hierarchical account full name (e.g., "Assets:Cash").
-    - currency_code: Existing currency code for the account.
+    Semantic rules:
+    - Domain validation & normalization performed via ``Account`` (full_name & currency_code).
+    - ``ValidationError``: format/validation issues (invalid full_name, currency_code length).
+    - ``ValueError``: missing currency or duplicate account (resource state problems).
+    - Repository layer remains CRUD-only (no manual parsing or normalization here).
 
-    Returns:
-    - AccountDTO for the newly created account.
-
-    Raises:
-    - ValueError: if account already exists or currency is missing.
-
-    Notes:
-    - Currency existence is verified via repository lookups.
+    Returns ``AccountDTO`` with id populated by repository.
     """
     uow: AsyncUnitOfWork
 
     async def __call__(self, full_name: str, currency_code: str) -> AccountDTO:
-        """Create account; ensure currency exists and full_name is unique."""
-        # Validate currency
-        cur = await self.uow.currencies.get_by_code(currency_code)
+        """Create account ensuring validation, currency existence and uniqueness.
+
+        Args:
+            full_name: Hierarchical account path (e.g. "Assets:Cash"). May contain whitespace which is trimmed per segment.
+            currency_code: Target currency code (will be normalized to upper case by domain).
+
+        Raises:
+            ValidationError: If full_name or currency_code fail domain validation (empty, bad delimiters, length constraints).
+            ValueError: If currency does not exist or account with same full_name already exists.
+        """
+        # Domain validation & normalization (may raise ValidationError)
+        account = Account(full_name=full_name, currency_code=currency_code)
+
+        # Verify currency existence (resource lookup)
+        cur = await self.uow.currencies.get_by_code(account.currency_code)
         if not cur:
-            raise ValueError(f"Currency not found: {currency_code}")
-        # Ensure uniqueness
-        existing = await self.uow.accounts.get_by_full_name(full_name)
+            raise ValueError(f"Currency not found: {account.currency_code}")
+
+        # Ensure uniqueness on normalized full_name
+        existing = await self.uow.accounts.get_by_full_name(account.full_name)
         if existing:
-            raise ValueError(f"Account already exists: {full_name}")
-        dto = AccountDTO(id="", name=full_name.split(":")[-1], full_name=full_name, currency_code=currency_code)
+            raise ValueError(f"Account already exists: {account.full_name}")
+
+        dto = AccountDTO(
+            id="",  # repository assigns id
+            name=account.name,
+            full_name=account.full_name,
+            currency_code=account.currency_code,
+            parent_id=None,  # parent_id management out of scope for I16
+        )
         return await self.uow.accounts.create(dto)
 
 
 @dataclass(slots=True)
 class AsyncGetAccount:
-    """Purpose:
-    Fetch account by full name.
+    """Fetch account by its full_name (passthrough).
 
-    Parameters:
-    - uow: AsyncUnitOfWork.
-    - full_name: Account full name.
-
-    Returns:
-    - AccountDTO | None: ``None`` if not found.
-
-    Raises:
-    - None.
-
-    Notes:
-    - Pure passthrough to repository.
+    Returns ``AccountDTO`` or ``None`` if not found. No additional validation.
     """
     uow: AsyncUnitOfWork
 
     async def __call__(self, full_name: str) -> AccountDTO | None:  # noqa: D401 - passthrough
-        """Return account by full name or None if not found."""
+        """Return account by full_name or ``None`` if absent."""
         return await self.uow.accounts.get_by_full_name(full_name)
 
 
 @dataclass(slots=True)
 class AsyncListAccounts:
-    """Purpose:
-    List all accounts.
+    """List all accounts (passthrough).
 
-    Parameters:
-    - uow: AsyncUnitOfWork.
-
-    Returns:
-    - list[AccountDTO]: possibly empty list.
-
-    Raises:
-    - None.
-
-    Notes:
-    - Parity with sync implementation.
+    Returns list of ``AccountDTO``; empty list if none exist.
     """
     uow: AsyncUnitOfWork
 
     async def __call__(self) -> list[AccountDTO]:  # noqa: D401 - passthrough
-        """Return a list of accounts (possibly empty)."""
+        """Return list of existing accounts (possibly empty)."""
         return await self.uow.accounts.list()
