@@ -115,6 +115,9 @@ rpg:
       - name: "domain.errors"
         path: "src/domain/errors.py"
         description: "Минимальный модуль исключений домена: DomainError, ValidationError (без зависимостей)."
+      - name: "domain.quantize"
+        path: "src/domain/quantize.py"
+        description: "Утилиты квантования: money_quantize, rate_quantize (ROUND_HALF_EVEN, локальный контекст, без изменения глобального Decimal)."
       - name: "infrastructure"
         path: "src/infrastructure"
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
@@ -165,6 +168,9 @@ rpg:
       - name: "src/domain/errors.py"
         parent_module: "domain.errors"
         description: "Определяет DomainError и ValidationError; публичный контракт домена."
+      - name: "src/domain/quantize.py"
+        parent_module: "domain.quantize"
+        description: "Функции для безопасного квантования денег (2 знака) и курсов (6 знаков) с ROUND_HALF_EVEN без изменения глобального контекста."
       - name: "src/application/dto/models.py"
         parent_module: "application"
         description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO"
@@ -210,12 +216,21 @@ rpg:
       - name: "tests/unit/domain/test_errors.py"
         parent_module: "domain.errors"
         description: "Тест проверяет иерархию DomainError/ValidationError и текст сообщений."
+      - name: "tests/unit/domain/test_quantize.py"
+        parent_module: "domain.quantize"
+        description: "Тесты для функций квантования денег и курсов: money_quantize, rate_quantize."
 
     components:
       - name: "DomainErrors"
         parent_file: "src/domain/errors.py"
         type: "module"
         description: "Исключения домена: базовый класс DomainError и ValidationError для валидации."
+        testable: true
+        test_priority: "high"
+      - name: "QuantizeUtilities"
+        parent_file: "src/domain/quantize.py"
+        type: "module"
+        description: "Функции money_quantize и rate_quantize: банковское округление (2 и 6 знаков) с ROUND_HALF_EVEN, без изменения глобального Decimal контекста."
         testable: true
         test_priority: "high"
       - name: "SqlAlchemyUnitOfWork"
@@ -279,6 +294,10 @@ rpg:
       - target_component: "DomainErrors"
         test_file: "tests/unit/domain/test_errors.py"
         test_functions: ["test_errors_raise_and_inherit"]
+        coverage_status: "added"
+      - target_component: "QuantizeUtilities"
+        test_file: "tests/unit/domain/test_quantize.py"
+        test_functions: ["test_money_quantize_rounds", "test_rate_quantize_rounds", "test_no_global_context_mutation"]
         coverage_status: "added"
       - target_component: "Async repositories"
         test_file: "tests/unit/application/test_async_repositories.py"

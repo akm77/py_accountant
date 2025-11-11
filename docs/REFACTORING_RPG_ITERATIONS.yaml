@@ -82,10 +82,14 @@ rpg_plan:
       tests:
         - test_money_quantize_rounds
         - test_rate_quantize_rounds
+        - test_no_global_context_mutation
       acceptance_criteria:
         - Functions return expected quantized values
         - No global Decimal context mutation
       risk_mitigation: "Изолировать контекст через localcontext."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Реализованы money_quantize и rate_quantize с docstring; входы преобразуются через Decimal(str(x)), локальный контекст с ROUND_HALF_EVEN; добавлены тесты на границы и неизменность глобального контекста; импортировать через from domain.quantize import money_quantize, rate_quantize (без экспорта в __init__)."
 
     - id: I03
       name: domain.currency.value_object
