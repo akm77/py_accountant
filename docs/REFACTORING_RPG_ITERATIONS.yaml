@@ -273,16 +273,26 @@ rpg_plan:
     - id: I10
       name: application.dto.refactor_step2_backwards_shim
       scope:
-        - optional compatibility alias for legacy code (if needed)
+        - introduce compatibility alias/deprecation for legacy TradingBalanceLineDTO
+        - adapt application use cases to return new DTOs (raw -> Simple, detailed -> Detailed)
+        - update unit tests to consume new DTOs; add mapping tests
       dependencies: [I09]
       deliverables:
-        - src/application/dto/backwards.py (if required)
-        - tests/unit/domain/test_dto_backwards.py
+        - src/application/dto/models.py (deprecated docstring for TradingBalanceLineDTO)
+        - src/application/use_cases/ledger.py (new GetTradingBalanceRawDTOs, GetTradingBalanceDetailedDTOs)
+        - tests/unit/application/test_ports_and_dtos.py (adapted)
+        - tests/unit/application/test_trading_balance_use_cases_dto_mapping.py (new)
       tests:
-        - test_legacy_import_shim
+        - test_raw_use_case_returns_simple_dto
+        - test_detailed_use_case_returns_detailed_dto
+        - test_legacy_trading_balance_line_alias (see: test_legacy_alias_points_to_detailed_class)
+        - test_no_converted_fields_in_simple_output
       acceptance_criteria:
-        - Legacy import does not break (skip if not needed)
-      risk_mitigation: "Условно выполнить только при внешних жалобах."
+        - All use cases added return new DTOs
+        - No new references to converted_* outside legacy paths
+        - Legacy name only used via deprecated class; no new instantiation in app layer
+        - Test suites I09+I10 green
+      risk_mitigation: "Оставить существующие sync/async use cases нетронутыми для совместимости; потребители постепенно переводятся на новые методы."
 
     - id: I11
       name: application.ports.unify_async_protocols

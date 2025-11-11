@@ -203,7 +203,7 @@ rpg:
         description: "Доменные вычисления TTL: UTC cutoff, фильтрация старых событий (stable), построение batch-плана; без зависимостей от БД/репозиториев."
       - name: "src/application/dto/models.py"
         parent_module: "application"
-        description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO; I09: добавлены TradingBalanceLineSimple и TradingBalanceLineDetailed (frozen, slots)."
+        description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO (DEPRECATED alias/compat), TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO; I09: добавлены TradingBalanceLineSimple и TradingBalanceLineDetailed (frozen, slots)."
       - name: "src/application/interfaces/ports.py"
         parent_module: "application"
         description: "Порты: Clock, UnitOfWork, CurrencyRepository, AccountRepository, TransactionRepository, BalanceRepository, ExchangeRateEventsRepository."
@@ -486,6 +486,16 @@ rpg:
             "test_detailed_line_contains_conversion",
             "test_docstrings_present_public_classes",
             "test_frozen_slots_behavior",
+          ]
+        coverage_status: "added"
+      - target_component: "Application DTO mapping use cases"
+        test_file: "tests/unit/application/test_trading_balance_use_cases_dto_mapping.py"
+        test_functions:
+          [
+            "test_raw_use_case_returns_simple_dto",
+            "test_detailed_use_case_returns_detailed_dto",
+            "test_legacy_alias_points_to_detailed_class",
+            "test_no_converted_fields_in_simple_output",
           ]
         coverage_status: "added"
     integration_tests:

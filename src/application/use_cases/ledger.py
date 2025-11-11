@@ -12,7 +12,9 @@ from application.dto.models import (
     EntryLineDTO,
     RichTransactionDTO,
     TradingBalanceDTO,
+    TradingBalanceLineDetailed,
     TradingBalanceLineDTO,
+    TradingBalanceLineSimple,
     TransactionDTO,
 )
 from application.interfaces.ports import Clock, UnitOfWork
@@ -29,6 +31,10 @@ from domain import (
     InMemoryAccountBalanceService,
     TransactionVO,
 )
+from domain.ledger import LedgerEntry
+
+# New domain aggregators for DTO mapping
+from domain.trading_balance import ConvertedAggregator, RawAggregator
 
 # Mappers
 
@@ -285,3 +291,87 @@ class GetTradingBalanceDetailed:
         base.base_currency = base_currency
         base.base_total = money_quantize(total_base)
         return base
+
+
+@dataclass
+class GetTradingBalanceRawDTOs:
+    """Return raw trading balance mapped to TradingBalanceLineSimple list.
+
+    Args:
+        uow: Unit of Work providing access to repositories.
+        clock: Clock for default time boundaries.
+
+    Returns:
+        list[TradingBalanceLineSimple]: one line per currency, no converted fields.
+    """
+    uow: UnitOfWork
+    clock: Clock
+
+    def __call__(self, *, start: datetime | None = None, end: datetime | None = None, as_of: datetime | None = None) -> list[TradingBalanceLineSimple]:
+        # Determine window
+        win_start = start or datetime.fromtimestamp(0, tz=self.clock.now().tzinfo)
+        win_end = end or as_of or self.clock.now()
+        # Collect lines within window via repository
+        txs = self.uow.transactions.list_between(win_start, win_end)
+        # Map to domain LedgerEntry and aggregate
+        dom_lines: list[LedgerEntry] = []
+        for tx in txs:
+            for line in tx.lines:
+                side = EntrySide(line.side.upper())
+                dom_lines.append(LedgerEntry(side=side.value, amount=line.amount, currency_code=line.currency_code))
+        raw = RawAggregator().aggregate(dom_lines)
+        # Map to DTOs
+        return [
+            TradingBalanceLineSimple(currency_code=l.currency_code, debit=l.debit, credit=l.credit, net=l.net)
+            for l in raw
+        ]
+
+
+@dataclass
+class GetTradingBalanceDetailedDTOs:
+    """Return detailed trading balance mapped to TradingBalanceLineDetailed list.
+
+    Args:
+        uow: Unit of Work providing access to repositories.
+        clock: Clock for default time boundaries.
+        base_currency: Required explicit base currency code.
+
+    Returns:
+        list[TradingBalanceLineDetailed]: raw values plus *_base and used_rate.
+    """
+    uow: UnitOfWork
+    clock: Clock
+
+    def __call__(self, base_currency: str, *, start: datetime | None = None, end: datetime | None = None, as_of: datetime | None = None) -> list[TradingBalanceLineDetailed]:
+        if not base_currency:
+            raise DomainError("base_currency is required for detailed trading balance")
+        # Determine window and collect
+        win_start = start or datetime.fromtimestamp(0, tz=self.clock.now().tzinfo)
+        win_end = end or as_of or self.clock.now()
+        txs = self.uow.transactions.list_between(win_start, win_end)
+        dom_lines: list[LedgerEntry] = []
+        for tx in txs:
+            for line in tx.lines:
+                side = EntrySide(line.side.upper())
+                dom_lines.append(LedgerEntry(side=side.value, amount=line.amount, currency_code=line.currency_code))
+        # Build domain currency objects from repository DTOs
+        all_curs = self.uow.currencies.list_all()
+        from domain.currencies import Currency
+        cur_map = { c.code: Currency(code=c.code, is_base=c.is_base, rate_to_base=c.exchange_rate) for c in all_curs }
+        # Aggregate via domain and map
+        conv = ConvertedAggregator().aggregate(dom_lines, currencies=cur_map, base_code=base_currency)
+        return [
+            TradingBalanceLineDetailed(
+                currency_code=l.currency_code,
+                base_currency_code=l.base_currency_code,
+                debit=l.debit,
+                credit=l.credit,
+                net=l.net,
+                used_rate=l.used_rate,
+                debit_base=l.debit_base,
+                credit_base=l.credit_base,
+                net_base=l.net_base,
+            )
+            for l in conv
+        ]
+

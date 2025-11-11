@@ -8,7 +8,8 @@ from application.dto.models import (
     CurrencyDTO,
     EntryLineDTO,
     TradingBalanceDTO,
-    TradingBalanceLineDTO,
+    TradingBalanceLineDetailed,
+    TradingBalanceLineSimple,
     TransactionDTO,
 )
 from application.interfaces.ports import (
@@ -24,18 +25,16 @@ def test_dto_shapes() -> None:
     acc = AccountDTO(id="1", name="Cash", full_name="Assets:Cash", currency_code="USD")
     line = EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("10.00"), currency_code="USD")
     tx = TransactionDTO(id="t1", occurred_at=datetime.now(UTC), lines=[line])
-    tline = TradingBalanceLineDTO(
-        currency_code="USD",
-        total_debit=Decimal("10"),
-        total_credit=Decimal("0"),
-        balance=Decimal("10"),
-    )
-    bal = TradingBalanceDTO(as_of=datetime.now(UTC), lines=[tline], base_currency="USD")
+    tline_raw = TradingBalanceLineSimple(currency_code="USD", debit=Decimal("10"), credit=Decimal("0"), net=Decimal("10"))
+    tline_det = TradingBalanceLineDetailed(currency_code="USD", base_currency_code="USD", debit=Decimal("10"), credit=Decimal("0"), net=Decimal("10"), used_rate=Decimal("1"), debit_base=Decimal("10"), credit_base=Decimal("0"), net_base=Decimal("10"))
+    bal = TradingBalanceDTO(as_of=datetime.now(UTC), lines=[], base_currency="USD")
 
     assert cur.code == "USD"
     assert acc.full_name.startswith("Assets")
     assert tx.lines[0].amount == Decimal("10.00")
-    assert bal.lines[0].balance == Decimal("10")
+    assert tline_raw.net == Decimal("10")
+    assert tline_det.net_base == Decimal("10")
+    assert bal.base_currency == "USD"
 
 
 def test_ports_protocols() -> None:

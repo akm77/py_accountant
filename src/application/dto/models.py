@@ -71,10 +71,14 @@ class TransactionDTO:
 
 
 # NOTE: Legacy mixed trading balance line kept for compatibility with existing tests.
-# It may be removed or aliased in a later iteration (I10) once migration is complete.
+# I10: Mark as deprecated. Do not alias yet to avoid breaking infrastructure code paths.
 @dataclass(slots=True)
 class TradingBalanceLineDTO:
-    """Legacy mixed trading balance line with optional conversion fields (deprecated)."""
+    """DEPRECATED (I10): use TradingBalanceLineDetailed for detailed mode or
+    TradingBalanceLineSimple for raw mode. Scheduled for removal after I29.
+
+    Legacy mixed trading balance line with optional conversion fields.
+    """
 
     currency_code: str
     total_debit: Decimal
@@ -91,7 +95,11 @@ class TradingBalanceLineDTO:
 
 @dataclass(slots=True)
 class TradingBalanceDTO:
-    """Aggregated trading balance as of a timestamp with optional base totals."""
+    """Aggregated trading balance as of a timestamp with optional base totals.
+
+    Legacy container kept for compatibility of repository methods. New application
+    use cases in I10 return lists of TradingBalanceLineSimple/Detailed directly.
+    """
 
     as_of: datetime
     lines: list[TradingBalanceLineDTO]
