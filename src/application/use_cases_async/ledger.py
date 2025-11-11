@@ -13,30 +13,41 @@ from application.dto.models import (
     TransactionDTO,
 )
 from application.interfaces.ports import AsyncUnitOfWork, Clock
+from domain.errors import ValidationError
+from domain.ledger import LedgerEntry, LedgerValidator
 
 
 @dataclass(slots=True)
 class AsyncPostTransaction:
-    """Purpose:
-    Persist a financial transaction with lines, ensuring referenced accounts
-    and currencies exist.
+    """Persist a financial transaction after domain ledger balance validation.
 
-    Parameters:
-    - uow: AsyncUnitOfWork.
-    - clock: Clock abstraction to provide ``occurred_at`` timestamp.
-    - lines: List of EntryLineDTO describing debit/credit impacts.
-    - memo: Optional note.
-    - meta: Optional metadata dict (JSON-like, small size).
+    Contract:
+      AsyncPostTransaction(uow, clock)(lines: list[EntryLineDTO], memo: str|None, meta: dict|None) -> TransactionDTO
 
-    Returns:
-    - TransactionDTO persisted (id generated as UUID-based string).
+    Steps:
+      1. Guard empty list (ValidationError).
+      2. For each provided line: ensure account exists (ValueError) and currency exists (ValueError).
+      3. Project lines to domain LedgerEntry (side/amount/currency_code validation -> ValidationError).
+      4. Load all distinct currencies referenced by lines from repository (ValueError if any missing).
+      5. Project currency DTOs to domain Currency value objects (ValidationError on invalid code/rate).
+      6. Run LedgerValidator.validate(entries, currencies_domain) — performs:
+         - Base currency detection (ValidationError if absent).
+         - Unknown currency among entries (ValidationError).
+         - Missing/non‑positive rate_to_base for non‑base currency (ValidationError).
+         - Debit/Credit imbalance after conversion & money quantize (DomainError).
+      7. Persist TransactionDTO (id = "tx:<uuidhex>") with occurred_at = clock.now().
 
-    Raises:
-    - ValueError: if lines empty or referenced account/currency missing.
+    Error classification:
+      - ValidationError: empty lines, invalid side, non‑positive amount, bad currency code length, absent base currency,
+        unknown currency during domain validation, missing/non‑positive rate_to_base for non‑base currency.
+      - DomainError: ledger not balanced after conversion and quantization.
+      - ValueError: missing external resources (account or currency DTO not found before domain validation).
+
+    Side effects: inserts journal + transaction lines via async repository.
 
     Notes:
-    - Does not perform balance caching or FX rate updates (kept minimal for ASYNC-06).
-    - Line validation ensures existence of accounts and currencies via repository.
+      - Does not mutate exchange rates or perform balance caching.
+      - Repositories remain CRUD‑only; all formal business validation lives in domain objects.
     """
     uow: AsyncUnitOfWork
     clock: Clock
@@ -47,14 +58,52 @@ class AsyncPostTransaction:
         memo: str | None = None,
         meta: dict[str, Any] | None = None,
     ) -> TransactionDTO:
-        """Validate inputs, persist transaction lines, and return DTO."""
+        """Validate input & domain ledger balance, then persist and return TransactionDTO.
+
+        Raises:
+          ValidationError | DomainError | ValueError per class docstring.
+        """
+        # 1. Empty list guard (domain formatting error)
         if not lines:
-            raise ValueError("No lines provided")
+            raise ValidationError("No lines provided")
+
+        # 2. Resource existence checks (accounts + currencies)
         for line in lines:
-            if not await self.uow.accounts.get_by_full_name(line.account_full_name):
+            acc = await self.uow.accounts.get_by_full_name(line.account_full_name)
+            if not acc:
                 raise ValueError(f"Account not found: {line.account_full_name}")
-            if not await self.uow.currencies.get_by_code(line.currency_code):
+            cur_dto = await self.uow.currencies.get_by_code(line.currency_code.upper())
+            if not cur_dto:
                 raise ValueError(f"Currency not found: {line.currency_code}")
+
+        # 3. Project to domain ledger entries (formal field validation)
+        entries: list[LedgerEntry] = []
+        for line in lines:
+            # LedgerEntry performs side/amount/currency_code validation
+            entries.append(LedgerEntry(side=line.side, amount=line.amount, currency_code=line.currency_code))
+
+        # 4. Gather distinct currency codes and load DTOs (second pass to avoid N+1 during projection)
+        codes = {e.currency_code for e in entries}
+        dto_map: dict[str, Any] = {}
+        for code in codes:
+            dto = await self.uow.currencies.get_by_code(code)
+            if not dto:  # Should not happen due to earlier check, but guard to classify resource absence
+                raise ValueError(f"Currency not found: {code}")
+            dto_map[code] = dto
+
+        # 5. Project DTOs to domain Currency objects
+        from domain.currencies import Currency  # local import to keep async module surface concise
+        currencies_domain: list[Currency] = []
+        for dto in dto_map.values():
+            # exchange_rate -> rate_to_base; base currency has rate_to_base None
+            currencies_domain.append(
+                Currency(code=dto.code, is_base=dto.is_base, rate_to_base=dto.exchange_rate)
+            )
+
+        # 6. Domain ledger balance validation
+        LedgerValidator.validate(entries, currencies_domain)
+
+        # 7. Persist transaction
         tx = TransactionDTO(
             id=f"tx:{uuid4().hex}",
             occurred_at=self.clock.now(),

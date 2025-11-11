@@ -227,7 +227,7 @@ rpg:
         description: "Async аккаунты: AsyncCreateAccount использует domain.Account для валидации и нормализации full_name/currency_code; проверяет существование валюты и уникальность full_name; репозитории — только CRUD. AsyncGetAccount/AsyncListAccounts — passthrough."
       - name: "src/application/use_cases_async/ledger.py"
         parent_module: "use_cases_async"
-        description: "Async леджер и баланс: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance."
+        description: "Async леджер и баланс: AsyncPostTransaction (доменная проверка баланса через LedgerValidator перед записью), AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance. Ошибки: ValidationError (формат/валидация), DomainError (несбалансированность), ValueError (отсутствующие ресурсы)."
       - name: "src/application/use_cases_async/fx_audit.py"
         parent_module: "use_cases_async"
         description: "Async FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents."

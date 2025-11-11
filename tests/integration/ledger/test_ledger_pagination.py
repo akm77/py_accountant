@@ -9,7 +9,7 @@ import pytest
 from application.dto.models import EntryLineDTO
 from application.interfaces.ports import AsyncUnitOfWork as AsyncUoWProtocol
 from application.use_cases_async.accounts import AsyncCreateAccount
-from application.use_cases_async.currencies import AsyncCreateCurrency
+from application.use_cases_async.currencies import AsyncCreateCurrency, AsyncSetBaseCurrency
 from application.use_cases_async.ledger import AsyncGetLedger, AsyncPostTransaction
 from infrastructure.persistence.inmemory.clock import FixedClock
 from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
@@ -17,6 +17,8 @@ from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 async def seed(uow: AsyncUoWProtocol, clock):
     await AsyncCreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
+    # Set USD as base to satisfy domain ledger validation
+    await AsyncSetBaseCurrency(uow)("USD")
     await AsyncCreateAccount(uow)("Assets:Cash", "USD")
     await AsyncCreateAccount(uow)("Income:Sales", "USD")
     post = AsyncPostTransaction(uow, clock)

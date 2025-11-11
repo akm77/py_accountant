@@ -493,17 +493,43 @@ rpg_plan:
     - id: I17
       name: use_cases.ledger_refactor
       scope:
-        - integrate LedgerValidator into post_transaction
+        - integrate LedgerValidator into post_transaction (async path)
+        - move formal validation (side, amount>0, currency_code length) to domain LedgerEntry
+        - verify resources (accounts/currencies) via repositories (CRUD-only)
+        - assemble domain Currency from DTOs and validate base/rates
+        - keep signature of AsyncPostTransaction unchanged
+        - add concise docstrings
       dependencies: [I16]
       deliverables:
-        - src/application/use_cases/ledger.py
-        - tests/unit/application/test_use_cases_ledger.py
+        - src/application/use_cases_async/ledger.py (AsyncPostTransaction uses LedgerValidator)
+        - tests/unit/application/test_use_cases_ledger.py (new)
+        - rpg_py_accountant.yaml (node description updated for use_cases_async/ledger)
       tests:
-        - test_post_transaction_balanced
-        - test_post_transaction_unbalanced_raises
+        - test_post_transaction_balanced_simple_usd
+        - test_post_transaction_unbalanced_raises_domain_error
+        - test_post_transaction_empty_lines_raises_validation_error
+        - test_post_transaction_missing_account_raises_value_error
+        - test_post_transaction_missing_currency_raises_value_error
+        - test_post_transaction_zero_or_negative_amount_validation_error
+        - test_post_transaction_invalid_side_validation_error
+        - test_post_transaction_unknown_currency_in_domain_validation_error
+        - test_post_transaction_missing_rate_non_base_validation_error
+        - test_post_transaction_rounding_balance_passes
+        - test_post_transaction_multi_currency_balanced_with_rates
       acceptance_criteria:
-        - Unbalanced raises DomainError
-      risk_mitigation: "Edge cases округления покрыты."
+        - AsyncPostTransaction uses LedgerEntry and LedgerValidator.validate
+        - Errors classification: ValidationError (format/domain), DomainError (unbalanced), ValueError (missing resources)
+        - Signature unchanged; docstrings updated
+        - All new tests green; existing smoke adapted where necessary
+      risk_mitigation: "Тестами закреплены ошибки и отсутствие базы; репозитории не изменялись (CRUD-only)."
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        AsyncPostTransaction now validates ledger balance via domain LedgerValidator.
+        It projects EntryLineDTO to LedgerEntry, loads distinct CurrencyDTOs and converts to domain Currency
+        (code/is_base/rate_to_base). The validator auto-detects base (via get_base_currency) and requires
+        positive rate_to_base for non-base currencies. On success, transaction is persisted with id 'tx:<uuidhex>'.
+        Integration test for ledger pagination updated to set base currency explicitly.
 
     - id: I18
       name: use_cases.trading_balance_refactor
