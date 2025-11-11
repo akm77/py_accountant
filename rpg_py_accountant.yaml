@@ -72,7 +72,7 @@ rpg:
             notes: "true"
           - name: "LOG_FILE"
             required: false
-            notes: "Рекомендуется указать путь до файла для ротации JSON логов."
+            notes: "Рекомен��уется указать путь до файла для ротации JSON логов."
           - name: "LOG_ROTATION"
             required: false
             notes: "'time' (по умолчанию, ротация в полночь) или 'size'."
@@ -129,7 +129,7 @@ rpg:
         description: "Валидатор баланса LedgerValidator: мультивалютная сверка в базовой валюте (money_quantize), без инфраструктурных зависимостей."
       - name: "domain.trading_balance"
         path: "src/domain/trading_balance.py"
-        description: "RawAggregator: агрегация дебет/кредит по валюте без конверсии, квантование итогов (2dp HALF_EVEN), возврат списка RawBalanceLine (отсортирован по currency_code). ConvertedAggregator: агрегация по валюте с конвертацией в базовую валюту по rate_to_base; DTO ConvertedBalanceLine включает base_currency_code, used_rate (6 знаков), debit/credit/net и debit_base/credit_base/net_base; сортировка по currency_code."
+        description: "RawAggregator: агрегация дебет/кредит по валюте без конверсии, квантование итогов (2dp HALF_EVEN), возврат списка RawBalanceLine (отсортирован по currency_code). ConvertedAggregator: агре��ация по валюте с конвертацией в базовую валюту по rate_to_base; DTO ConvertedBalanceLine включает base_currency_code, used_rate (6 знаков), debit/credit/net и debit_base/credit_base/net_base; сортировка по currency_code."
       - name: "domain.fx_audit"
         path: "src/domain/fx_audit.py"
         description: "FX Audit TTL domain service: FxAuditTTLService with make_cutoff/identify_old/batch_plan; dataclasses ExchangeRateEventRef, TTLConfig, Batch; ArchivalMode enum; чистая логика без I/O."
@@ -203,7 +203,7 @@ rpg:
         description: "Доменные вычисления TTL: UTC cutoff, фильтрация старых событий (stable), построение batch-плана; без зависимостей от БД/репозиториев."
       - name: "src/application/dto/models.py"
         parent_module: "application"
-        description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO"
+        description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO; I09: добавлены TradingBalanceLineSimple и TradingBalanceLineDetailed (frozen, slots)."
       - name: "src/application/interfaces/ports.py"
         parent_module: "application"
         description: "Порты: Clock, UnitOfWork, CurrencyRepository, AccountRepository, TransactionRepository, BalanceRepository, ExchangeRateEventsRepository."
@@ -257,7 +257,7 @@ rpg:
         description: "Тесты Account: валидация full_name, derive name/parent_path, опциональный parent_id."
       - name: "tests/unit/domain/test_ledger_balance.py"
         parent_module: "domain.ledger"
-        description: "Тесты валидатора баланса: одно- и мультивалютные кейсы, несбалансированность, негативные сценарии, проверка контекста Decimal и округления."
+        description: "Тесты валидатора баланса: одно- и мультивалютные кейсы, несбалансированность, негативные сценарии, проверка контекста Decimal и округле��ия."
       - name: "tests/unit/domain/test_trading_balance_raw.py"
         parent_module: "domain.trading_balance"
         description: "Тесты RawAggregator: пустой вход, одиночная валюта, мульти-валюта, округление HALF_EVEN, неизменность Decimal контекста, защита от неверного типа."
@@ -267,6 +267,9 @@ rpg:
       - name: "tests/unit/domain/test_fx_audit_ttl.py"
         parent_module: "domain.fx_audit"
         description: "Юнит‑тесты TTL: identify_old (naive/aware/strictly older), batch_plan (offset/limit покрытие), make_cutoff нормализация UTC, валидации аргументов."
+      - name: "tests/report/test_inventory.md"
+        parent_module: "py_accountant"
+        description: "Снимок инвентаризации тестов (I08A): категории и план миграции тестов (KEEP-ASIS/ADAPT-SHALLOW/REWRITE-DOMAIN/UPGRADE-CLI/DROP-TRIVIAL/OBSOLETE/PERF-OPTIONAL/SPLIT/MOVE)."
 
     components:
       - name: "DomainErrors"
@@ -474,6 +477,16 @@ rpg:
       - target_component: "Docs sections presence"
         test_file: "tests/docs/test_docs_sections_present.py"
         test_functions: ["test_required_doc_sections_present"]
+        coverage_status: "added"
+      - target_component: "DTO trading balance refactor I09"
+        test_file: "tests/unit/domain/test_dto_trading_balance_refactor.py"
+        test_functions:
+          [
+            "test_simple_line_without_converted_fields",
+            "test_detailed_line_contains_conversion",
+            "test_docstrings_present_public_classes",
+            "test_frozen_slots_behavior",
+          ]
         coverage_status: "added"
     integration_tests:
       - integration_point: "FX TTL async repository"

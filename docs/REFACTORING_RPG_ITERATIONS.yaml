@@ -246,6 +246,9 @@ rpg_plan:
       acceptance_criteria:
         - Inventory file exists and lists categories
       risk_mitigation: "Не меняет код, только аналитика"
+      status: done
+      completed_at: 2025-11-11
+      notes: "Файл tests/report/test_inventory.md создан: содержит категории (KEEP-ASIS, ADAPT-SHALLOW, REWRITE-DOMAIN, UPGRADE-CLI, DROP-TRIVIAL, OBSOLETE, PERF-OPTIONAL, SPLIT, MOVE) и рекомендации по меткам xfail для будущих итераций."
 
     # === APPLICATION LAYER REFACTOR ===
     - id: I09
@@ -263,6 +266,9 @@ rpg_plan:
       acceptance_criteria:
         - Old fields not present in simple DTO
       risk_mitigation: "Сохранить совместимость имён остальных DTO."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Добавлены TradingBalanceLineSimple (только raw debit/credit/net) и TradingBalanceLineDetailed (raw + base conversion: base_currency_code, used_rate (6 знаков), *_base). Legacy TradingBalanceLineDTO оставлен нетронутым для совместимости до I10. Все 4 новых теста (простая/детальная форма, docstrings, frozen slots guard) зелёные. Simple DTO не содержит converted_* полей (проверено через hasattr и dataclasses.fields). Публичный экспорт __all__ обновлён. Докстроки добавлены к публичным DTO."
 
     - id: I10
       name: application.dto.refactor_step2_backwards_shim
