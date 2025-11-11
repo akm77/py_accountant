@@ -297,17 +297,30 @@ rpg_plan:
     - id: I11
       name: application.ports.unify_async_protocols
       scope:
-        - rewrite application/ports.py to single async protocols
-        - remove sync protocol duplicates
+        - create single module src/application/ports.py with async Protocols only
+        - remove sync Protocol definitions from active contract
+        - add deprecated proxy src/application/interfaces/ports.py re-exporting async names
+        - add minimal docstrings to all public async Protocols
+        - introduce test tests/unit/application/test_ports_async_only.py
       dependencies: [I09]
       deliverables:
         - src/application/ports.py
-        - tests/unit/domain/test_ports_async_only.py
+        - src/application/interfaces/ports.py (deprecated proxy)
+        - tests/unit/application/test_ports_async_only.py
       tests:
-        - test_all_protocols_are_async
+        - test_async_ports_public_surface_only_async
+        - test_deprecated_proxy_reexports_identity
+        - test_no_legacy_sync_protocols_present
       acceptance_criteria:
-        - No sync Protocol classes remain
-      risk_mitigation: "Сохранить имена для минимизации каскада."
+        - application.ports exposes only async Protocols (names prefixed Async*) and Clock
+        - legacy sync Protocol names not present in application.ports
+        - deprecated proxy re-exports same objects (identity) without runtime warnings
+        - docstrings present on public Protocol classes
+        - existing imports from application.interfaces.ports remain functional
+      risk_mitigation: "Proxy keeps backward compatibility; structural tests guard against accidental sync leakage."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Unified async ports layer established; sync Protocols removed from source of truth; future iterations will migrate remaining consumers and delete proxy."
 
     # === INFRASTRUCTURE FOUNDATION ===
     - id: I12
