@@ -103,9 +103,13 @@ rpg_plan:
       tests:
         - test_set_base_preserves_other_rates
         - test_clear_base
+        - test_set_base_missing_code_raises
       acceptance_criteria:
         - Base currency singleton logic passes tests
       risk_mitigation: "Не вносить пока зависимости на репозитории."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Добавлен Currency (валидация длины кода, upper, положительный rate через rate_quantize) и BaseCurrencyRule без сторонних зависимостей; смена базы не трогает другие rate_to_base; тесты (3) зелёные; helper get_base_currency возвращает None при отсутствии базы; TODO комментарий про уникальность кодов."
 
     - id: I04
       name: domain.account.value_object
@@ -214,7 +218,7 @@ rpg_plan:
         - test_detailed_line_contains_conversion
       acceptance_criteria:
         - Old fields not present in simple DTO
-      risk_mitigation: "Сохранить совместимость имен остальных DTO."
+      risk_mitigation: "Сохранить совместимость имён остальных DTO."
 
     - id: I10
       name: application.dto.refactor_step2_backwards_shim
@@ -400,16 +404,18 @@ rpg_plan:
     - id: I22
       name: cli.currencies_commands
       scope:
-        - add currency commands (create, list, set-base)
+        - implement currencies subcommands using async use cases
+        - list/create/set-base
       dependencies: [I21]
       deliverables:
         - src/presentation/cli/currencies.py
         - tests/integration/cli/test_cli_currencies.py
       tests:
-        - test_cli_create_currency
+        - test_cli_list_currencies
+        - test_cli_set_base_currency
       acceptance_criteria:
         - Commands return expected output
-      risk_mitigation: "Использовать use cases только."
+      risk_mitigation: "Тонкий слой над use cases."
 
     - id: I23
       name: cli.accounts_commands
