@@ -125,6 +125,9 @@ rpg_plan:
       acceptance_criteria:
         - Validation errors raise ValidationError
       risk_mitigation: "Простая структура, без persistence."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Введён Account (валидация full_name с тримом, запрет ':' на краях/двойных '::', сегменты 1..64, максимум 64 сегмента, длина full_name <=255; currency_code upper и длина 3..10; parent_id опционален). Добавлены тесты: happy-path (включая root), negative cases (пустые/пробелы/':A'/'A:'/'A::B'/'A: :B'/слишком длинный сегмент/слишком глубокая иерархия). Все тесты зелёные."
 
     - id: I05
       name: domain.ledger.balance_validation
@@ -142,6 +145,9 @@ rpg_plan:
       acceptance_criteria:
         - All scenarios pass
       risk_mitigation: "Независимо от инфраструктуры."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Реализованы EntrySide, LedgerEntry (валидация side/amount>0/код валюты 3..10, upper) и LedgerValidator.validate: определение базы по base_code либо get_base_currency; поддержка currencies как списка или mapping; конвертация небазовой суммы через amount * rate_to_base (>0, обязательна); сравнение сумм debit/credit после money_quantize (2dp, HALF_EVEN); без изменения глобального Decimal контекста; ошибки ValidationError для некорректных входов/курсов/неизвестных валют/пустых линий, DomainError для несбалансированности. Добавлены тесты (включая негативные, проверка контекста и округления); все зелёные."
 
     - id: I06
       name: domain.trading_balance.raw_aggregation
@@ -150,29 +156,57 @@ rpg_plan:
         - aggregate debit/credit per currency
       dependencies: [I05]
       deliverables:
-        - updated src/domain/trading_balance.py
+        - src/domain/trading_balance.py
         - tests/unit/domain/test_trading_balance_raw.py
       tests:
-        - test_raw_aggregation_basic
+        - test_empty_returns_no_lines
+        - test_single_currency_aggregate
+        - test_multi_currency_aggregate_separate_groups
+        - test_rounding_half_even_each_currency
+        - test_preserve_decimal_context
+        - test_reject_non_ledger_entry_input_guard
       acceptance_criteria:
-        - Raw aggregation yields expected totals
-      risk_mitigation: "Не добавлять пока конверсию."
+        - Raw aggregation yields expected totals; list sorted by currency_code
+        - Quantization via money_quantize; no global Decimal context changes
+        - No FX/base conversion; public objects have short docstrings
+      risk_mitigation: "Не добавлять конверсию; одно‑проходный алгоритм, защитные проверки типов."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Добавлен RawAggregator без инфраструктурных зависимостей; суммы аккумулируются как Decimal без округления, квантование на выходе (2dp HALF_EVEN). Возвращается список RawBalanceLine, отсортированный по коду валюты. Добавлены тесты (6) включая проверку неизменности Decimal контекста и защиту от неверного ввода; все зелёные."
 
     - id: I07
       name: domain.trading_balance.converted_aggregation
       scope:
-        - extend trading_balance.py (ConvertedAggregator, Detailed DTO)
-        - separate simple vs detailed DTOs
-      dependencies: [I06]
+        - extend trading_balance.py (ConvertedAggregator, ConvertedBalanceLine DTO)
+        - keep RawAggregator/RawBalanceLine intact
+        - convert per-currency totals to base using rate_to_base
+        - rounding on output only (money_quantize), rate in DTO via rate_quantize
+      dependencies: [I02, I03, I05, I06]
       deliverables:
         - updated src/domain/trading_balance.py
         - tests/unit/domain/test_trading_balance_converted.py
       tests:
-        - test_converted_aggregation_with_base
-        - test_converted_aggregation_fallback_rate
+        - test_empty_returns_no_lines_converted
+        - test_single_currency_base_passthrough
+        - test_single_nonbase_with_rate
+        - test_multi_currency_mixed_and_sorting
+        - test_rounding_half_even_in_base
+        - test_missing_rate_raises_for_non_base
+        - test_non_positive_rate_raises
+        - test_unknown_currency_line_raises
+        - test_base_detection_via_get_base_currency
+        - test_preserve_decimal_context_converted
+        - test_input_guard_non_ledger_entry
       acceptance_criteria:
-        - Detailed DTO contains expected conversion info
-      risk_mitigation: "Fallback rate logic документирован."
+        - All tests in tests/unit/domain/test_trading_balance_converted.py are green
+        - Public DTOs/classes have short docstrings
+        - List is sorted by currency_code ASC; empty in -> empty out
+        - ValidationError raised per spec (unknown currency, base missing, rate missing/non-positive, non-LedgerEntry)
+        - No infrastructure dependencies; domain-only; Decimal context unchanged
+      risk_mitigation: "Единый текущий курс per currency задокументирован; строгие ValidationError сообщения; O(n)+sort без побочных эффектов."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Добавлены ConvertedBalanceLine и ConvertedAggregator: одно‑проходная агрегация сырых сумм, определение базы (по base_code или get_base_currency), конвертация небазовых валют по rate_to_base (>0) с выводом used_rate через rate_quantize. Округление денег только на выходе через money_quantize; сохранение глобального Decimal контекста. Список отсортирован лексикографически по currency_code. Добавлен модуль тестов (11 сценариев; 13 ассёртов/параметризаций), все зелёные."
 
     - id: I08
       name: domain.fx_audit.ttl_archival_service
@@ -212,7 +246,7 @@ rpg_plan:
       dependencies: [I07]
       deliverables:
         - src/application/dto/models.py (refactored)
-        - tests/unit/application/test_dto_trading_balance_refactor.py
+        - tests/unit/domain/test_dto_trading_balance_refactor.py
       tests:
         - test_simple_line_without_converted_fields
         - test_detailed_line_contains_conversion
@@ -227,7 +261,7 @@ rpg_plan:
       dependencies: [I09]
       deliverables:
         - src/application/dto/backwards.py (if required)
-        - tests/unit/application/test_dto_backwards.py
+        - tests/unit/domain/test_dto_backwards.py
       tests:
         - test_legacy_import_shim
       acceptance_criteria:
@@ -242,7 +276,7 @@ rpg_plan:
       dependencies: [I09]
       deliverables:
         - src/application/ports.py
-        - tests/unit/application/test_ports_async_only.py
+        - tests/unit/domain/test_ports_async_only.py
       tests:
         - test_all_protocols_are_async
       acceptance_criteria:

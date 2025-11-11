@@ -121,6 +121,15 @@ rpg:
       - name: "domain.currencies"
         path: "src/domain/currencies.py"
         description: "Value object Currency и сервис BaseCurrencyRule: единственная базовая валюта, нормализация курсов через rate_quantize, без пересчёта остальных."
+      - name: "domain.accounts"
+        path: "src/domain/accounts.py"
+        description: "Value object Account: валидация full_name (иерархия через ':'), derive name/parent_path, нормализация currency_code (upper, 3..10), parent_id опционален."
+      - name: "domain.ledger"
+        path: "src/domain/ledger.py"
+        description: "Валидатор баланса LedgerValidator: мультивалютная сверка в базовой валюте (money_quantize), без инфраструктурных зависимостей."
+      - name: "domain.trading_balance"
+        path: "src/domain/trading_balance.py"
+        description: "RawAggregator: агрегация дебет/кредит по валюте без конверсии, квантование итогов (2dp HALF_EVEN), возврат списка RawBalanceLine (отсортирован по currency_code). ConvertedAggregator: агрегация по валюте с конвертацией в базовую валюту по rate_to_base; DTO ConvertedBalanceLine включает base_currency_code, used_rate (6 знаков), debit/credit/net и debit_base/credit_base/net_base; сортировка по currency_code."
       - name: "infrastructure"
         path: "src/infrastructure"
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
@@ -177,6 +186,15 @@ rpg:
       - name: "src/domain/currencies.py"
         parent_module: "domain.currencies"
         description: "Класс Currency (code/is_base/rate_to_base) и сервис BaseCurrencyRule; helper get_base_currency."
+      - name: "src/domain/accounts.py"
+        parent_module: "domain.accounts"
+        description: "Класс Account: валидация имени, derive name/parent_path, нормализация currency_code."
+      - name: "src/domain/ledger.py"
+        parent_module: "domain.ledger"
+        description: "EntrySide, LedgerEntry, LedgerValidator.validate — проверка баланса в базовой валюте; конверсия небазовых сумм через amount * rate_to_base, сравнение после money_quantize."
+      - name: "src/domain/trading_balance.py"
+        parent_module: "domain.trading_balance"
+        description: "RawAggregator.aggregate: группировка LedgerEntry по currency_code, накопление debit/credit, квантование итогов и вычисление net; возврат list[RawBalanceLine] сортированного по коду. ConvertedAggregator.aggregate: группировка + конвертация в базовую валюту, валидация наличия положительного rate_to_base, определение базы по base_code или get_base_currency, возврат list[ConvertedBalanceLine] с полями used_rate/debit_base/credit_base/net_base."
       - name: "src/application/dto/models.py"
         parent_module: "application"
         description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO"
@@ -228,6 +246,18 @@ rpg:
       - name: "tests/unit/domain/test_currency_base_rule.py"
         parent_module: "domain.currencies"
         description: "Тесты правила единственной базовой валюты: смена базы без изменения курсов и очистка базы."
+      - name: "tests/unit/domain/test_accounts.py"
+        parent_module: "domain.accounts"
+        description: "Тесты Account: валидация full_name, derive name/parent_path, опциональный parent_id."
+      - name: "tests/unit/domain/test_ledger_balance.py"
+        parent_module: "domain.ledger"
+        description: "Тесты валидатора баланса: одно- и мультивалютные кейсы, несбалансированность, негативные сценарии, проверка контекста Decimal и округления."
+      - name: "tests/unit/domain/test_trading_balance_raw.py"
+        parent_module: "domain.trading_balance"
+        description: "Тесты RawAggregator: пустой вход, одиночная валюта, мульти-валюта, округление HALF_EVEN, неизменность Decimal контекста, защита от неверного типа."
+      - name: "tests/unit/domain/test_trading_balance_converted.py"
+        parent_module: "domain.trading_balance"
+        description: "Тесты ConvertedAggregator/ConvertedBalanceLine: пустой вход, passthrough базовой валюты, небаза с курсом, смешанные валюты и сортировка, HALF_EVEN в базе, отсутствие/неположительный курс — ValidationError, неизвестная валюта — ValidationError, определение базы через get_base_currency, сохранение Decimal контекста, guard на не-LedgerEntry."
 
     components:
       - name: "DomainErrors"
@@ -246,6 +276,30 @@ rpg:
         parent_file: "src/domain/currencies.py"
         type: "module"
         description: "Currency, BaseCurrencyRule, get_base_currency: единая базовая валюта, нормализация курсов, без пересчёта остальных."
+        testable: true
+        test_priority: "high"
+      - name: "AccountValueObject"
+        parent_file: "src/domain/accounts.py"
+        type: "module"
+        description: "Account: валидация full_name, derive name/parent_path, нормализация currency_code, parent_id опционален."
+        testable: true
+        test_priority: "high"
+      - name: "LedgerBalanceValidation"
+        parent_file: "src/domain/ledger.py"
+        type: "module"
+        description: "EntrySide, LedgerEntry, LedgerValidator.validate: мультивалютная проверка баланса в базовой валюте; конверсия по rate_to_base (>0), сравнение после money_quantize; ошибки ValidationError/DomainError; без инфраструктурных зависимостей."
+        testable: true
+        test_priority: "high"
+      - name: "RawTradingBalanceAggregation"
+        parent_file: "src/domain/trading_balance.py"
+        type: "module"
+        description: "RawAggregator.aggregate: группировка LedgerEntry по currency_code, накопление debit/credit, квантование (2dp HALF_EVEN), вычисление net, сортировка по коду."
+        testable: true
+        test_priority: "high"
+      - name: "ConvertedTradingBalanceAggregation"
+        parent_file: "src/domain/trading_balance.py"
+        type: "module"
+        description: "ConvertedAggregator.aggregate: группировка LedgerEntry по currency_code, определение базовой валюты по base_code или get_base_currency, проверка наличия положительного rate_to_base для небазовых валют, умножение необрезанных итогов на курс, округление на выходе (money_quantize), возврат DTO ConvertedBalanceLine с used_rate (rate_quantize)."
         testable: true
         test_priority: "high"
       - name: "SqlAlchemyUnitOfWork"
@@ -317,6 +371,52 @@ rpg:
       - target_component: "CurrencyValueObject"
         test_file: "tests/unit/domain/test_currency_base_rule.py"
         test_functions: ["test_set_base_preserves_other_rates", "test_clear_base", "test_set_base_missing_code_raises"]
+        coverage_status: "added"
+      - target_component: "AccountValueObject"
+        test_file: "tests/unit/domain/test_accounts.py"
+        test_functions: ["test_account_full_name_validation", "test_account_parent_id_optional", "test_account_full_name_invalid_raises"]
+        coverage_status: "added"
+      - target_component: "LedgerBalanceValidation"
+        test_file: "tests/unit/domain/test_ledger_balance.py"
+        test_functions:
+          [
+            "test_single_currency_balanced",
+            "test_multi_currency_balanced_with_rates",
+            "test_unbalanced_detected",
+            "test_negative_cases",
+            "test_entry_validation",
+            "test_non_base_currency_rate_required_and_positive",
+            "test_rounding_half_even_comparison",
+          ]
+        coverage_status: "added"
+      - target_component: "RawTradingBalanceAggregation"
+        test_file: "tests/unit/domain/test_trading_balance_raw.py"
+        test_functions:
+          [
+            "test_empty_returns_no_lines",
+            "test_single_currency_aggregate",
+            "test_multi_currency_aggregate_separate_groups",
+            "test_rounding_half_even_each_currency",
+            "test_preserve_decimal_context",
+            "test_reject_non_ledger_entry_input_guard",
+          ]
+        coverage_status: "added"
+      - target_component: "ConvertedTradingBalanceAggregation"
+        test_file: "tests/unit/domain/test_trading_balance_converted.py"
+        test_functions:
+          [
+            "test_empty_returns_no_lines_converted",
+            "test_single_currency_base_passthrough",
+            "test_single_nonbase_with_rate",
+            "test_multi_currency_mixed_and_sorting",
+            "test_rounding_half_even_in_base",
+            "test_missing_rate_raises_for_non_base",
+            "test_non_positive_rate_raises",
+            "test_unknown_currency_line_raises",
+            "test_base_detection_via_get_base_currency",
+            "test_preserve_decimal_context_converted",
+            "test_input_guard_non_ledger_entry",
+          ]
         coverage_status: "added"
       - target_component: "Async repositories"
         test_file: "tests/unit/application/test_async_repositories.py"
