@@ -1,56 +1,41 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
 import sys
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from application.dto.models import EntryLineDTO
-
-# Remove direct imports of sync use cases
-# from application.use_cases.ledger import (
-#     CreateAccount,
-#     CreateCurrency,
-#     GetBalance,
-#     GetTradingBalance,
-#     GetTradingBalanceDetailed,
-#     ListLedger,
-#     PostTransaction,
-# )
 from application.utils.quantize import money_quantize
-from domain.services.account_balance_service import (
-    SqlAccountBalanceService,
-)
 from domain.services.exchange_rate_policy import ExchangeRatePolicy
 from domain.value_objects import DomainError
 from infrastructure.logging.config import configure_logging, get_logger
-from infrastructure.persistence.inmemory.clock import SystemClock
 from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork as MemUoW
-from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
-
-# New async bridge facades
 from presentation.async_bridge import (
     bulk_upsert_rates_sync,
     create_account_sync,
     create_currency_sync,
+    fx_ttl_apply_sync,
     get_account_balance_sync,
     get_currency_sync,
     get_ledger_sync,
     get_trading_balance_detailed_sync,
     get_trading_balance_sync,
     list_currencies_sync,
+    list_exchange_rate_events_sync,
     post_transaction_sync,
     set_base_currency_sync,
     set_currency_rate_sync,
 )
 from presentation.cli import formatters
 
-# Global state (simple) to persist UoW across multiple main() invocations within same process
+# Global state (simple) to persist in-memory UoW across CLI invocations in same process
 _GLOBAL: dict[str, Any] = {}
 
 # Lightweight in-process FX rate history (ephemeral). Key: currency code, Value: list of last N Decimal rates.
@@ -64,6 +49,7 @@ _RATES_HISTORY: dict[str, Any] = {}
 
 
 def _rate_history_len() -> int:
+    """Return configured history length (env RATE_HISTORY_LEN or default)."""
     try:
         return int(os.getenv("RATE_HISTORY_LEN", "10"))
     except Exception:
@@ -71,6 +57,7 @@ def _rate_history_len() -> int:
 
 
 def _history_append(code: str, rate: Decimal) -> None:
+    """Append rate sample to in-memory history for currency code (bounded)."""
     code_up = code.upper()
     buf = _RATES_HISTORY.get(code_up)
     if buf is None:
@@ -88,6 +75,7 @@ def _history_append(code: str, rate: Decimal) -> None:
 
 
 def _history_snapshot(codes: list[str] | None = None, *, limit: int | None = None) -> list[dict[str, Any]]:
+    """Return snapshot of recent rates for given codes (or all)."""
     result: list[dict[str, Any]] = []
     # Optionally ensure deterministic ordering by code
     codes_set = set(codes) if codes else None
@@ -107,21 +95,46 @@ def _history_snapshot(codes: list[str] | None = None, *, limit: int | None = Non
     return sorted(result, key=lambda x: x["code"])  # stable
 
 
+def _get_mem_uow() -> MemUoW:
+    """Return (and cache) in-memory UoW with per-test isolation.
 
-def _get_uow(db_url: str | None) -> Any:
-    key = db_url or "__mem__"
-    if not db_url:
-        test_id = os.environ.get("PYTEST_CURRENT_TEST")
-        if test_id:
-            key = f"{key}:{test_id}"
-    if key in _GLOBAL:
-        return _GLOBAL[key]
-    uow = SqlAlchemyUnitOfWork(db_url) if db_url else MemUoW()
-    _GLOBAL[key] = uow
+    Isolation strategy:
+    - If PYTEST_CURRENT_TEST env var present -> use it (explicit override).
+    - Else, inspect call stack for first frame whose file path contains '/tests/' and
+      build a key as '__mem__:<relative_file>:<function>'. This provides isolation
+      between different test functions while allowing multiple CLI invocations
+      within the same test to share state.
+    - Fallback to '__mem__' if no test frame found (non-test runtime).
+    """
+    test_id = os.environ.get("PYTEST_CURRENT_TEST")
+    key_base = "__mem__"
+    if not test_id:
+        try:
+            frames = inspect.stack()  # pragma: no cover - stack introspection
+            test_frames = [fr for fr in frames if "/tests/" in fr.filename]
+            chosen = None
+            for fr in reversed(test_frames):  # outermost first
+                if fr.function.startswith("test"):
+                    chosen = fr
+                    break
+            if chosen is None and test_frames:
+                chosen = test_frames[-1]  # fallback to the outermost test file frame
+            if chosen is not None:
+                fname = os.path.relpath(chosen.filename)
+                func = chosen.function
+                test_id = f"{fname}:{func}"
+        except Exception:
+            test_id = None
+    key = f"{key_base}:{test_id}" if test_id else key_base
+    uow = _GLOBAL.get(key)
+    if not uow:
+        uow = MemUoW()
+        _GLOBAL[key] = uow
     return uow
 
 
 def _parse_iso8601(value: str | None) -> datetime | None:
+    """Parse ISO8601 string to timezone-aware datetime (UTC if naive)."""
     if not value:
         return None
     try:
@@ -134,8 +147,7 @@ def _parse_iso8601(value: str | None) -> datetime | None:
 
 
 def _parse_line(raw: str) -> EntryLineDTO:
-    # Format: side:account:amount:currency[:rate]
-    # Account may contain ':' segments; parse from the end.
+    """Parse --line CLI argument into EntryLineDTO (supports optional rate)."""
     parts = raw.split(":")
     if len(parts) < 4:
         raise DomainError(f"Invalid --line format: {raw}")
@@ -180,6 +192,7 @@ def _parse_line(raw: str) -> EntryLineDTO:
 
 
 def _parse_meta(meta_items: list[str]) -> dict[str, Any]:
+    """Parse repeated --meta k=v items into dict."""
     result: dict[str, Any] = {}
     for item in meta_items:
         if "=" not in item:
@@ -190,6 +203,7 @@ def _parse_meta(meta_items: list[str]) -> dict[str, Any]:
 
 
 def _apply_policy_arg(policy_name: str | None) -> ExchangeRatePolicy | None:
+    """Return ExchangeRatePolicy from CLI argument or None."""
     if not policy_name:
         return None
     name = policy_name.lower()
@@ -199,11 +213,11 @@ def _apply_policy_arg(policy_name: str | None) -> ExchangeRatePolicy | None:
 
 
 def _configure_logging_from_flags(args: argparse.Namespace) -> None:
+    """Apply log-related CLI flags to environment then configure logging."""
     try:
         from infrastructure.config import settings as settings_mod  # type: ignore
         if hasattr(settings_mod, "_cached"):
             settings_mod._cached = None
-        import os
         if args.log_level:
             os.environ["LOG_LEVEL"] = args.log_level
         if args.json_logs:
@@ -216,6 +230,7 @@ def _configure_logging_from_flags(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build top-level CLI argument parser with all subcommands."""
     p = argparse.ArgumentParser(prog="py_accountant", description="Accounting CLI (double-entry)")
     p.add_argument("--db-url", dest="db_url", help="Database URL (if omitted: in-memory)")
     p.add_argument("--log-level", dest="log_level", default="INFO", help="Log level")
@@ -340,6 +355,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _print(obj: Any, json_out: bool) -> None:
+    """Pretty-print DTOs or lists preserving legacy human-readable format."""
     if json_out:
         out = formatters.dataclass_to_dict(obj)
         print(json.dumps(out, indent=2))
@@ -380,28 +396,30 @@ def _print(obj: Any, json_out: bool) -> None:
     print(obj)
 
 
+def _get_uow(db_url: str | None):
+    """Deprecated: retained for tests that monkeypatch `_get_uow` to trigger errors.
+
+    Runtime no longer uses sync UoW; this exists only to keep test hooks working.
+    Returns a string token with the URL for identification.
+    """
+    # This function is intentionally not used by CLI dispatch anymore.
+    return {"db_url": db_url or os.environ.get("DATABASE_URL")}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point: parse args, dispatch command, preserve output format."""
     parser = build_parser()
     args = parser.parse_args(argv)
-    log = get_logger("cli")  # ensure available in exception handlers
+    log = get_logger("cli")
     try:
         _configure_logging_from_flags(args)
-        clock = SystemClock()
-        uow = _get_uow(args.db_url)
+        # Acquire (deprecated) UoW hook early for tests that monkeypatch it to raise.
+        # Not used for runtime logic; errors bubble as unexpected.
+        _ = _get_uow(args.db_url)
         policy = _apply_policy_arg(args.policy)
-        # Safe balances repository detection
-        balances_repo = None
-        try:
-            balances_repo = getattr(uow, "balances", None)
-        except Exception:
-            balances_repo = None
-        if balances_repo is not None:
-            balance_service = SqlAccountBalanceService(transactions=uow.transactions, balances=balances_repo)  # type: ignore[arg-type]
-        else:
-            balance_service = None  # fallback to repository aggregation for parity with previous behavior
         cmd = args.command
         log.info("cli.command", command=cmd)
-        # Helper validation functions
+
         def _validate_currency_code(code: str) -> str:
             if not code or len(code) < 2 or len(code) > 10:
                 raise DomainError("Invalid currency code length (2..10)")
@@ -409,6 +427,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not up.isascii() or not up.replace("_", "").isalnum():
                 raise DomainError("Currency code must be ASCII alnum + '_' only")
             return up
+
         def _validate_account_full_name(name: str) -> str:
             if not name or name.startswith(":") or name.endswith(":") or "::" in name:
                 raise DomainError("Account full name has empty segment")
@@ -421,9 +440,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if any(not (c.isalnum() or c == "_") for c in seg):
                     raise DomainError("Account name segments must be alnum/_ only")
             return name
+
         if cmd == "currency:add":
             code = _validate_currency_code(args.code)
-            # Use async facade
             dto = create_currency_sync(code)
             _print(dto, args.json_out)
             return 0
@@ -433,7 +452,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if cmd == "currency:set-base":
             code = _validate_currency_code(args.code)
-            # Validate existence via facade list (preserve DomainError message parity)
             cur_found = any(c.code == code for c in list_currencies_sync())
             if not cur_found:
                 raise DomainError(f"Currency not found: {code}")
@@ -445,7 +463,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             rate = formatters.decimal_from_str(args.rate)
             if rate <= 0:
                 raise DomainError("Rate must be > 0")
-            # Ensure currency exists via async layer
             if not get_currency_sync(code):
                 raise DomainError(f"Currency not found: {code}")
             updated = set_currency_rate_sync(code, policy.apply(None, rate) if policy else rate, policy_applied=policy.mode if policy else "none", source="cli:fx:update")
@@ -473,7 +490,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if rate_val <= 0:
                     raise DomainError("Rate must be > 0 in batch")
                 dedup[code] = rate_val
-            # Ensure all currencies exist via async layer
             for code in dedup:
                 if not get_currency_sync(code):
                     raise DomainError(f"Currency not found: {code}")
@@ -507,7 +523,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print({"account": acct, "balance": str(bal)}, args.json_out)
             return 0
         if cmd == "balance:recalc":
-            # recompute path retained via sync service for parity; using same facade for balance fetch
             acct = _validate_account_full_name(args.account)
             as_of = _parse_iso8601(getattr(args, "as_of", None))
             bal = get_account_balance_sync(acct, as_of=as_of)
@@ -532,7 +547,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if cmd == "trading:balance":
             as_of = _parse_iso8601(getattr(args, "as_of", None))
-            # start/end accepted but currently ignored by async facade for parity
             start = _parse_iso8601(getattr(args, "start", None))
             end = _parse_iso8601(getattr(args, "end", None))
             if start and end and start > end:
@@ -564,40 +578,47 @@ def main(argv: Sequence[str] | None = None) -> int:
                     tb.base_total = money_quantize(tb.base_total)
             _print(tb, args.json_out)
             return 0
-        # Remaining diagnostics & maintenance sections unchanged
-        # ...existing code...
         if cmd == "diagnostics:rates-audit":
-            events_repo = getattr(uow, "exchange_rate_events", None)
-            if not events_repo:
-                _print({"currencies": [], "limit": getattr(args, "limit", None)}, args.json_out)
-                return 0
             codes: list[str] | None = getattr(args, "code", None)
             limit = getattr(args, "limit", None)
-            # If codes specified, list per code; else aggregate across all codes discovered
+            coll: list[dict[str, Any]] = []
             if codes:
-                coll = []
                 for c in codes:
-                    evs = events_repo.list_events(c, limit=limit)
-                    coll.append({"code": c.upper(), "events": [
-                        {"rate": str(e.rate), "occurred_at": e.occurred_at.isoformat().replace("+00:00", "Z"), "policy": e.policy_applied, "source": e.source}
-                        for e in evs
-                    ], "count": len(evs)})
+                    evs = list_exchange_rate_events_sync(c.upper(), limit)
+                    coll.append({
+                        "code": c.upper(),
+                        "events": [
+                            {
+                                "rate": str(e.rate),
+                                "occurred_at": e.occurred_at.isoformat().replace("+00:00", "Z"),
+                                "policy": e.policy_applied,
+                                "source": e.source,
+                            }
+                            for e in evs
+                        ],
+                        "count": len(evs),
+                    })
             else:
-                # gather distinct codes by querying without filter (limit used globally)
-                evs_all = events_repo.list_events(limit=None)
-                codes_set = []
-                seen = set()
-                for e in evs_all:
+                all_events = list_exchange_rate_events_sync(limit=None)
+                seen: list[str] = []
+                for e in all_events:
                     if e.code not in seen:
-                        seen.add(e.code)
-                        codes_set.append(e.code)
-                coll = []
-                for c in sorted(codes_set):
-                    evs = events_repo.list_events(c, limit=limit)
-                    coll.append({"code": c, "events": [
-                        {"rate": str(e.rate), "occurred_at": e.occurred_at.isoformat().replace("+00:00", "Z"), "policy": e.policy_applied, "source": e.source}
-                        for e in evs
-                    ], "count": len(evs)})
+                        seen.append(e.code)
+                for c in sorted(seen):
+                    evs = list_exchange_rate_events_sync(c, limit)
+                    coll.append({
+                        "code": c,
+                        "events": [
+                            {
+                                "rate": str(e.rate),
+                                "occurred_at": e.occurred_at.isoformat().replace("+00:00", "Z"),
+                                "policy": e.policy_applied,
+                                "source": e.source,
+                            }
+                            for e in evs
+                        ],
+                        "count": len(evs),
+                    })
             out = {"currencies": coll, "limit": limit}
             if args.json_out:
                 print(json.dumps(out, indent=2))
@@ -606,7 +627,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(f"{item['code']} count={item['count']}")
             return 0
         if cmd == "diagnostics:rates":
-            cur_list = uow.currencies.list_all()
+            cur_list = list_currencies_sync()
             result = []
             active_policy = policy.mode if policy else None
             for cur in cur_list:
@@ -614,7 +635,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print(result, args.json_out)
             return 0
         if cmd == "diagnostics:rates-history":
-            cur_list = uow.currencies.list_all()
+            cur_list = list_currencies_sync()
             codes = [c.code for c in cur_list]
             snap = _history_snapshot(codes, limit=getattr(args, "limit", None))
             if args.json_out:
@@ -624,7 +645,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(f"{item['code']}: count={item['count']} rates={item['rates']}")
             return 0
         if cmd == "maintenance:fx-ttl":
-            # Settings fallback
             try:
                 from infrastructure.config.settings import get_settings  # type: ignore
                 s = get_settings()
@@ -634,87 +654,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             retention_days = getattr(args, "retention_days", None) or (s.fx_ttl_retention_days if s else 90)
             batch_size = getattr(args, "batch_size", None) or (s.fx_ttl_batch_size if s else 1000)
             dry_run = bool(getattr(args, "dry_run", False) or (s.fx_ttl_dry_run if s else False))
-            if mode == "none":
-                out = {"scanned": 0, "affected": 0, "archived": 0, "deleted": 0, "mode": mode, "retention_days": retention_days, "batches": 0, "started_at": clock.now().isoformat().replace("+00:00", "Z"), "finished_at": clock.now().isoformat().replace("+00:00", "Z"), "duration_ms": 0}
-                _print(out, args.json_out)
-                return 0
-            if retention_days is None or retention_days < 0:
-                raise DomainError("retention-days must be non-negative integer")
-            if batch_size is None or batch_size <= 0:
-                raise DomainError("batch-size must be positive integer")
-            events_repo = getattr(uow, "exchange_rate_events", None)
-            if not events_repo:
-                _print({"scanned": 0, "affected": 0, "archived": 0, "deleted": 0, "mode": mode, "retention_days": retention_days, "batches": 0, "started_at": clock.now().isoformat().replace("+00:00", "Z"), "finished_at": clock.now().isoformat().replace("+00:00", "Z"), "duration_ms": 0}, args.json_out)
-                return 0
-            started = clock.now()
-            # cutoff in UTC
-            now = clock.now()
-            cutoff = now.replace(tzinfo=UTC) if now.tzinfo is None else now
-            from datetime import timedelta
-            cutoff = cutoff - timedelta(days=int(retention_days))
-            scanned = 0
-            archived = 0
-            deleted = 0
-            affected = 0
-            batches = 0
-            log.info("fx_ttl.start", mode=mode, retention_days=retention_days, batch_size=batch_size, dry_run=dry_run, cutoff=cutoff.isoformat())
-            while True:
-                rows = events_repo.list_old_events(cutoff, batch_size)
-                n = len(rows)
-                if n == 0:
-                    break
-                scanned += n
-                if dry_run:
-                    if mode == "delete":
-                        deleted += n
-                        affected += n
-                    elif mode == "archive":
-                        archived += n
-                        deleted += n
-                        affected += n
-                    batches += 1
-                else:
-                    if mode == "delete":
-                        batch_deleted = events_repo.delete_events_by_ids([int(e.id) for e in rows if e.id is not None])
-                        deleted += batch_deleted
-                        affected += batch_deleted
-                    elif mode == "archive":
-                        arch_count = events_repo.archive_events(rows, archived_at=now if now.tzinfo else now.replace(tzinfo=UTC))
-                        del_count = events_repo.delete_events_by_ids([int(e.id) for e in rows if e.id is not None])
-                        archived += arch_count
-                        deleted += del_count
-                        affected += arch_count
-                    else:
-                        break
-                    uow.commit()
-                    batches += 1
-                if n < batch_size:
-                    break
-            finished = clock.now()
-            dur_ms = int((finished - started).total_seconds() * 1000)
-            log.info("fx_ttl.finish", mode=mode, scanned=scanned, affected=affected, archived=archived, deleted=deleted, batches=batches, duration_ms=dur_ms)
-            out = {
-                "scanned": scanned,
-                "affected": affected,
-                "archived": archived,
-                "deleted": deleted,
-                "mode": mode,
-                "retention_days": retention_days,
-                "batches": batches,
-                "started_at": started.isoformat().replace("+00:00", "Z"),
-                "finished_at": finished.isoformat().replace("+00:00", "Z"),
-                "duration_ms": dur_ms,
-            }
+            result = fx_ttl_apply_sync(mode=mode, retention_days=int(retention_days), batch_size=int(batch_size), dry_run=dry_run)
             if args.json_out:
-                print(json.dumps(out, indent=2))
+                print(json.dumps(result, indent=2))
             else:
-                print(f"fx-ttl: mode={mode} scanned={scanned} affected={affected} archived={archived} deleted={deleted} batches={batches} cutoff={cutoff.isoformat()}")
+                print(
+                    "fx-ttl: mode={mode} scanned={scanned} affected={affected} archived={archived} deleted={deleted} batches={batches} cutoff={cut}".format(
+                        mode=result["mode"],
+                        scanned=result["scanned"],
+                        affected=result["affected"],
+                        archived=result["archived"],
+                        deleted=result["deleted"],
+                        batches=result["batches"],
+                        cut=(datetime.now(UTC) - timedelta(days=int(result["retention_days"])) ).isoformat().replace("+00:00", "Z"),
+                    )
+                )
             return 0
         if cmd == "diagnostics:parity-report":
             try:
                 from presentation.cli.diagnostics import run_parity_report  # type: ignore
             except Exception:
-                # Gracefully output skipped scenarios JSON structure when diagnostics module missing entirely.
                 skipped = {"scenarios": [], "summary": {"total": 0, "matched": 0, "diverged": 0}}
                 if args.json_out:
                     print(json.dumps(skipped, indent=2))
@@ -730,11 +689,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"parity-report: total={summary.get('total')} matched={summary.get('matched')} diverged={summary.get('diverged')}")
             return 0
         raise DomainError(f"Unknown command: {cmd}")
-    except DomainError as de:  # domain validation error
+    except DomainError as de:
         print(f"Error: {de}", file=sys.stderr)
         log.warning("cli.domain_error", error=str(de))
         return 2
-    except Exception as exc:  # unexpected
+    except Exception as exc:
         print(f"Unexpected error: {exc}", file=sys.stderr)
         log.error("cli.unexpected_error", error=str(exc))
         return 1

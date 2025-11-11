@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+import inspect
+import os.path as _p
 
 from application.dto.models import (
     AccountDTO,
@@ -46,12 +48,36 @@ _A_SCHEMA_INIT: set[int] = set()
 
 
 def _uow_key(url: str | None) -> str:
+    """Return cache key to reuse Async UoW per (url, test) pair.
+
+    Isolation strategy:
+    - If PYTEST_CURRENT_TEST set -> include it in key.
+    - Else, inspect stack for a frame under '/tests/' and include '<relpath>:<function>'.
+    - Fallback to base url or '__mem__' only (non-test runtime).
+    """
     test_id = os.environ.get("PYTEST_CURRENT_TEST")
     base = url or "__mem__"
+    if not test_id:
+        try:
+            frames = inspect.stack()  # pragma: no cover
+            test_frames = [fr for fr in frames if "/tests/" in fr.filename]
+            chosen = None
+            for fr in reversed(test_frames):
+                if fr.function.startswith("test"):
+                    chosen = fr
+                    break
+            if chosen is None and test_frames:
+                chosen = test_frames[-1]
+            if chosen is not None:
+                rel = _p.relpath(chosen.filename)
+                test_id = f"{rel}:{chosen.function}"
+        except Exception:
+            test_id = None
     return f"{base}:{test_id}" if test_id else base
 
 
 async def _ensure_schema(uow: AsyncSqlAlchemyUnitOfWork) -> None:
+    """Ensure SQLAlchemy metadata is created for the engine (once per engine)."""
     eng_id = id(uow.engine)
     if eng_id in _A_SCHEMA_INIT:
         return
@@ -61,6 +87,7 @@ async def _ensure_schema(uow: AsyncSqlAlchemyUnitOfWork) -> None:
 
 
 def _get_async_uow(url: str | None) -> AsyncSqlAlchemyUnitOfWork:
+    """Get or create cached Async UoW bound to the provided URL (or in-memory)."""
     key = _uow_key(url)
     if key in _A_UOWS:
         return _A_UOWS[key]
@@ -70,10 +97,12 @@ def _get_async_uow(url: str | None) -> AsyncSqlAlchemyUnitOfWork:
 
 
 def _current_db_url() -> str | None:
+    """Read current DATABASE_URL from environment if set."""
     return os.environ.get("DATABASE_URL")
 
 
 def create_currency_sync(code: str, exchange_rate: Decimal | None = None) -> CurrencyDTO:
+    """Synchronously create a currency via async use case."""
     url = _current_db_url()
 
     async def _run() -> CurrencyDTO:
@@ -81,7 +110,7 @@ def create_currency_sync(code: str, exchange_rate: Decimal | None = None) -> Cur
         await _ensure_schema(uow)
         try:
             async with uow:
-                uc = AsyncCreateCurrency(uow)
+                uc = AsyncCreateCurrency(uow)  # type: ignore[arg-type]
                 return await uc(code, exchange_rate)
         except ValueError as ve:
             raise DomainError(str(ve)) from ve
@@ -90,6 +119,7 @@ def create_currency_sync(code: str, exchange_rate: Decimal | None = None) -> Cur
 
 
 def set_base_currency_sync(code: str) -> CurrencyDTO:
+    """Set base currency using async repositories and return the base DTO."""
     url = _current_db_url()
 
     async def _run() -> CurrencyDTO:
@@ -97,7 +127,7 @@ def set_base_currency_sync(code: str) -> CurrencyDTO:
         await _ensure_schema(uow)
         try:
             async with uow:
-                await AsyncSetBaseCurrency(uow)(code)
+                await AsyncSetBaseCurrency(uow)(code)  # type: ignore[arg-type]
             async with uow:
                 base = await uow.currencies.get_base()
                 if base is None:
@@ -110,18 +140,20 @@ def set_base_currency_sync(code: str) -> CurrencyDTO:
 
 
 def list_currencies_sync() -> list[CurrencyDTO]:
+    """List all currencies via async repository facade."""
     url = _current_db_url()
 
     async def _run() -> list[CurrencyDTO]:
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            return await AsyncListCurrencies(uow)()
+            return await AsyncListCurrencies(uow)()  # type: ignore[arg-type]
 
     return run_sync(_run())
 
 
 def create_account_sync(full_name: str, currency_code: str) -> AccountDTO:
+    """Synchronously create an account using async use case."""
     url = _current_db_url()
 
     async def _run() -> AccountDTO:
@@ -129,7 +161,7 @@ def create_account_sync(full_name: str, currency_code: str) -> AccountDTO:
         await _ensure_schema(uow)
         try:
             async with uow:
-                return await AsyncCreateAccount(uow)(full_name, currency_code)
+                return await AsyncCreateAccount(uow)(full_name, currency_code)  # type: ignore[arg-type]
         except ValueError as ve:
             raise DomainError(str(ve)) from ve
 
@@ -137,31 +169,36 @@ def create_account_sync(full_name: str, currency_code: str) -> AccountDTO:
 
 
 def get_account_sync(full_name: str) -> AccountDTO | None:
+    """Get account DTO by full name or None when not found (async facade)."""
     url = _current_db_url()
 
     async def _run() -> AccountDTO | None:
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            return await AsyncGetAccount(uow)(full_name)
+            return await AsyncGetAccount(uow)(full_name)  # type: ignore[arg-type]
 
     return run_sync(_run())
 
 
 def list_accounts_sync() -> list[AccountDTO]:
+    """List all accounts via async facade."""
     url = _current_db_url()
 
     async def _run() -> list[AccountDTO]:
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            return await AsyncListAccounts(uow)()
+            return await AsyncListAccounts(uow)()  # type: ignore[arg-type]
 
     return run_sync(_run())
 
 
 def get_currency_sync(code: str) -> CurrencyDTO | None:
-    """Fetch currency by code from async repository, or None if not found."""
+    """Fetch currency by code using the async repositories.
+
+    Returns None if not found.
+    """
     url = _current_db_url()
 
     async def _run() -> CurrencyDTO | None:
@@ -237,6 +274,10 @@ def post_transaction_sync(
     memo: str | None = None,
     meta: dict[str, Any] | None = None,
 ) -> TransactionDTO:
+    """Post a balanced transaction synchronously via async use case.
+
+    Validates debit/credit equality with multi-currency support similar to legacy CLI.
+    """
     if not lines:
         raise DomainError("No lines provided")
     url = _current_db_url()
@@ -280,7 +321,7 @@ def post_transaction_sync(
                 ok = await _is_balanced(uow, lines)
                 if not ok:
                     raise DomainError("Unbalanced transaction")
-                return await AsyncPostTransaction(uow, clock)(lines, memo=memo, meta=meta)
+                return await AsyncPostTransaction(uow, clock)(lines, memo=memo, meta=meta)  # type: ignore[arg-type]
         except ValueError as ve:
             raise DomainError(str(ve)) from ve
 
@@ -292,6 +333,7 @@ def list_transactions_between_sync(
     end: datetime,
     meta: dict[str, Any] | None = None,
 ) -> list[TransactionDTO]:
+    """List transactions in time range via async facade."""
     url = _current_db_url()
 
     async def _run() -> list[TransactionDTO]:
@@ -299,7 +341,7 @@ def list_transactions_between_sync(
         await _ensure_schema(uow)
         try:
             async with uow:
-                return await AsyncListTransactionsBetween(uow)(start, end, meta)
+                return await AsyncListTransactionsBetween(uow)(start, end, meta)  # type: ignore[arg-type]
         except ValueError as ve:
             raise DomainError(str(ve)) from ve
 
@@ -315,6 +357,7 @@ def get_ledger_sync(
     limit: int | None = None,
     order: str = "ASC",
 ) -> list[RichTransactionDTO]:
+    """Return ledger entries via async use case facade."""
     url = _current_db_url()
     clock = SystemClock()
 
@@ -331,7 +374,7 @@ def get_ledger_sync(
                     offset=offset,
                     limit=limit,
                     order=order,
-                )
+                )  # type: ignore[arg-type]
         except ValueError as ve:
             raise DomainError(str(ve)) from ve
 
@@ -339,6 +382,7 @@ def get_ledger_sync(
 
 
 def get_account_balance_sync(account_full_name: str, as_of: datetime | None = None) -> Decimal:
+    """Get account balance at given time via async facade."""
     url = _current_db_url()
     clock = SystemClock()
 
@@ -346,7 +390,7 @@ def get_account_balance_sync(account_full_name: str, as_of: datetime | None = No
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            return await AsyncGetAccountBalance(uow, clock)(account_full_name, as_of=as_of)
+            return await AsyncGetAccountBalance(uow, clock)(account_full_name, as_of=as_of)  # type: ignore[arg-type]
 
     return run_sync(_run())
 
@@ -357,6 +401,7 @@ def get_trading_balance_sync(
     start: datetime | None = None,
     end: datetime | None = None,
 ) -> TradingBalanceDTO:
+    """Get trading balance via async facade."""
     url = _current_db_url()
     clock = SystemClock()
 
@@ -364,7 +409,7 @@ def get_trading_balance_sync(
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            return await AsyncGetTradingBalance(uow, clock)(as_of=as_of, base_currency=base_currency)
+            return await AsyncGetTradingBalance(uow, clock)(as_of=as_of, base_currency=base_currency)  # type: ignore[arg-type]
 
     return run_sync(_run())
 
@@ -375,6 +420,7 @@ def get_trading_balance_detailed_sync(
     start: datetime | None = None,
     end: datetime | None = None,
 ) -> TradingBalanceDTO:
+    """Get detailed trading balance with converted_* enrichments for presentation."""
     url = _current_db_url()
     clock = SystemClock()
 
@@ -384,7 +430,7 @@ def get_trading_balance_detailed_sync(
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            tb = await AsyncGetTradingBalance(uow, clock)(as_of=as_of, base_currency=base_currency)
+            tb = await AsyncGetTradingBalance(uow, clock)(as_of=as_of, base_currency=base_currency)  # type: ignore[arg-type]
             # enrich transparency fields (rate_used, rate_fallback) already part of DTO lines
             for line in tb.lines:
                 cur_obj = await uow.currencies.get_by_code(line.currency_code)
@@ -419,24 +465,160 @@ def add_exchange_rate_event_sync(
     policy_applied: str,
     source: str | None,
 ) -> ExchangeRateEventDTO:
+    """Create FX audit event synchronously via async repositories."""
     url = _current_db_url()
 
     async def _run() -> ExchangeRateEventDTO:
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            return await AsyncAddExchangeRateEvent(uow)(code, rate, occurred_at, policy_applied, source)
+            return await AsyncAddExchangeRateEvent(uow)(code, rate, occurred_at, policy_applied, source)  # type: ignore[arg-type]
 
     return run_sync(_run())
 
 
 def list_exchange_rate_events_sync(code: str | None = None, limit: int | None = None) -> list[ExchangeRateEventDTO]:
+    """List FX audit events (newest first) optionally filtered by currency code.
+
+    If limit is negative, repositories are expected to return an empty list.
+    """
     url = _current_db_url()
 
     async def _run() -> list[ExchangeRateEventDTO]:
         uow = _get_async_uow(url)
         await _ensure_schema(uow)
         async with uow:
-            return await AsyncListExchangeRateEvents(uow)(code, limit)
+            return await AsyncListExchangeRateEvents(uow)(code, limit)  # type: ignore[arg-type]
+
+    return run_sync(_run())
+
+
+def fx_ttl_apply_sync(
+    mode: str,
+    retention_days: int,
+    batch_size: int,
+    dry_run: bool,
+) -> dict[str, int | str]:
+    """Apply TTL/archive policy for FX audit events using async repositories.
+
+    Contract:
+    - Inputs: mode in {"none", "delete", "archive"}, retention_days >= 0, batch_size > 0.
+    - Returns a dict with fields identical to legacy CLI output:
+      {scanned, affected, archived, deleted, mode, retention_days, batches, started_at, finished_at, duration_ms}.
+    - Preserves behavior for dry-run and for absence of repository (returns zeros).
+    """
+    if mode not in {"none", "delete", "archive"}:
+        raise DomainError("mode must be one of: none|delete|archive")
+    if retention_days < 0:
+        raise DomainError("retention-days must be non-negative integer")
+    if batch_size <= 0:
+        raise DomainError("batch-size must be positive integer")
+
+    url = _current_db_url()
+    clock = SystemClock()
+
+    async def _run() -> dict[str, int | str]:
+        started = clock.now()
+        started_iso = started.isoformat().replace("+00:00", "Z")
+        if mode == "none":
+            # No work, return zeroed counters with timestamps
+            return {
+                "scanned": 0,
+                "affected": 0,
+                "archived": 0,
+                "deleted": 0,
+                "mode": mode,
+                "retention_days": retention_days,
+                "batches": 0,
+                "started_at": started_iso,
+                "finished_at": started_iso,
+                "duration_ms": 0,
+            }
+        uow = _get_async_uow(url)
+        await _ensure_schema(uow)
+        scanned = 0
+        archived = 0
+        deleted = 0
+        affected = 0
+        batches = 0
+        # Compute cutoff from current UTC time
+        now = clock.now()
+        now_utc = now if now.tzinfo else now.replace(tzinfo=UTC)
+        cutoff = now_utc - timedelta(days=int(retention_days))
+        try:
+            async with uow:
+                # Try to obtain repo; fallback to zeros if unavailable
+                try:
+                    repo = uow.exchange_rate_events  # property
+                except Exception:
+                    repo = None
+                if not repo:
+                    finished = clock.now()
+                    dur_ms = int((finished - started).total_seconds() * 1000)
+                    return {
+                        "scanned": 0,
+                        "affected": 0,
+                        "archived": 0,
+                        "deleted": 0,
+                        "mode": mode,
+                        "retention_days": retention_days,
+                        "batches": 0,
+                        "started_at": started_iso,
+                        "finished_at": finished.isoformat().replace("+00:00", "Z"),
+                        "duration_ms": dur_ms,
+                    }
+                # Process in batches
+                while True:
+                    rows = await repo.list_old_events(cutoff, batch_size)
+                    n = len(rows)
+                    if n == 0:
+                        break
+                    scanned += n
+                    if dry_run:
+                        if mode == "delete":
+                            deleted += n
+                            affected += n
+                        elif mode == "archive":
+                            archived += n
+                            deleted += n
+                            affected += n
+                        batches += 1
+                    else:
+                        if mode == "delete":
+                            ids = [int(e.id) for e in rows if getattr(e, "id", None) is not None]
+                            batch_deleted = await repo.delete_events_by_ids(ids)
+                            deleted += batch_deleted
+                            affected += batch_deleted
+                        elif mode == "archive":
+                            arch_count = await repo.archive_events(rows, archived_at=now_utc)
+                            ids = [int(e.id) for e in rows if getattr(e, "id", None) is not None]
+                            del_count = await repo.delete_events_by_ids(ids)
+                            archived += arch_count
+                            deleted += del_count
+                            affected += arch_count
+                        else:
+                            # Should not reach due to validation
+                            break
+                        await uow.commit()
+                        batches += 1
+                    if n < batch_size:
+                        break
+        finally:
+            # ensure context exit completes even if errors occur
+            pass
+        finished = clock.now()
+        dur_ms = int((finished - started).total_seconds() * 1000)
+        return {
+            "scanned": scanned,
+            "affected": affected,
+            "archived": archived,
+            "deleted": deleted,
+            "mode": mode,
+            "retention_days": retention_days,
+            "batches": batches,
+            "started_at": started_iso,
+            "finished_at": finished.isoformat().replace("+00:00", "Z"),
+            "duration_ms": dur_ms,
+        }
 
     return run_sync(_run())

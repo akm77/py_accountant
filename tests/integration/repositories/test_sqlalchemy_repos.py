@@ -2,35 +2,49 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
+
+import pytest
 
 from application.dto.models import EntryLineDTO
-from application.use_cases.ledger import (
-    CreateAccount,
-    CreateCurrency,
-    GetBalance,
-    GetLedger,
-    PostTransaction,
+from application.interfaces.ports import AsyncUnitOfWork as AsyncUoWProtocol
+from application.use_cases_async.accounts import AsyncCreateAccount
+from application.use_cases_async.currencies import AsyncCreateCurrency
+from application.use_cases_async.ledger import (
+    AsyncGetAccountBalance,
+    AsyncGetLedger,
+    AsyncPostTransaction,
 )
 from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
+from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 
-def test_sqlalchemy_uow_post_and_query():
-    uow = SqlAlchemyUnitOfWork(url="sqlite+pysqlite:///:memory:")
-    # Setup
-    CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
-    CreateAccount(uow)("Assets:Cash", "USD")
-    CreateAccount(uow)("Income:Sales", "USD")
+@pytest.mark.asyncio
+async def test_async_sqlalchemy_uow_post_and_query(tmp_path):
+    """Async UoW: create entities, post tx, verify balance and ledger list."""
+    db_path = tmp_path / "async_repo.sqlite3"
+    url = f"sqlite+aiosqlite:///{db_path}"
+    uow: AsyncUoWProtocol = cast(AsyncUoWProtocol, AsyncSqlAlchemyUnitOfWork(url=url))
+
+    from infrastructure.persistence.sqlalchemy.models import Base  # type: ignore
+    async with cast(AsyncSqlAlchemyUnitOfWork, uow).engine.begin() as conn:  # type: ignore[attr-defined]
+        await conn.run_sync(Base.metadata.create_all)
+
     clock = FixedClock(datetime.now(UTC))
-    post = PostTransaction(uow, clock)
-    post([
-        EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("10"), currency_code="USD"),
-        EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("10"), currency_code="USD"),
-    ])
-    # Balance
-    bal = GetBalance(uow, clock)("Assets:Cash")
-    assert bal == Decimal("10")
-    # Ledger
-    led = GetLedger(uow, clock)("Assets:Cash")
-    assert len(led) == 1
 
+    async with uow:
+        await AsyncCreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
+        await AsyncCreateAccount(uow)("Assets:Cash", "USD")
+        await AsyncCreateAccount(uow)("Income:Sales", "USD")
+        post = AsyncPostTransaction(uow, clock)
+        await post([
+            EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("10"), currency_code="USD"),
+            EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("10"), currency_code="USD"),
+        ])
+        await uow.commit()
+
+    async with uow:
+        bal = await AsyncGetAccountBalance(uow, clock)("Assets:Cash")
+        assert bal == Decimal("10")
+        led = await AsyncGetLedger(uow, clock)("Assets:Cash")
+        assert len(led) == 1

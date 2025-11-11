@@ -238,7 +238,17 @@ class AsyncGetTradingBalance:
                 line.converted_debit = line.total_debit / rate if rate != zero else line.total_debit
                 line.converted_credit = line.total_credit / rate if rate != zero else line.total_credit
                 line.converted_balance = line.balance / rate if rate != zero else line.balance
+                # Ensure presentation-friendly rounding parity with legacy (money scale=2)
+                from application.utils.quantize import money_quantize
+                if line.converted_debit is not None:
+                    line.converted_debit = money_quantize(line.converted_debit)
+                if line.converted_credit is not None:
+                    line.converted_credit = money_quantize(line.converted_credit)
+                if line.converted_balance is not None:
+                    line.converted_balance = money_quantize(line.converted_balance)
                 total += line.converted_balance  # type: ignore[arg-type]
+            # Quantize base_total too
+            from application.utils.quantize import money_quantize as _mq
             tb.base_currency = inferred
-            tb.base_total = total
+            tb.base_total = _mq(total)
         return tb

@@ -2,32 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm import Session
 
-from application.interfaces.ports import (
-    AccountRepository,
-    BalanceRepository,
-    CurrencyRepository,
-    ExchangeRateEventsRepository,
-    TransactionRepository,
-    UnitOfWork,
-)
+from infrastructure.config.settings import get_settings
 from infrastructure.persistence.sqlalchemy.async_engine import (
     get_async_engine,
     get_async_session_factory,
-)
-from infrastructure.persistence.sqlalchemy.models import make_session_factory
-from infrastructure.persistence.sqlalchemy.repositories import (
-    SqlAlchemyAccountRepository,
-    SqlAlchemyBalanceRepository,
-    SqlAlchemyCurrencyRepository,
-    SqlAlchemyExchangeRateEventsRepository,
-    SqlAlchemyTransactionRepository,
 )
 from infrastructure.persistence.sqlalchemy.repositories_async import (
     AsyncSqlAlchemyAccountRepository,
@@ -40,112 +24,26 @@ from infrastructure.persistence.sqlalchemy.repositories_async import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SqlAlchemyUnitOfWork(UnitOfWork):  # type: ignore[misc]
-    """Synchronous SQLAlchemy Unit of Work.
-
-    This is the existing sync UoW used throughout the app and tests. It remains
-    unchanged in ASYNC-02 to avoid breaking callers. Async UoW is introduced
-    alongside as a separate class.
-    """
-
-    session_factory: Callable[[], Session]
-
-    def __init__(self, url: str | None = None) -> None:
-        """Initialize UoW with a synchronous Session factory.
-
-        Parameters:
-        - url: Optional SQLAlchemy URL. Defaults to in-memory SQLite if not provided.
-        """
-        self.session_factory = make_session_factory(url)
-        self._session: Session | None = None
-        self._accounts: AccountRepository | None = None
-        self._currencies: CurrencyRepository | None = None
-        self._transactions: TransactionRepository | None = None
-        self._balances: BalanceRepository | None = None
-        self._rate_events: ExchangeRateEventsRepository | None = None
-
-    def _ensure_session(self) -> Session:
-        """Lazily create and return the underlying sync Session."""
-        if self._session is None:
-            self._session = self.session_factory()
-        return self._session
-
-    @property
-    def accounts(self) -> AccountRepository:
-        """Return AccountRepository bound to the current Session."""
-        if not self._accounts:
-            self._accounts = SqlAlchemyAccountRepository(self._ensure_session())
-        return self._accounts
-
-    @property
-    def currencies(self) -> CurrencyRepository:
-        """Return CurrencyRepository bound to the current Session."""
-        if not self._currencies:
-            self._currencies = SqlAlchemyCurrencyRepository(self._ensure_session())
-        return self._currencies
-
-    @property
-    def transactions(self) -> TransactionRepository:
-        """Return TransactionRepository bound to the current Session."""
-        if not self._transactions:
-            self._transactions = SqlAlchemyTransactionRepository(self._ensure_session())
-        return self._transactions
-
-    @property
-    def balances(self) -> BalanceRepository:
-        """Return BalanceRepository bound to the current Session."""
-        if not self._balances:
-            self._balances = SqlAlchemyBalanceRepository(self._ensure_session())
-        return self._balances
-
-    @property
-    def exchange_rate_events(self) -> ExchangeRateEventsRepository:  # type: ignore[override]
-        """Return ExchangeRateEventsRepository bound to the current Session."""
-        if not self._rate_events:
-            self._rate_events = SqlAlchemyExchangeRateEventsRepository(self._ensure_session())
-        return self._rate_events
-
-    def commit(self) -> None:
-        """Commit the current transaction if a Session exists."""
-        if self._session:
-            self._session.commit()
-
-    def rollback(self) -> None:
-        """Rollback the current transaction if a Session exists."""
-        if self._session:
-            self._session.rollback()
-
-    def close(self) -> None:
-        """Close the current Session if it exists."""
-        if self._session:
-            self._session.close()
-            self._session = None
-
-
 class AsyncSqlAlchemyUnitOfWork:
     """Asynchronous SQLAlchemy Unit of Work (async context manager).
 
-    Provides transactional boundary using ``AsyncSession``. Designed to coexist
-    with the legacy synchronous UoW until repositories are migrated in ASYNC-03.
+    Provides transactional boundary using ``AsyncSession``. Designed as the
+    sole runtime UoW (ASYNC-10), with sync access exposed only via
+    presentation/async_bridge facades.
 
-    Usage:
-        async with AsyncSqlAlchemyUnitOfWork(url) as uow:
-            await uow.session.execute(text("..."))
-            # On successful exit -> COMMIT, on exception -> ROLLBACK
-
-    Notes:
-    - Repository properties are now provided (ASYNC-03) and return async
-      repository instances lazily, bound to the current ``AsyncSession``. The
-      names mirror the sync UoW for familiarity, but they expose async
-      repositories and are intended to be used from async code only.
+    Behavior (ASYNC-09 additions, kept intact):
+    - On enter: begin transaction and, for PostgreSQL, optionally set
+      ``SET LOCAL statement_timeout = :ms`` when configured (no-op for SQLite/others).
+    - On commit: retry limited times on transient DB errors (serialization
+      failure, deadlock, or connection-invalidated OperationalError/DBAPIError)
+      with exponential backoff. Non-transient errors are not retried.
     """
 
     def __init__(self, url: str | None = None, *, echo: bool = False) -> None:
         """Create Async UoW with its own engine and async session factory.
 
         Parameters:
-        - url: Database URL (sync or async). Defaults to an in-memory SQLite if None.
+        - url: Database URL (async driver recommended). Defaults to an in-memory SQLite if None.
         - echo: Enable SQLAlchemy echo for debugging.
         """
         self._url = url or "sqlite+aiosqlite:///:memory:"
@@ -153,12 +51,16 @@ class AsyncSqlAlchemyUnitOfWork:
         self._session_factory = get_async_session_factory(self._engine)
         self._session: AsyncSession | None = None
         self._entered: bool = False
+        self._committed: bool = False
+        self._commit_attempted: bool = False
         # Lazy async repositories
         self._a_accounts: AsyncSqlAlchemyAccountRepository | None = None
         self._a_currencies: AsyncSqlAlchemyCurrencyRepository | None = None
         self._a_transactions: AsyncSqlAlchemyTransactionRepository | None = None
         self._a_balances: AsyncSqlAlchemyBalanceRepository | None = None
         self._a_rate_events: AsyncSqlAlchemyExchangeRateEventsRepository | None = None
+        # Cached settings snapshot for retries/timeout
+        self._settings = get_settings()
 
     @property
     def engine(self) -> AsyncEngine:
@@ -182,14 +84,31 @@ class AsyncSqlAlchemyUnitOfWork:
         return self._session_factory
 
     async def __aenter__(self) -> AsyncSqlAlchemyUnitOfWork:
-        """Enter async context: open AsyncSession and begin a transaction."""
+        """Enter async context: open AsyncSession and begin a transaction.
+
+        Additionally, for PostgreSQL and when ``DB_STATEMENT_TIMEOUT`` is set
+        to a positive value, execute ``SET LOCAL statement_timeout`` scoped to
+        the transaction. This is a safe no-op for other dialects.
+        """
         if self._entered:
             raise RuntimeError("AsyncSqlAlchemyUnitOfWork instance cannot be re-entered")
         self._entered = True
+        self._committed = False
+        self._commit_attempted = False
         logger.debug("AsyncUoW: opening session and beginning transaction")
         self._session = self._session_factory()
         # Explicit transaction begin to enforce rollback on exceptions
         await self._session.begin()
+        # Apply Postgres statement timeout if configured
+        try:
+            dialect_name = getattr(self._engine.dialect, "name", "")
+            timeout_ms = int(getattr(self._settings, "db_statement_timeout_ms", 0))
+            if timeout_ms > 0 and str(dialect_name).startswith("postgresql"):
+                logger.debug("AsyncUoW: applying SET LOCAL statement_timeout=%s ms", timeout_ms)
+                await self._session.execute(text("SET LOCAL statement_timeout = :ms"), {"ms": timeout_ms})
+        except Exception:
+            # Defensive: do not break entry if timeout set fails
+            logger.exception("AsyncUoW: failed to apply statement_timeout; proceeding without it")
         # Reset repositories cache on fresh session
         self._a_accounts = None
         self._a_currencies = None
@@ -198,30 +117,140 @@ class AsyncSqlAlchemyUnitOfWork:
         self._a_rate_events = None
         return self
 
+    @staticmethod
+    def _is_transient_error(exc: BaseException) -> bool:
+        """Return True if the DB error is considered transient and safe to retry.
+
+        Checks:
+        - DBAPIError with connection_invalidated True
+        - SQLSTATE codes for serialization failure (40001) and deadlock (40P01)
+        - OperationalError that likely indicates a transient connection issue
+        """
+        # SQLSTATE extraction helper
+        def _sqlstate(err: Any) -> str | None:
+            code = None
+            orig = getattr(err, "orig", None)
+            if orig is None:
+                return None
+            # asyncpg exceptions usually expose .sqlstate
+            code = getattr(orig, "sqlstate", None)
+            if code:
+                return str(code)
+            # psycopg style
+            code = getattr(orig, "pgcode", None)
+            if code:
+                return str(code)
+            # Some drivers put it in args/messages; best-effort skip
+            return None
+
+        if isinstance(exc, DBAPIError):
+            if getattr(exc, "connection_invalidated", False):
+                return True
+            code = _sqlstate(exc)
+            if code in {"40001", "40P01"}:
+                return True
+        if isinstance(exc, OperationalError):
+            # OperationalError can be transient (disconnects, timeouts)
+            # Without SQLSTATE, err on the safe side only if connection invalidated
+            if getattr(exc, "connection_invalidated", False):
+                return True
+            code = _sqlstate(exc)
+            if code in {"40001", "40P01"}:
+                return True
+        return False
+
+    async def _commit_with_retry(self) -> None:
+        """Commit current transaction with bounded retries on transient errors.
+
+        Backoff parameters are read from settings: attempts, base backoff, max cap.
+        On each transient failure, perform rollback and sleep before retrying.
+        Non-transient errors are re-raised immediately.
+        """
+        if not self._session:
+            logger.warning("AsyncUoW.commit() called without an active session; no-op")
+            return None
+        self._commit_attempted = True
+        attempts = max(1, int(getattr(self._settings, "db_retry_attempts", 3)))
+        backoff_ms = max(1, int(getattr(self._settings, "db_retry_backoff_ms", 50)))
+        max_backoff_ms = max(backoff_ms, int(getattr(self._settings, "db_retry_max_backoff_ms", 1000)))
+        last_exc: BaseException | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                await self._session.commit()
+                self._committed = True
+                return None
+            except (DBAPIError, OperationalError) as exc:  # type: ignore[misc]
+                # Decide on retry
+                if not self._is_transient_error(exc) or attempt == attempts:
+                    last_exc = exc
+                    break
+                # rollback before retrying commit
+                try:
+                    await self._session.rollback()
+                except Exception:
+                    logger.exception("AsyncUoW: rollback after transient commit failure also failed")
+                delay_ms = min(max_backoff_ms, backoff_ms * (2 ** (attempt - 1)))
+                sqlstate = getattr(getattr(exc, "orig", None), "sqlstate", None) or getattr(
+                    getattr(exc, "orig", None), "pgcode", None
+                )
+                logger.warning(
+                    "AsyncUoW: transient commit failure (attempt %s/%s, sqlstate=%s): %s; retrying in %sms",
+                    attempt,
+                    attempts,
+                    sqlstate,
+                    type(exc).__name__,
+                    delay_ms,
+                )
+                await asyncio.sleep(delay_ms / 1000.0)
+            except Exception:
+                # Non-DB error -> don't retry
+                raise
+        # Exhausted or non-retryable
+        assert last_exc is not None
+        raise last_exc
+
     async def __aexit__(self, exc_type, exc: BaseException | None, tb: Any) -> None:  # noqa: D401
-        """Exit async context: commit on success, rollback on error; always close session."""
+        """Exit async context with safe finalization.
+
+        Rules:
+        - If an exception occurred inside the block -> rollback.
+        - If no exception and commit previously succeeded -> no-op (already committed).
+        - If no exception and commit was attempted but failed -> rollback to avoid partial state; don't re-raise here.
+        - If no exception and no commit attempted -> perform commit with retry once.
+        Always close the session.
+        """
         try:
             if not self._session:
                 logger.warning("AsyncUoW.__aexit__ called without an active session; no-op")
                 return None
-            if exc is None:
-                logger.debug("AsyncUoW: committing transaction")
-                try:
-                    await self._session.commit()
-                except Exception:
-                    logger.exception("AsyncUoW: commit failed; attempting rollback")
-                    try:
-                        await self._session.rollback()
-                    except Exception:
-                        logger.exception("AsyncUoW: rollback after commit failure also failed")
-                    raise
-            else:
+            if exc is not None:
                 logger.debug("AsyncUoW: exception detected -> rollback", exc_info=exc)
                 try:
                     await self._session.rollback()
                 except Exception:
                     logger.exception("AsyncUoW: rollback failed during exception handling")
-                    # Don't suppress original exception
+            else:
+                if self._committed:
+                    # Already committed explicitly inside the context
+                    pass
+                elif self._commit_attempted and not self._committed:
+                    # Commit was attempted and failed earlier -> rollback to clean up
+                    logger.debug("AsyncUoW: prior commit attempt failed -> rollback on exit")
+                    try:
+                        await self._session.rollback()
+                    except Exception:
+                        logger.exception("AsyncUoW: rollback after failed commit attempt also failed")
+                else:
+                    logger.debug("AsyncUoW: committing transaction on exit")
+                    try:
+                        await self._commit_with_retry()
+                    except Exception:
+                        logger.exception("AsyncUoW: commit on exit failed; attempting rollback")
+                        try:
+                            await self._session.rollback()
+                        except Exception:
+                            logger.exception("AsyncUoW: rollback after exit-commit failure also failed")
+                        raise
         finally:
             if self._session is not None:
                 try:
@@ -231,6 +260,8 @@ class AsyncSqlAlchemyUnitOfWork:
                 finally:
                     self._session = None
                     self._entered = False
+                    self._committed = False
+                    self._commit_attempted = False
                     # Drop repositories cache along with the session
                     self._a_accounts = None
                     self._a_currencies = None
@@ -239,11 +270,11 @@ class AsyncSqlAlchemyUnitOfWork:
                     self._a_rate_events = None
 
     async def commit(self) -> None:
-        """Explicitly commit the current transaction if a session is active."""
+        """Explicitly commit the current transaction if a session is active (with retries)."""
         if not self._session:
             logger.warning("AsyncUoW.commit() called without an active session; no-op")
             return None
-        await self._session.commit()
+        await self._commit_with_retry()
 
     async def rollback(self) -> None:
         """Explicitly rollback the current transaction if a session is active."""
@@ -329,55 +360,3 @@ class AsyncSqlAlchemyUnitOfWork:
             self._a_rate_events = AsyncSqlAlchemyExchangeRateEventsRepository(self._session)
         return self._a_rate_events
 
-
-class SyncUnitOfWorkWrapper:
-    """Synchronous wrapper over ``AsyncSqlAlchemyUnitOfWork``.
-
-    Provides a blocking context manager that internally drives the async UoW
-    using ``asyncio.run`` when no event loop is running. If an event loop is
-    already running, a clear ``RuntimeError`` is raised to avoid nested loops.
-
-    This is intended as a compatibility bridge for synchronous code paths (CLI
-    and legacy tests) that need to call commit/rollback on an async UoW.
-    """
-
-    def __init__(self, async_uow: AsyncSqlAlchemyUnitOfWork) -> None:
-        """Initialize the wrapper with an async UoW instance."""
-        self._uow = async_uow
-
-    @staticmethod
-    def _ensure_no_running_loop() -> None:
-        """Raise RuntimeError if called from within an active event loop."""
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return  # No running loop -> OK
-        raise RuntimeError(
-            "SyncUnitOfWorkWrapper cannot be used inside an active event loop. "
-            "Use the async UoW directly or schedule operations properly."
-        )
-
-    def __enter__(self) -> SyncUnitOfWorkWrapper:
-        """Enter blocking context by awaiting async UoW.__aenter__ via asyncio.run."""
-        self._ensure_no_running_loop()
-        asyncio.run(self._uow.__aenter__())
-        return self
-
-    def __exit__(self, exc_type, exc: BaseException | None, tb: Any) -> None:
-        """Exit blocking context by awaiting async UoW.__aexit__ via asyncio.run."""
-        self._ensure_no_running_loop()
-        asyncio.run(self._uow.__aexit__(exc_type, exc, tb))
-
-    def commit(self) -> None:
-        """Synchronously commit by awaiting async commit via asyncio.run."""
-        self._ensure_no_running_loop()
-        asyncio.run(self._uow.commit())
-
-    def rollback(self) -> None:
-        """Synchronously rollback by awaiting async rollback via asyncio.run."""
-        self._ensure_no_running_loop()
-        asyncio.run(self._uow.rollback())
-
-    def close(self) -> None:
-        """Close underlying UoW session, if any, using its sync helper."""
-        self._uow.close()

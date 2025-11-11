@@ -38,6 +38,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from infrastructure.config.settings import get_settings
+
 __all__ = [
     "normalize_async_url",
     "get_async_engine",
@@ -86,6 +88,49 @@ def normalize_async_url(url: str) -> str:
     return sa_url.render_as_string(hide_password=False)
 
 
+def _engine_kwargs_for_dialect(norm_url: str, *, echo: bool, user_kwargs: dict[str, Any] | None) -> dict[str, Any]:
+    """Build engine kwargs based on settings and target dialect.
+
+    - For postgresql+asyncpg: apply pool sizing, timeouts, and connect_args(timeout)
+    - For sqlite+aiosqlite: keep minimal; ignore pool options safely
+    - For others: return minimal with pre_ping
+    """
+    settings = get_settings()
+    sa_url = make_url(norm_url)
+    drivername = sa_url.drivername
+    extra = dict(user_kwargs or {})
+    base: dict[str, Any] = {"echo": echo, "pool_pre_ping": True}
+
+    if drivername.startswith("postgresql"):
+        # Pool and timeouts
+        base.update(
+            {
+                "pool_size": max(1, int(settings.db_pool_size)),
+                "max_overflow": max(0, int(settings.db_max_overflow)),
+                "pool_timeout": max(1, int(settings.db_pool_timeout)),
+                "pool_recycle": max(0, int(settings.db_pool_recycle_sec)),
+            }
+        )
+        # asyncpg connect timeout
+        connect_timeout = max(1, int(settings.db_connect_timeout_sec))
+        connect_args = dict(extra.pop("connect_args", {}))
+        # asyncpg uses 'timeout' param for connect()
+        connect_args.setdefault("timeout", connect_timeout)
+        base["connect_args"] = connect_args
+        # Merge user kwargs last to allow explicit override if needed
+        base.update(extra)
+        return base
+
+    if drivername.startswith("sqlite"):
+        # Keep minimal; sqlite pools behave differently, and options are often ignored
+        base.update(extra)
+        return base
+
+    # Unknown driver: return minimal
+    base.update(extra)
+    return base
+
+
 def get_async_engine(url: str, *, echo: bool = False, engine_kwargs: dict[str, Any] | None = None) -> AsyncEngine:
     """Create and return an AsyncEngine using the given URL.
 
@@ -96,6 +141,7 @@ def get_async_engine(url: str, *, echo: bool = False, engine_kwargs: dict[str, A
     - echo: Enable SQL echo for debugging.
     - engine_kwargs: Extra keyword arguments forwarded to ``create_async_engine``.
       Useful keys may include pool settings (pool_size, max_overflow, etc.).
+      If omitted, values are read from app settings (ENV) for supported dialects.
 
     Returns:
     - AsyncEngine instance.
@@ -106,14 +152,11 @@ def get_async_engine(url: str, *, echo: bool = False, engine_kwargs: dict[str, A
     True
     """
     norm_url = normalize_async_url(url)
-    extra = dict(engine_kwargs or {})
+    kwargs = _engine_kwargs_for_dialect(norm_url, echo=echo, user_kwargs=engine_kwargs)
 
-    # Reasonable defaults; keep minimal for ASYNC-01 to avoid side effects
     engine: AsyncEngine = create_async_engine(
         norm_url,
-        echo=echo,
-        pool_pre_ping=True,
-        **extra,
+        **kwargs,
     )
     return engine
 
@@ -138,6 +181,6 @@ def get_async_session_factory(
 
     Notes:
     - Tables are not auto-created here. Migrations and metadata management
-      remain the responsibility of sync tooling (Alembic) in ASYNC-01.
+      remain the responsibility of sync tooling (Alembic).
     """
     return async_sessionmaker(bind=engine, expire_on_commit=expire_on_commit, class_=AsyncSession)

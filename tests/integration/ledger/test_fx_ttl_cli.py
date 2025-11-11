@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
+from presentation.async_bridge import add_exchange_rate_event_sync, create_currency_sync
 
 
 def run_cli(args: list[str]) -> tuple[int, str]:
@@ -12,51 +12,44 @@ def run_cli(args: list[str]) -> tuple[int, str]:
     import re
     import subprocess
     env = os.environ.copy()
-    env.setdefault("LOG_LEVEL", "WARNING")  # reduce log noise in tests
+    env.setdefault("LOG_LEVEL", "WARNING")
     proc = subprocess.run(["python", "-m", "presentation.cli.main"] + args, capture_output=True, text=True, env=env)
     out = proc.stdout.strip()
-    # remove ANSI escape codes and trailing log lines before JSON { start
     if "{" in out:
         json_start = out.find("{")
         out = out[json_start:]
-    # strip ansi
     out = re.sub(r"\x1b\[[0-9;]*m", "", out)
     return (proc.returncode, out)
 
 
-def test_fx_ttl_delete_mode_sqlite(tmp_path):
-    db_url = f"sqlite+pysqlite:///{tmp_path}/fx_ttl.db"
-    # Seed events via UoW for precise control of timestamps
-    uow = SqlAlchemyUnitOfWork(db_url)
+def test_fx_ttl_delete_mode_sqlite(tmp_path, monkeypatch):
+    db_url = f"sqlite+aiosqlite:///{tmp_path}/fx_ttl.db"
+    # Seed events via bridge for precise timestamps in the same DB as CLI
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    create_currency_sync("EUR", exchange_rate=Decimal("1.1"))
     now = datetime.now(UTC)
     old = now - timedelta(days=10)
     recent = now - timedelta(days=1)
-    # Seed currency to satisfy CLI diagnostics if needed
-    uow.currencies.upsert(type("D", (), {"code": "EUR", "exchange_rate": Decimal("1.1"), "is_base": False})())  # type: ignore
-    uow.exchange_rate_events.add_event("EUR", Decimal("1.1"), old, policy_applied="none", source="test")
-    uow.exchange_rate_events.add_event("EUR", Decimal("1.2"), recent, policy_applied="none", source="test")
-    uow.commit()
+    add_exchange_rate_event_sync("EUR", Decimal("1.1"), old, policy_applied="none", source="test")
+    add_exchange_rate_event_sync("EUR", Decimal("1.2"), recent, policy_applied="none", source="test")
 
-    # Dry run should report affected=1 but not delete
     rc, out = run_cli(["--db-url", db_url, "maintenance:fx-ttl", "--mode", "delete", "--retention-days", "5", "--dry-run", "--json"])  # noqa: E501
     assert rc == 0
     data = json.loads(out)
     assert data["affected"] >= 1
-    # Real run deletes
     rc, out = run_cli(["--db-url", db_url, "maintenance:fx-ttl", "--mode", "delete", "--retention-days", "5", "--json"])  # noqa: E501
     assert rc == 0
     data = json.loads(out)
     assert data["deleted"] >= 1
 
 
-def test_fx_ttl_archive_mode_sqlite(tmp_path):
-    db_url = f"sqlite+pysqlite:///{tmp_path}/fx_ttl_arch.db"
-    uow = SqlAlchemyUnitOfWork(db_url)
+def test_fx_ttl_archive_mode_sqlite(tmp_path, monkeypatch):
+    db_url = f"sqlite+aiosqlite:///{tmp_path}/fx_ttl_arch.db"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    create_currency_sync("EUR", exchange_rate=Decimal("1.1"))
     now = datetime.now(UTC)
     old = now - timedelta(days=10)
-    uow.currencies.upsert(type("D", (), {"code": "EUR", "exchange_rate": Decimal("1.1"), "is_base": False})())  # type: ignore
-    uow.exchange_rate_events.add_event("EUR", Decimal("1.1"), old, policy_applied="none", source="test")
-    uow.commit()
+    add_exchange_rate_event_sync("EUR", Decimal("1.1"), old, policy_applied="none", source="test")
 
     rc, out = run_cli(["--db-url", db_url, "maintenance:fx-ttl", "--mode", "archive", "--retention-days", "5", "--json"])  # noqa: E501
     assert rc == 0

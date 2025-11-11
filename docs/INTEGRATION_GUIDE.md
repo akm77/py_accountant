@@ -226,6 +226,67 @@ poetry run python -m presentation.cli.main maintenance:fx-ttl --mode delete --re
 
 UoW создаётся внутри каждого обработчика, commit после успешного use case.
 
+## Telegram Bot (lean)
+
+Пример лёгкой интеграции Telegram-бота, который использует текущие async use cases без дублирования доменной логики и без зависимости от aiogram. Все вызовы выполняются через асинхронный UoW; каждое обращение — отдельный UoW.
+
+API регистрации обработчиков:
+```
+register_handlers(
+    uow_factory: Callable[[], AsyncUnitOfWork],
+    settings: Settings,
+    clock: Clock | None = None,
+) -> None
+```
+- uow_factory: фабрика нового AsyncSqlAlchemyUnitOfWork на каждый вызов
+- settings: конфигурация примера
+- clock: опционально; по умолчанию SystemClock (backward compatible)
+
+Используемые async use cases:
+- AsyncListCurrencies
+- AsyncListExchangeRateEvents
+- AsyncGetAccountBalance
+- AsyncPostTransaction
+
+Протокол работы:
+- Команды — это функции-обработчики, доступные через `router["<cmd>"]`
+- Вызов: `await router["rates"]()` или `await router["balance"]("Assets:Cash")`
+
+Форматы ошибок (важно придерживаться при интеграции):
+- Ошибки домена (ValueError) → `Error: <msg>`
+- /tx: пустой payload или после парсинга пусто → `Error: No lines`
+- /tx: ошибка формата строки → `Ошибка формата строки: line <i>: <reason>: <raw_line>`
+- Неожиданные исключения → `Server error` (логирование вне примера)
+
+Псевдокод интеграции с aiogram (без добавления зависимости):
+```python
+# settings, uow_factory как в примере
+from examples.telegram_bot.handlers import register_handlers, router
+
+register_handlers(uow_factory, settings)  # clock не передаём → SystemClock
+
+async def on_message(text: str) -> str:
+    # text, например: "/rates" или "/balance Assets:Cash"
+    parts = (text or "").strip().split(maxsplit=1)
+    if not parts:
+        return "Commands: /start /rates /audit /balance /tx"
+    cmd = parts[0].lstrip("/")
+    payload = parts[1] if len(parts) > 1 else None
+    handler = router.get(cmd)
+    if not handler:
+        return "Commands: /start /rates /audit /balance /tx"
+    return await handler(payload)
+```
+
+Замечания по времени:
+- Если нужен нестандартный источник времени, передайте `clock` в `register_handlers`
+- По умолчанию используется `SystemClock`
+
+Ссылки:
+- README примера: `examples/telegram_bot/README.md`
+- Хендлеры: `examples/telegram_bot/handlers.py`
+- Инициализация: `examples/telegram_bot/app.py`
+
 ## 7. Пример интеграции: сервис-воркер / крон
 
 ```python
@@ -379,3 +440,52 @@ asyncio.run(main())
 - Все async use cases принимают `AsyncUnitOfWork` и используют только awaitable-методы репозиториев.
 - Существующие sync use cases остаются для CLI/обратной совместимости (перенос в ASYNC-07).
 - Методы list возвращают списки, параметры `meta` передаются прозрачно (можно `None` или `{}`).
+
+## 16. Настройки пула, таймаутов и ретраев (ASYNC-09)
+
+Добавлены переменные окружения для управления устойчивостью async-стека:
+
+| Переменная | Назначение | Дефолт | Применимо |
+|------------|-----------|--------|-----------|
+| `DB_POOL_SIZE` | Базовый размер пула | 5 | PostgreSQL (asyncpg) |
+| `DB_MAX_OVERFLOW` | Доп. соединения сверх пула | 10 | PostgreSQL |
+| `DB_POOL_TIMEOUT` | Таймаут ожидания соединения (сек) | 30 | PostgreSQL |
+| `DB_POOL_RECYCLE_SEC` | Рецикл (разрыв) соединения после сек | 1800 | PostgreSQL |
+| `DB_CONNECT_TIMEOUT_SEC` | Таймаут установления соединения | 10 | PostgreSQL |
+| `DB_STATEMENT_TIMEOUT_MS` | statement_timeout внутри транзакции | 0 (выключено) | PostgreSQL |
+| `DB_RETRY_ATTEMPTS` | Кол-во попыток commit при транзистентных ошибках | 3 | Все |
+| `DB_RETRY_BACKOFF_MS` | Начальный backoff между ретраями | 50 | Все |
+| `DB_RETRY_MAX_BACKOFF_MS` | Верхняя граница backoff | 1000 | Все |
+
+Поведение:
+- Параметры пула и connect timeout применяются только к `postgresql+asyncpg`; для SQLite игнорируются без ошибок.
+- `DB_STATEMENT_TIMEOUT_MS>0` приводит к выполнению `SET LOCAL statement_timeout = <ms>` при входе в транзакцию (только PostgreSQL). Ограничение действует до commit/rollback.
+- Ретраи commit выполняются только для транзистентных ошибок: SQLSTATE `40001` (serialization failure), `40P01` (deadlock), либо `connection_invalidated` в исключении SQLAlchemy. Максимум `DB_RETRY_ATTEMPTS` попыток с экспоненциальным ростом задержки (минимум base, максимум cap).
+
+Рекомендации:
+- Для горизонтов 1–5 секунд операций используйте `DB_STATEMENT_TIMEOUT_MS=5000` чтобы избегать долгих блокировок.
+- Наблюдайте метрики пула (conn. saturation) и при росте увеличивайте `DB_POOL_SIZE` / уменьшайте `DB_MAX_OVERFLOW` для предсказуемости.
+- Не ставьте слишком короткий `DB_CONNECT_TIMEOUT_SEC` (<3) при нестабильной сети.
+
+Пример `.env` для PostgreSQL продакшена:
+```
+DATABASE_URL=postgresql+psycopg://acc:pass@db:5432/ledger
+DATABASE_URL_ASYNC=postgresql+asyncpg://acc:pass@db:5432/ledger
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=5
+DB_POOL_TIMEOUT=30
+DB_POOL_RECYCLE_SEC=1800
+DB_CONNECT_TIMEOUT_SEC=10
+DB_STATEMENT_TIMEOUT_MS=5000
+DB_RETRY_ATTEMPTS=5
+DB_RETRY_BACKOFF_MS=50
+DB_RETRY_MAX_BACKOFF_MS=800
+```
+
+SQLite:
+- Игнорирует настройки пула / statement timeout.
+- Ретраи commit обычно не срабатыют, но механизм безвреден.
+
+Диагностика:
+- Логи `WARNING` уровня при ретраях содержат attempt, sqlstate (если доступен) и задержку.
+- Если ретраи исчерпаны — выбрасывается исходное исключение.

@@ -1,44 +1,37 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 
 from application.dto.models import EntryLineDTO
-from application.use_cases.ledger import (
-    CreateAccount,
-    CreateCurrency,
-    GetTradingBalanceDetailed,
-    PostTransaction,
+from presentation.async_bridge import (
+    create_account_sync,
+    create_currency_sync,
+    get_trading_balance_detailed_sync,
+    post_transaction_sync,
 )
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.sqlalchemy.uow import SqlAlchemyUnitOfWork
 
 
-def test_trading_balance_detailed_flow_sqlalchemy(tmp_path):
-    # Use file sqlite to persist across UoW instances
-    db_url = f"sqlite+pysqlite:///{tmp_path}/test.db"
-    uow = SqlAlchemyUnitOfWork(url=db_url)
-    clock = FixedClock(fixed=datetime.now(UTC))
+def test_trading_balance_detailed_flow_bridge(monkeypatch, tmp_path):
+    db_url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
+    monkeypatch.setenv("DATABASE_URL", db_url)
 
-    CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
-    CreateCurrency(uow)("EUR", exchange_rate=Decimal("1.25"))
-    CreateAccount(uow)("Assets:Cash", "USD")
-    CreateAccount(uow)("Assets:BankEUR", "EUR")
-    CreateAccount(uow)("Income:Sales", "USD")
+    create_currency_sync("USD", exchange_rate=Decimal("1"))
+    create_currency_sync("EUR", exchange_rate=Decimal("1.25"))
+    create_account_sync("Assets:Cash", "USD")
+    create_account_sync("Assets:BankEUR", "EUR")
+    create_account_sync("Income:Sales", "USD")
 
-    post = PostTransaction(uow, clock)
-    post([
+    post_transaction_sync([
         EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("200"), currency_code="USD"),
         EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("200"), currency_code="USD"),
     ])
-    post([
+    post_transaction_sync([
         EntryLineDTO(side="DEBIT", account_full_name="Assets:BankEUR", amount=Decimal("100"), currency_code="EUR"),
         EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("100"), currency_code="EUR"),
     ])
 
-    tb = GetTradingBalanceDetailed(uow, clock)("USD")
+    tb = get_trading_balance_detailed_sync("USD")
     assert tb.base_currency == "USD"
-    assert all(l.converted_balance is not None for l in tb.lines)
-    base_total = sum(l.converted_balance for l in tb.lines)  # type: ignore[arg-type]
+    assert all(line.converted_balance is not None for line in tb.lines)
+    base_total = sum(line.converted_balance for line in tb.lines)  # type: ignore[arg-type]
     assert tb.base_total == base_total
-

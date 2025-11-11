@@ -1,23 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 
-from infrastructure.persistence.sqlalchemy.uow import (
-    AsyncSqlAlchemyUnitOfWork,
-    SyncUnitOfWorkWrapper,
-)
+from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 
 @pytest.mark.asyncio
 async def test_async_uow_commit(tmp_path: Path) -> None:
-    """Async UoW commits on successful context exit.
-
-    Create a table once, insert a row inside the UoW, and verify the row is visible after exit.
-    """
+    """Async UoW commits on successful context exit."""
     db_path = tmp_path / "commit.sqlite3"
     url = f"sqlite+aiosqlite:///{db_path}"
 
@@ -65,24 +58,3 @@ async def test_async_uow_rollback(tmp_path: Path) -> None:
         res = await s.execute(text("SELECT COUNT(*) FROM t"))
         count = res.scalar_one()
         assert count == 0
-
-
-def test_sync_wrapper_basic(tmp_path: Path) -> None:
-    """Sync wrapper should be able to enter/exit and call commit/rollback."""
-    db_path = tmp_path / "wrapper.sqlite3"
-    url = f"sqlite+aiosqlite:///{db_path}"
-
-    wrapper = SyncUnitOfWorkWrapper(AsyncSqlAlchemyUnitOfWork(url))
-    with wrapper:
-        wrapper.commit()
-        wrapper.rollback()
-
-    # Ensure wrapper refuses to run inside an active loop
-    async def _inside_loop() -> None:
-        w2 = SyncUnitOfWorkWrapper(AsyncSqlAlchemyUnitOfWork(url))
-        with pytest.raises(RuntimeError):
-            w2.commit()
-
-    # Run the above inside a loop to validate guard
-    asyncio.run(_inside_loop())
-
