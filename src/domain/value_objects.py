@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from enum import Enum
+from typing import Literal
+
+from .errors import DomainError
 
 __all__ = [
     "DomainError",
@@ -15,12 +18,6 @@ __all__ = [
     "EntryLine",
     "TransactionVO",
 ]
-
-from typing import Literal
-
-
-class DomainError(ValueError):
-    """Generic domain validation error."""
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,629 @@
+rpg_plan:
+  metadata:
+    project: py_accountant
+    generated_at: 2025-11-11
+    source: REFACTORING_RPG_PLAN.md
+    methodology: RPG
+    principles:
+      - async_only_path
+      - domain_logic_outside_infrastructure
+      - single_async_ports_layer
+      - explicit_domain_services
+      - dto_separation_simple_vs_detailed
+      - no_hidden_global_state
+      - test_first_topology
+      - simplified_uow
+    notes: "Мелкие итерации для высокого качества; каждая завершается зелёными тестами перед переходом."
+
+  topology_order:
+    - domain.errors
+    - domain.quantize
+    - domain.value_objects.currencies
+    - domain.value_objects.accounts
+    - domain.ledger.balance_validation
+    - domain.trading_balance.raw
+    - domain.trading_balance.converted
+    - domain.fx_audit.ttl_archival
+    - application.dto.refactor
+    - application.ports.unify_async
+    - infrastructure.db.models.minimal
+    - infrastructure.db.repositories.async_crud
+    - infrastructure.db.uow.simplified
+    - application.use_cases.currencies
+    - application.use_cases.accounts
+    - application.use_cases.ledger
+    - application.use_cases.trading_balance
+    - application.use_cases.fx_audit
+    - application.use_cases.reporting
+    - presentation.cli.foundation
+    - presentation.cli.currencies
+    - presentation.cli.accounts
+    - presentation.cli.ledger
+    - presentation.cli.trading_balance
+    - presentation.cli.fx_audit
+    - removal.async_bridge
+    - deprecation.sync_repositories
+    - tests.migration.clean_up
+    - metrics.baseline_and_post
+    - docs.update.architecture
+    - docs.update.migration_history
+    - docs.update.readme_async_transition
+
+  iterations:
+    # === DOMAIN FOUNDATION ===
+    - id: I01
+      name: domain.errors.module
+      scope:
+        - create domain/errors.py (DomainError, ValidationError)
+        - add basic docstrings
+      dependencies: []
+      deliverables:
+        - src/domain/errors.py
+        - tests/unit/domain/test_errors.py
+      tests:
+        - test_errors_raise_and_inherit
+      acceptance_criteria:
+        - DomainError and ValidationError defined
+        - tests green
+      risk_mitigation: "Минимальный объём, низкий риск."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Модуль создан, тест test_errors_raise_and_inherit зелёный; исключения доступны через domain.errors и ре-экспортируются в domain.__init__.py."
+
+    - id: I02
+      name: domain.quantize.utilities
+      scope:
+        - create domain/quantize.py (money_quantize, rate_quantize)
+        - define Decimal contexts (precision, rounding)
+      dependencies: [I01]
+      deliverables:
+        - src/domain/quantize.py
+        - tests/unit/domain/test_quantize.py
+      tests:
+        - test_money_quantize_rounds
+        - test_rate_quantize_rounds
+      acceptance_criteria:
+        - Functions return expected quantized values
+        - No global Decimal context mutation
+      risk_mitigation: "Изолировать контекст через localcontext."
+
+    - id: I03
+      name: domain.currency.value_object
+      scope:
+        - create domain/currencies.py (Currency, BaseCurrencyRule)
+        - enforce single base without mass UPDATE all
+      dependencies: [I01, I02]
+      deliverables:
+        - src/domain/currencies.py
+        - tests/unit/domain/test_currency_base_rule.py
+      tests:
+        - test_set_base_preserves_other_rates
+        - test_clear_base
+      acceptance_criteria:
+        - Base currency singleton logic passes tests
+      risk_mitigation: "Не вносить пока зависимости на репозитории."
+
+    - id: I04
+      name: domain.account.value_object
+      scope:
+        - create domain/accounts.py (Account with validation)
+      dependencies: [I01]
+      deliverables:
+        - src/domain/accounts.py
+        - tests/unit/domain/test_accounts.py
+      tests:
+        - test_account_full_name_validation
+        - test_account_parent_id_optional
+      acceptance_criteria:
+        - Validation errors raise ValidationError
+      risk_mitigation: "Простая структура, без persistence."
+
+    - id: I05
+      name: domain.ledger.balance_validation
+      scope:
+        - create domain/ledger.py (LedgerValidator)
+        - implement multi-currency balance check using quantize
+      dependencies: [I02, I03, I04]
+      deliverables:
+        - src/domain/ledger.py
+        - tests/unit/domain/test_ledger_balance.py
+      tests:
+        - test_single_currency_balanced
+        - test_multi_currency_balanced_with_rates
+        - test_unbalanced_detected
+      acceptance_criteria:
+        - All scenarios pass
+      risk_mitigation: "Независимо от инфраструктуры."
+
+    - id: I06
+      name: domain.trading_balance.raw_aggregation
+      scope:
+        - create domain/trading_balance.py (RawAggregator)
+        - aggregate debit/credit per currency
+      dependencies: [I05]
+      deliverables:
+        - updated src/domain/trading_balance.py
+        - tests/unit/domain/test_trading_balance_raw.py
+      tests:
+        - test_raw_aggregation_basic
+      acceptance_criteria:
+        - Raw aggregation yields expected totals
+      risk_mitigation: "Не добавлять пока конверсию."
+
+    - id: I07
+      name: domain.trading_balance.converted_aggregation
+      scope:
+        - extend trading_balance.py (ConvertedAggregator, Detailed DTO)
+        - separate simple vs detailed DTOs
+      dependencies: [I06]
+      deliverables:
+        - updated src/domain/trading_balance.py
+        - tests/unit/domain/test_trading_balance_converted.py
+      tests:
+        - test_converted_aggregation_with_base
+        - test_converted_aggregation_fallback_rate
+      acceptance_criteria:
+        - Detailed DTO contains expected conversion info
+      risk_mitigation: "Fallback rate logic документирован."
+
+    - id: I08
+      name: domain.fx_audit.ttl_archival_service
+      scope:
+        - create domain/fx_audit.py (FxAuditTTLService)
+        - define methods identify_old, batch_plan
+      dependencies: [I03]
+      deliverables:
+        - src/domain/fx_audit.py
+        - tests/unit/domain/test_fx_audit_ttl.py
+      tests:
+        - test_identify_old_events
+        - test_archival_plan_sizes
+      acceptance_criteria:
+        - TTL logic independent from DB
+      risk_mitigation: "Только чистая логика."
+
+    - id: I08A
+      name: tests.inventory_snapshot
+      scope:
+        - generate initial inventory report tests/report/test_inventory.md
+        - mark candidates for xfail
+      dependencies: [I08]
+      deliverables:
+        - tests/report/test_inventory.md
+      tests: []
+      acceptance_criteria:
+        - Inventory file exists and lists categories
+      risk_mitigation: "Не меняет код, только аналитика"
+
+    # === APPLICATION LAYER REFACTOR ===
+    - id: I09
+      name: application.dto.refactor_step1
+      scope:
+        - introduce TradingBalanceLineSimple, TradingBalanceLineDetailed
+        - remove converted_* from old DTO
+      dependencies: [I07]
+      deliverables:
+        - src/application/dto/models.py (refactored)
+        - tests/unit/application/test_dto_trading_balance_refactor.py
+      tests:
+        - test_simple_line_without_converted_fields
+        - test_detailed_line_contains_conversion
+      acceptance_criteria:
+        - Old fields not present in simple DTO
+      risk_mitigation: "Сохранить совместимость имен остальных DTO."
+
+    - id: I10
+      name: application.dto.refactor_step2_backwards_shim
+      scope:
+        - optional compatibility alias for legacy code (if needed)
+      dependencies: [I09]
+      deliverables:
+        - src/application/dto/backwards.py (if required)
+        - tests/unit/application/test_dto_backwards.py
+      tests:
+        - test_legacy_import_shim
+      acceptance_criteria:
+        - Legacy import does not break (skip if not needed)
+      risk_mitigation: "Условно выполнить только при внешних жалобах."
+
+    - id: I11
+      name: application.ports.unify_async_protocols
+      scope:
+        - rewrite application/ports.py to single async protocols
+        - remove sync protocol duplicates
+      dependencies: [I09]
+      deliverables:
+        - src/application/ports.py
+        - tests/unit/application/test_ports_async_only.py
+      tests:
+        - test_all_protocols_are_async
+      acceptance_criteria:
+        - No sync Protocol classes remain
+      risk_mitigation: "Сохранить имена для минимизации каскада."
+
+    # === INFRASTRUCTURE FOUNDATION ===
+    - id: I12
+      name: infrastructure.models.minimal_revision
+      scope:
+        - ensure models.py contains only schema (no business logic)
+        - annotate deprecated balance cache table
+      dependencies: [I11]
+      deliverables:
+        - src/infrastructure/persistence/sqlalchemy/models.py
+        - tests/integration/db/test_models_exist.py
+      tests:
+        - test_tables_present
+      acceptance_criteria:
+        - No aggregation/business methods in models
+      risk_mitigation: "Diff проверка на удаление кода."
+
+    - id: I13
+      name: infrastructure.repositories.async_crud
+      scope:
+        - create new repositories.py with CRUD only
+        - exclude trading balance aggregation
+      dependencies: [I12]
+      deliverables:
+        - src/infrastructure/persistence/sqlalchemy/repositories_async.py (trimmed)
+        - tests/integration/db/test_repositories_crud.py
+      tests:
+        - test_currency_crud
+        - test_account_crud
+      acceptance_criteria:
+        - CRUD operations work; no aggregation code
+      risk_mitigation: "Сохранить сигнатуры используемых методов."
+
+    - id: I14
+      name: infrastructure.uow.simplified
+      scope:
+        - implement simplified AsyncUoW (remove retry/timeout)
+        - basic enter/exit commit/rollback semantics
+      dependencies: [I13]
+      deliverables:
+        - src/infrastructure/persistence/sqlalchemy/uow.py
+        - tests/integration/db/test_uow_lifecycle.py
+      tests:
+        - test_commit_persists
+        - test_rollback_discards
+      acceptance_criteria:
+        - No retry/backoff logic present
+      risk_mitigation: "Докстроки про ответственность retry на верхнем уровне."
+
+    # === APPLICATION USE CASES ===
+    - id: I15
+      name: use_cases.currencies_refactor
+      scope:
+        - adapt currency use cases to domain services + new ports
+      dependencies: [I14]
+      deliverables:
+        - src/application/use_cases/currencies.py
+        - tests/unit/application/test_use_cases_currencies.py
+      tests:
+        - test_create_currency_sets_rate
+        - test_set_base_currency
+      acceptance_criteria:
+        - Use cases call domain logic not repository logic directly
+      risk_mitigation: "Сохранить поверхность аргументов."
+
+    - id: I16
+      name: use_cases.accounts_refactor
+      scope:
+        - adapt accounts use cases
+      dependencies: [I15]
+      deliverables:
+        - src/application/use_cases/accounts.py
+        - tests/unit/application/test_use_cases_accounts.py
+      tests:
+        - test_create_account_validation
+      acceptance_criteria:
+        - Domain validation invoked
+      risk_mitigation: "Минимум изменений вне файла."
+
+    - id: I17
+      name: use_cases.ledger_refactor
+      scope:
+        - integrate LedgerValidator into post_transaction
+      dependencies: [I16]
+      deliverables:
+        - src/application/use_cases/ledger.py
+        - tests/unit/application/test_use_cases_ledger.py
+      tests:
+        - test_post_transaction_balanced
+        - test_post_transaction_unbalanced_raises
+      acceptance_criteria:
+        - Unbalanced raises DomainError
+      risk_mitigation: "Edge cases округления покрыты."
+
+    - id: I18
+      name: use_cases.trading_balance_refactor
+      scope:
+        - use RawAggregator and ConvertedAggregator
+      dependencies: [I17]
+      deliverables:
+        - src/application/use_cases/trading_balance.py
+        - tests/unit/application/test_use_cases_trading_balance.py
+      tests:
+        - test_trading_balance_raw
+        - test_trading_balance_detailed
+      acceptance_criteria:
+        - Detailed DTO produced when requested
+      risk_mitigation: "Проверка пустых транзакций."
+
+    - id: I19
+      name: use_cases.fx_audit_refactor
+      scope:
+        - incorporate FxAuditTTLService for archival planning
+      dependencies: [I18]
+      deliverables:
+        - src/application/use_cases/fx_audit.py
+        - tests/unit/application/test_use_cases_fx_audit.py
+      tests:
+        - test_add_event
+        - test_ttl_archival_plan
+      acceptance_criteria:
+        - Archival plan operations not inside repository
+      risk_mitigation: "Разделение read/list vs plan."
+
+    - id: I20
+      name: use_cases.reporting_initial
+      scope:
+        - scaffold reporting use cases using trading balance & fx audit
+      dependencies: [I19]
+      deliverables:
+        - src/application/use_cases/reporting.py
+        - tests/unit/application/test_use_cases_reporting.py
+      tests:
+        - test_parity_report_basic
+      acceptance_criteria:
+        - Reporting layer composes lower use cases
+      risk_mitigation: "Минимальная логика, только композиция."
+
+    # === PRESENTATION (ASYNC CLI) ===
+    - id: I21
+      name: cli.foundation_async
+      scope:
+        - introduce Typer async main.py skeleton
+      dependencies: [I20]
+      deliverables:
+        - src/presentation/cli/main.py
+        - tests/integration/cli/test_cli_startup.py
+      tests:
+        - test_cli_starts
+      acceptance_criteria:
+        - CLI runs help command
+      risk_mitigation: "Пустой каркас."
+
+    - id: I22
+      name: cli.currencies_commands
+      scope:
+        - add currency commands (create, list, set-base)
+      dependencies: [I21]
+      deliverables:
+        - src/presentation/cli/currencies.py
+        - tests/integration/cli/test_cli_currencies.py
+      tests:
+        - test_cli_create_currency
+      acceptance_criteria:
+        - Commands return expected output
+      risk_mitigation: "Использовать use cases только."
+
+    - id: I23
+      name: cli.accounts_commands
+      scope:
+        - add account commands (create, list)
+      dependencies: [I22]
+      deliverables:
+        - src/presentation/cli/accounts.py
+        - tests/integration/cli/test_cli_accounts.py
+      tests:
+        - test_cli_create_account
+      acceptance_criteria:
+        - Account created / listed
+      risk_mitigation: "Проверка ошибки дубликата."
+
+    - id: I24
+      name: cli.ledger_commands
+      scope:
+        - add ledger commands (post, list, balance)
+      dependencies: [I23]
+      deliverables:
+        - src/presentation/cli/ledger.py
+        - tests/integration/cli/test_cli_ledger.py
+      tests:
+        - test_cli_post_transaction_balanced
+      acceptance_criteria:
+        - Unbalanced rejected
+      risk_mitigation: "Баланс проверяется доменом."
+
+    - id: I25
+      name: cli.trading_balance_commands
+      scope:
+        - add trading balance commands (raw, detailed)
+      dependencies: [I24]
+      deliverables:
+        - src/presentation/cli/trading_balance.py
+        - tests/integration/cli/test_cli_trading_balance.py
+      tests:
+        - test_cli_trading_balance_detailed
+      acceptance_criteria:
+        - Detailed output flag works
+      risk_mitigation: "Проверка пустого результата."
+
+    - id: I26
+      name: cli.fx_audit_commands
+      scope:
+        - add fx audit commands (add-event, list, ttl-archive-plan)
+      dependencies: [I25]
+      deliverables:
+        - src/presentation/cli/fx_audit.py
+        - tests/integration/cli/test_cli_fx_audit.py
+      tests:
+        - test_cli_add_event
+      acceptance_criteria:
+        - TTL plan visible
+      risk_mitigation: "Никаких скрытых retries."
+
+    # === REMOVALS & DEPRECATIONS ===
+    - id: I27
+      name: removal.async_bridge
+      scope:
+        - delete presentation/async_bridge.py
+        - search & replace imports with new CLI calls
+      dependencies: [I26]
+      deliverables:
+        - removed file
+        - search report
+        - tests/unit/presentation/test_no_async_bridge_imports.py
+      tests:
+        - test_no_async_bridge_imports
+      acceptance_criteria:
+        - File absent; no imports remain
+      risk_mitigation: "Глобальный grep перед удалением."
+
+    - id: I28
+      name: deprecation.sync_repositories
+      scope:
+        - replace ImportError raise with DeprecationWarning stub OR remove
+      dependencies: [I27]
+      deliverables:
+        - updated repositories.py (or deleted)
+        - tests/unit/infrastructure/test_sync_repo_stub.py
+      tests:
+        - test_sync_repo_import_warns_or_absent
+      acceptance_criteria:
+        - No hard ImportError
+      risk_mitigation: "Докстрока с указанием перехода."
+
+    # === TEST MIGRATION & CLEAN UP ===
+    - id: I29
+      name: tests.migration_cleanup
+      scope:
+        - adjust existing tests to new DTOs & ports
+        - remove flaky retry tests
+      dependencies: [I28]
+      deliverables:
+        - updated tests tree
+        - tests/report/test_cleanup_report.md
+      tests:
+        - test_all_pass_post_cleanup
+      acceptance_criteria:
+        - All previous suites green
+      risk_mitigation: "Пошагово запускать pytest -k groups."
+
+    # === METRICS & DOCUMENTATION ===
+    - id: I30
+      name: metrics.baseline_collection
+      scope:
+        - collect LOC, cyclomatic complexity before refactor finalization
+      dependencies: [I29]
+      deliverables:
+        - metrics/before.json
+      tests: []
+      acceptance_criteria:
+        - Metrics file generated
+      risk_mitigation: "Скрипт замера отдельно от основного кода."
+
+    - id: I31
+      name: metrics.post_collection
+      scope:
+        - collect LOC & complexity after changes; compute deltas
+      dependencies: [I30]
+      deliverables:
+        - metrics/after.json
+        - metrics/delta.json
+      tests: []
+      acceptance_criteria:
+        - Delta shows target improvements
+      risk_mitigation: "Сравнение автоматическое."
+
+    - id: I32
+      name: docs.architecture_update
+      scope:
+        - update ARCHITECTURE_OVERVIEW.md (async-only)
+      dependencies: [I31]
+      deliverables:
+        - docs/ARCHITECTURE_OVERVIEW.md (updated)
+      tests:
+        - test_docs_sections_present (should still pass)
+      acceptance_criteria:
+        - Async pathway documented; no sync mentions except migration note
+      risk_mitigation: "Сделать diff review."
+
+    - id: I33
+      name: docs.migration_history_update
+      scope:
+        - add "Async Consolidation" section
+      dependencies: [I32]
+      deliverables:
+        - docs/MIGRATION_HISTORY.md (updated)
+      tests:
+        - test_docs_sections_present (unchanged required header still there)
+      acceptance_criteria:
+        - New section added without breaking existing headers
+      risk_mitigation: "Сохранить требуемые заголовки."
+
+    - id: I34
+      name: docs.readme_async_transition
+      scope:
+        - add README section "Переход на полностью асинхронное ядро"
+      dependencies: [I33]
+      deliverables:
+        - README.md (updated)
+      tests:
+        - test_docs_sections_present (ENV variables header remains)
+      acceptance_criteria:
+        - New section present; legacy guidance included
+      risk_mitigation: "Не удалять существующий ENV блок."
+
+    - id: I35
+      name: final_validation_and_release
+      scope:
+        - full test run
+        - generate final summary report
+      dependencies: [I34]
+      deliverables:
+        - reports/final_summary.md
+      tests:
+        - pytest full suite
+      acceptance_criteria:
+        - All suites green; metrics targets met
+      risk_mitigation: "Повторный прогон при временных сбоях."
+
+  execution_rules:
+    test_first: true
+    max_attempts_per_node: 8
+    commit_policy: "Commit только после зелёных тестов узла"
+    interface_freeze_stage: I11
+    allow_backward_shim: I10
+    deprecated_cleanup_stage: I28
+
+  quality_gates:
+    - name: build
+      description: "Проект собирается без ошибок"
+    - name: lint
+      description: "Нет критических линт ошибок"
+    - name: tests
+      description: "Все тесты зелёные"
+    - name: docs
+      description: "Обязательные заголовки присутствуют"
+    - name: metrics
+      description: "Целевые снижения достигнуты"
+
+  success_metrics_targets:
+    loc_infrastructure_reduction_percent: 15
+    uow_cyclomatic_reduction_percent: 50
+    protocols_count_reduction_factor: 0.5
+    test_runtime_reduction_percent: 10
+    no_global_singletons: true
+
+  risk_register:
+    - risk: legacy_sync_dependency_breakage
+      mitigation: provide optional shim (I10) and clear migration section
+    - risk: hidden_imports_async_bridge
+      mitigation: grep before removal (I27)
+    - risk: dto_refactor_breaks_tests
+      mitigation: refactor in two steps (I09, I10)
+    - risk: overfragmentation
+      mitigation: keep iteration scope minimal but coherent domain-first
+    - risk: metrics_noise
+      mitigation: measure after cleanup (I29) before docs edits

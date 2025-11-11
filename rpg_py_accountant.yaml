@@ -2,7 +2,7 @@ rpg:
   metadata:
     project_name: "py_accountant"
     description: "Монорепозиторий: домен/приложение/инфраструктура/презентация. Цель — Clean Architecture."
-    last_updated: "2025-11-10"
+    last_updated: "2025-11-11"
     environments:
       - name: "test"
         description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
@@ -112,6 +112,9 @@ rpg:
       - name: "domain"
         path: "src/domain"
         description: "Чистый домен: value-объекты, агрегаты, сервисы (баланс, курсы)."
+      - name: "domain.errors"
+        path: "src/domain/errors.py"
+        description: "Минимальный модуль исключений домена: DomainError, ValidationError (без зависимостей)."
       - name: "infrastructure"
         path: "src/infrastructure"
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
@@ -159,6 +162,9 @@ rpg:
       - name: ".env"
         parent_module: "infrastructure"
         description: "Локальные переменные окружения (dev)."
+      - name: "src/domain/errors.py"
+        parent_module: "domain.errors"
+        description: "Определяет DomainError и ValidationError; публичный контракт домена."
       - name: "src/application/dto/models.py"
         parent_module: "application"
         description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO"
@@ -201,8 +207,17 @@ rpg:
       - name: "src/presentation/async_bridge.py"
         parent_module: "presentation"
         description: "Слой фасадов для CLI, ensure_schema(), маппинг параметров 1-в-1 с командами."
+      - name: "tests/unit/domain/test_errors.py"
+        parent_module: "domain.errors"
+        description: "Тест проверяет иерархию DomainError/ValidationError и текст сообщений."
 
     components:
+      - name: "DomainErrors"
+        parent_file: "src/domain/errors.py"
+        type: "module"
+        description: "Исключения домена: базовый класс DomainError и ValidationError для валидации."
+        testable: true
+        test_priority: "high"
       - name: "SqlAlchemyUnitOfWork"
         parent_file: "src/infrastructure/persistence/sqlalchemy/uow.py"
         type: "class"
@@ -261,6 +276,10 @@ rpg:
 
   tests:
     unit_tests:
+      - target_component: "DomainErrors"
+        test_file: "tests/unit/domain/test_errors.py"
+        test_functions: ["test_errors_raise_and_inherit"]
+        coverage_status: "added"
       - target_component: "Async repositories"
         test_file: "tests/unit/application/test_async_repositories.py"
         test_functions:
