@@ -130,6 +130,9 @@ rpg:
       - name: "domain.trading_balance"
         path: "src/domain/trading_balance.py"
         description: "RawAggregator: агрегация дебет/кредит по валюте без конверсии, квантование итогов (2dp HALF_EVEN), возврат списка RawBalanceLine (отсортирован по currency_code). ConvertedAggregator: агрегация по валюте с конвертацией в базовую валюту по rate_to_base; DTO ConvertedBalanceLine включает base_currency_code, used_rate (6 знаков), debit/credit/net и debit_base/credit_base/net_base; сортировка по currency_code."
+      - name: "domain.fx_audit"
+        path: "src/domain/fx_audit.py"
+        description: "FX Audit TTL domain service: FxAuditTTLService with make_cutoff/identify_old/batch_plan; dataclasses ExchangeRateEventRef, TTLConfig, Batch; ArchivalMode enum; чистая логика без I/O."
       - name: "infrastructure"
         path: "src/infrastructure"
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
@@ -195,6 +198,9 @@ rpg:
       - name: "src/domain/trading_balance.py"
         parent_module: "domain.trading_balance"
         description: "RawAggregator.aggregate: группировка LedgerEntry по currency_code, накопление debit/credit, квантование итогов и вычисление net; возврат list[RawBalanceLine] сортированного по коду. ConvertedAggregator.aggregate: группировка + конвертация в базовую валюту, валидация наличия положительного rate_to_base, определение базы по base_code или get_base_currency, возврат list[ConvertedBalanceLine] с полями used_rate/debit_base/credit_base/net_base."
+      - name: "src/domain/fx_audit.py"
+        parent_module: "domain.fx_audit"
+        description: "Доменные вычисления TTL: UTC cutoff, фильтрация старых событий (stable), построение batch-плана; без зависимостей от БД/репозиториев."
       - name: "src/application/dto/models.py"
         parent_module: "application"
         description: "DTO: CurrencyDTO, AccountDTO, EntryLineDTO, TransactionDTO, TradingBalanceLineDTO, TradingBalanceDTO, RichTransactionDTO, ExchangeRateEventDTO"
@@ -258,6 +264,9 @@ rpg:
       - name: "tests/unit/domain/test_trading_balance_converted.py"
         parent_module: "domain.trading_balance"
         description: "Тесты ConvertedAggregator/ConvertedBalanceLine: пустой вход, passthrough базовой валюты, небаза с курсом, смешанные валюты и сортировка, HALF_EVEN в базе, отсутствие/неположительный курс — ValidationError, неизвестная валюта — ValidationError, определение базы через get_base_currency, сохранение Decimal контекста, guard на не-LedgerEntry."
+      - name: "tests/unit/domain/test_fx_audit_ttl.py"
+        parent_module: "domain.fx_audit"
+        description: "Юнит‑тесты TTL: identify_old (naive/aware/strictly older), batch_plan (offset/limit покрытие), make_cutoff нормализация UTC, валидации аргументов."
 
     components:
       - name: "DomainErrors"
@@ -300,6 +309,12 @@ rpg:
         parent_file: "src/domain/trading_balance.py"
         type: "module"
         description: "ConvertedAggregator.aggregate: группировка LedgerEntry по currency_code, определение базовой валюты по base_code или get_base_currency, проверка наличия положительного rate_to_base для небазовых валют, умножение необрезанных итогов на курс, округление на выходе (money_quantize), возврат DTO ConvertedBalanceLine с used_rate (rate_quantize)."
+        testable: true
+        test_priority: "high"
+      - name: "FxAuditTTLService"
+        parent_file: "src/domain/fx_audit.py"
+        type: "class"
+        description: "Сервис домена: make_cutoff(now, retention_days) -> UTC datetime; identify_old(events, cutoff) -> list[ExchangeRateEventRef] (stable order); batch_plan(total, batch_size) -> list[Batch]. Валидация аргументов через ValidationError."
         testable: true
         test_priority: "high"
       - name: "SqlAlchemyUnitOfWork"
@@ -416,6 +431,16 @@ rpg:
             "test_base_detection_via_get_base_currency",
             "test_preserve_decimal_context_converted",
             "test_input_guard_non_ledger_entry",
+          ]
+        coverage_status: "added"
+      - target_component: "FxAuditTTLService"
+        test_file: "tests/unit/domain/test_fx_audit_ttl.py"
+        test_functions:
+          [
+            "test_identify_old_events",
+            "test_archival_plan_sizes",
+            "test_make_cutoff_normalization_utc",
+            "test_validation_errors",
           ]
         coverage_status: "added"
       - target_component: "Async repositories"

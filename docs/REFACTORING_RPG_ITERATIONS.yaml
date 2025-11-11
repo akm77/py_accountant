@@ -212,17 +212,27 @@ rpg_plan:
       name: domain.fx_audit.ttl_archival_service
       scope:
         - create domain/fx_audit.py (FxAuditTTLService)
-        - define methods identify_old, batch_plan
-      dependencies: [I03]
+        - define methods make_cutoff, identify_old, batch_plan
+        - add dataclasses ExchangeRateEventRef, TTLConfig, Batch and ArchivalMode enum
+      dependencies: [I01, I03]
       deliverables:
         - src/domain/fx_audit.py
         - tests/unit/domain/test_fx_audit_ttl.py
       tests:
         - test_identify_old_events
         - test_archival_plan_sizes
+        - test_make_cutoff_normalization_utc
+        - test_validation_errors
       acceptance_criteria:
-        - TTL logic independent from DB
-      risk_mitigation: "Только чистая логика."
+        - Pure domain logic, no I/O or repository dependencies
+        - UTC normalization for naive/aware datetimes
+        - Stable filtering order documented
+        - Strict ValidationError on invalid parameters
+        - All listed tests green
+      risk_mitigation: "Только чистая логика; малый объём; покрытие edge случаев временем/пустыми списками."
+      status: done
+      completed_at: 2025-11-11
+      notes: "Реализован FxAuditTTLService (make_cutoff/identify_old/batch_plan) с docstrings и валидацией; время нормализуется к UTC (naive => UTC, aware => astimezone UTC); stable filtering без сортировки; batch_plan покрывает [0..total) неперекрывающимися окнами; добавлены вспомогательные dataclass'ы ExchangeRateEventRef, TTLConfig, Batch и enum ArchivalMode; тесты (4) зелёные."
 
     - id: I08A
       name: tests.inventory_snapshot
