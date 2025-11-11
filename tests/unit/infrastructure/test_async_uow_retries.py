@@ -18,6 +18,7 @@ class _DummyOrig(Exception):
     sqlstate = "40001"  # serialization failure
 
 
+@pytest.mark.xfail(reason="OBSOLETE (I14): retry logic removed from AsyncUoW")
 async def test_commit_retries_then_succeeds(monkeypatch: Any) -> None:
     """Commit should retry on transient DBAPIError and eventually succeed."""
     # Ensure fresh settings and configure small backoffs for fast test
@@ -53,6 +54,7 @@ async def test_commit_retries_then_succeeds(monkeypatch: Any) -> None:
     assert calls["rollback"] == 2
 
 
+@pytest.mark.xfail(reason="OBSOLETE (I14): retry logic removed from AsyncUoW")
 async def test_commit_gives_up_on_non_transient(monkeypatch: Any) -> None:
     """Commit should not retry on non-transient errors and raise immediately."""
     get_settings.cache_clear()  # type: ignore[attr-defined]

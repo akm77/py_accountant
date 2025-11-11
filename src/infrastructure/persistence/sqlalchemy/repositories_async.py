@@ -1,15 +1,15 @@
-"""Asynchronous SQLAlchemy repositories.
+"""Asynchronous SQLAlchemy repositories (CRUD-only).
 
-This module provides async counterparts of the existing synchronous repositories,
-mirroring semantics (DTOs, ordering, pagination, filtering) while using
-``AsyncSession`` and ``await session.execute(stmt)`` for I/O.
+This module provides async counterparts of repositories operating strictly at
+CRUD level (create/read/update/delete) with simple filters/sorting/pagination.
+Aggregation, conversion, and other domain computations are intentionally
+excluded from repositories (moved to domain/use cases per I13).
 
 Notes:
-- These classes do not implement the synchronous repository Protocols from
-  ``application.interfaces.ports`` on purpose (until ASYNC-05 introduces async
-  Protocols). Tests import these classes directly.
-- All mutating methods call ``await session.flush()`` to persist pending changes
-  within the current transaction managed by the Async Unit of Work.
+- Public method signatures align with async Protocols in application.ports.
+- Some legacy business methods remain as stubs raising NotImplementedError
+  and marked DEPRECATED to preserve imports without retaining logic.
+- All mutating methods call ``await session.flush()`` within the active txn.
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from application.dto.models import (
     ExchangeRateEventDTO,
     RichTransactionDTO,
     TradingBalanceDTO,
-    TradingBalanceLineDTO,
     TransactionDTO,
 )
 from infrastructure.persistence.sqlalchemy.models import (
@@ -43,23 +42,17 @@ from infrastructure.persistence.sqlalchemy.models import (
 
 
 class AsyncSqlAlchemyCurrencyRepository:
-    """Async repository for currency operations.
+    """Async repository for currency CRUD and base helpers.
 
-    Mirrors the synchronous implementation semantics, including:
-    - ``get_by_code`` returning ``CurrencyDTO`` or ``None``
-    - ``upsert`` creating or updating a currency
-    - Enforcing a single base currency when ``is_base=True``
-    - ``list_all`` returning all currencies without a specific order
-    - Base helpers: ``get_base``, ``set_base``, ``clear_base``
-    - ``bulk_upsert_rates`` updating non-base currencies in batch
+    Allowed operations (CRUD-level):
+    - get_by_code, upsert, list_all, get_base, set_base, clear_base, bulk_upsert_rates
+    - delete(code): convenience method (not in port) kept for tests/utilities.
+
+    Domain rules (like conversion) are not implemented here.
     """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Bind repository to an ``AsyncSession``.
-
-        Parameters:
-        - session: active ``AsyncSession`` within a UoW transaction.
-        """
+        """Bind repository to an AsyncSession within a UoW transaction."""
         self.session = session
 
     async def get_by_code(self, code: str) -> CurrencyDTO | None:
@@ -94,7 +87,7 @@ class AsyncSqlAlchemyCurrencyRepository:
         return CurrencyDTO(code=cur.code, exchange_rate=ex, is_base=bool(cur.is_base))
 
     async def list_all(self) -> list[CurrencyDTO]:
-        """Return all currencies as ``CurrencyDTO`` list."""
+        """Return all currencies as ``CurrencyDTO`` list (unordered)."""
         res = await self.session.execute(select(CurrencyORM))
         rows = res.scalars().all()
         result: list[CurrencyDTO] = []
@@ -113,11 +106,7 @@ class AsyncSqlAlchemyCurrencyRepository:
         return CurrencyDTO(code=row.code, exchange_rate=ex, is_base=True)
 
     async def set_base(self, code: str) -> None:
-        """Set the specified currency as base and clear others.
-
-        Raises:
-        - ValueError: if the specified currency does not exist.
-        """
+        """Set specified currency as base and clear others; requires that currency exists."""
         res = await self.session.execute(select(CurrencyORM).where(CurrencyORM.code == code))
         cur = res.scalar_one_or_none()
         if not cur:
@@ -148,11 +137,24 @@ class AsyncSqlAlchemyCurrencyRepository:
                     row.exchange_rate = rate
         await self.session.flush()
 
+    async def delete(self, code: str) -> bool:
+        """Delete currency by code; returns True if a row was removed.
+
+        Note: This convenience method is not part of the public port; used in tests.
+        """
+        res = await self.session.execute(select(CurrencyORM).where(CurrencyORM.code == code))
+        row = res.scalar_one_or_none()
+        if not row:
+            return False
+        await self.session.delete(row)  # type: ignore[arg-type]
+        await self.session.flush()
+        return True
+
 
 class AsyncSqlAlchemyAccountRepository:
-    """Async repository for accounts.
+    """Async repository for accounts (CRUD-level).
 
-    Semantics mirror the sync version, including uniqueness by ``full_name``.
+    Semantics mirror the sync version with uniqueness on ``full_name``.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -191,8 +193,18 @@ class AsyncSqlAlchemyAccountRepository:
         return dto
 
     async def list(self, parent_id: str | None = None) -> list[AccountDTO]:
-        """Return all accounts (``parent_id`` is currently ignored, kept for parity)."""
+        """Return accounts optionally filtered by ``parent_id``.
+
+        If ``parent_id`` is provided, returns accounts with that parent_id; otherwise all.
+        """
         stmt = select(AccountORM)
+        if parent_id is not None:
+            try:
+                pid = int(parent_id)
+            except ValueError:
+                # Invalid parent id: return empty list for robustness
+                return []
+            stmt = stmt.where(AccountORM.parent_id == pid)
         res = await self.session.execute(stmt)
         rows = res.scalars().all()
         return [
@@ -206,16 +218,29 @@ class AsyncSqlAlchemyAccountRepository:
             for r in rows
         ]
 
+    async def delete(self, full_name: str) -> bool:
+        """Delete account by ``full_name``; returns True if a row was removed.
+
+        Note: This convenience method is not part of the public port; used in tests.
+        """
+        res = await self.session.execute(select(AccountORM).where(AccountORM.full_name == full_name))
+        row = res.scalar_one_or_none()
+        if not row:
+            return False
+        await self.session.delete(row)  # type: ignore[arg-type]
+        await self.session.flush()
+        return True
+
 
 class AsyncSqlAlchemyBalanceRepository:
-    """Async repository managing balance cache rows."""
+    """DEPRECATED: Async repository managing balance cache rows (CRUD only)."""
 
     def __init__(self, session: AsyncSession) -> None:
         """Bind to ``AsyncSession`` within an active UoW transaction."""
         self.session = session
 
     async def upsert_cache(self, account_full_name: str, amount: Decimal, last_ts: datetime) -> None:
-        """Insert or update balance cache for the given account."""
+        """Insert or update balance cache for the given account (simple upsert)."""
         res = await self.session.execute(
             select(BalanceORM).where(BalanceORM.account_full_name == account_full_name)
         )
@@ -250,7 +275,10 @@ class AsyncSqlAlchemyBalanceRepository:
 
 
 class AsyncSqlAlchemyTransactionRepository:
-    """Async repository for finance transactions and derived views."""
+    """Async repository for financial transactions (CRUD + simple queries).
+
+    Domain aggregations (balances, trading/net, currency conversion) are excluded.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         """Bind to ``AsyncSession`` within an active UoW transaction."""
@@ -277,10 +305,9 @@ class AsyncSqlAlchemyTransactionRepository:
     async def list_between(
         self, start: datetime, end: datetime, meta: dict[str, Any] | None = None
     ) -> list[TransactionDTO]:
-        """Return transactions with occurred_at between ``start`` and ``end``.
+        """Return transactions with occurred_at between ``start`` and ``end`` ordered ASC.
 
-        Ordering: by occurred_at ASC.
-        ``meta``: if provided, return only rows where all keys match exactly.
+        ``meta`` filter: if provided, return only rows where all keys match exactly.
         """
         stmt = (
             select(JournalORM)
@@ -304,7 +331,7 @@ class AsyncSqlAlchemyTransactionRepository:
                     currency_code=r.currency_code,
                     exchange_rate=r.exchange_rate,
                 )
-                for r in line_rows
+                    for r in line_rows
             ]
             results.append(
                 TransactionDTO(
@@ -319,31 +346,13 @@ class AsyncSqlAlchemyTransactionRepository:
 
     async def aggregate_trading_balance(
         self, as_of: datetime, base_currency: str | None = None
-    ) -> TradingBalanceDTO:
-        """Aggregate debit/credit totals per currency across all transaction lines.
+    ) -> TradingBalanceDTO:  # noqa: D401
+        """DEPRECATED: Aggregation removed from repository in I13.
 
-        Matches the semantics of the sync implementation. ``as_of`` is carried
-        through without additional filtering in this simple adapter.
+        This method is intentionally not implemented. Use domain services and
+        application use cases to compute trading balances.
         """
-        res = await self.session.execute(select(TransactionLineORM))
-        rows = res.scalars().all()
-        debit: dict[str, Decimal] = {}
-        credit: dict[str, Decimal] = {}
-        for r in rows:
-            if r.side == "DEBIT":
-                debit[r.currency_code] = debit.get(r.currency_code, Decimal("0")) + r.amount
-            else:
-                credit[r.currency_code] = credit.get(r.currency_code, Decimal("0")) + r.amount
-        lines: list[TradingBalanceLineDTO] = []
-        for cur_code in sorted(set(debit.keys()) | set(credit.keys())):
-            d = debit.get(cur_code, Decimal("0"))
-            c = credit.get(cur_code, Decimal("0"))
-            lines.append(
-                TradingBalanceLineDTO(
-                    currency_code=cur_code, total_debit=d, total_credit=c, balance=d - c
-                )
-            )
-        return TradingBalanceDTO(as_of=as_of, lines=lines, base_currency=base_currency)
+        raise NotImplementedError("DEPRECATED in I13: use domain/use cases for aggregation")
 
     async def ledger(
         self,
@@ -358,10 +367,10 @@ class AsyncSqlAlchemyTransactionRepository:
     ) -> list[RichTransactionDTO]:
         """Return account ledger entries with ordering and pagination.
 
-        - ``order``: "ASC" or "DESC" by occurred_at (and id as a tiebreaker)
-        - ``offset``: negative -> return empty list
-        - ``limit``: None -> no limit; <= 0 -> empty list
-        - ``meta``: all provided key/value pairs must match
+        - order: "ASC" or "DESC" by occurred_at (and id as a tiebreaker)
+        - offset: negative -> return empty list
+        - limit: None -> no limit; <= 0 -> empty list
+        - meta: all provided key/value pairs must match
         """
         j_stmt = select(JournalORM).where(JournalORM.occurred_at.between(start, end))
         if order.upper() == "DESC":
@@ -408,26 +417,21 @@ class AsyncSqlAlchemyTransactionRepository:
             paged = paged[:limit]
         return paged
 
-    async def account_balance(self, account_full_name: str, as_of: datetime) -> Decimal:
-        """Compute account balance from DEBIT/CREDIT lines.
+    async def account_balance(self, account_full_name: str, as_of: datetime) -> Decimal:  # noqa: D401
+        """DEPRECATED: Balance computation removed from repository in I13.
 
-        ``as_of`` is currently not used as lines don't have timestamps in this adapter.
+        This method is intentionally not implemented. Use domain services and
+        application use cases to compute account balances.
         """
-        res = await self.session.execute(
-            select(TransactionLineORM).where(TransactionLineORM.account_full_name == account_full_name)
-        )
-        rows = res.scalars().all()
-        total = Decimal("0")
-        for r in rows:
-            if r.side == "DEBIT":
-                total += r.amount
-            else:
-                total -= r.amount
-        return total
+        raise NotImplementedError("DEPRECATED in I13: use domain/use cases for balance computation")
 
 
 class AsyncSqlAlchemyExchangeRateEventsRepository:
-    """Async repository for FX exchange rate audit trail and TTL maintenance."""
+    """Async repository for FX exchange rate audit trail (CRUD + simple filters).
+
+    TTL/archive orchestration belongs to domain; repository exposes primitive
+    read/write operations including the archive table.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         """Bind to ``AsyncSession`` within an active UoW transaction."""
@@ -455,7 +459,7 @@ class AsyncSqlAlchemyExchangeRateEventsRepository:
         """List FX events filtered by code (optional) ordered newest-first.
 
         - If ``limit`` is provided and non-negative, it's applied at SQL level.
-        - If ``limit`` is negative, an empty list is returned for parity with sync impl.
+        - If ``limit`` is negative, an empty list is returned.
         """
         if limit is not None and limit < 0:
             return []
@@ -480,10 +484,7 @@ class AsyncSqlAlchemyExchangeRateEventsRepository:
         ]
 
     async def list_old_events(self, cutoff: datetime, limit: int) -> list[ExchangeRateEventDTO]:
-        """Return oldest-first rows strictly older than ``cutoff`` up to ``limit``.
-
-        ``limit`` is clamped at minimum 0. ``cutoff`` is normalized to aware UTC if naive.
-        """
+        """Return oldest-first rows strictly older than ``cutoff`` up to ``limit``."""
         if cutoff.tzinfo is None:
             from datetime import UTC
 
@@ -547,12 +548,10 @@ class AsyncSqlAlchemyExchangeRateEventsRepository:
 
     async def move_events_to_archive(
         self, cutoff: datetime, limit: int, archived_at: datetime
-    ) -> tuple[int, int]:
-        """Move old events to archive in two-phase copy+delete; return (archived, deleted)."""
-        rows = await self.list_old_events(cutoff, limit)
-        if not rows:
-            return 0, 0
-        archived = await self.archive_events(rows, archived_at)
-        deleted = await self.delete_events_by_ids([int(e.id) for e in rows if e.id is not None])
-        return archived, deleted
+    ) -> tuple[int, int]:  # noqa: D401
+        """DEPRECATED: Orchestration moved to domain in I13.
 
+        Use list_old_events + archive_events + delete_events_by_ids from a
+        domain service or use case layer.
+        """
+        raise NotImplementedError("DEPRECATED in I13: move orchestration to domain/use cases")

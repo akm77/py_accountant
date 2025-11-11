@@ -87,7 +87,8 @@ async def test_transactions_add_and_list_between_with_meta(async_uow: AsyncSqlAl
     assert [r.memo for r in alpha_rows] == ["T1"]
 
 
-async def test_aggregate_trading_balance(async_uow: AsyncSqlAlchemyUnitOfWork):
+@pytest.mark.xfail(reason="REWRITE-DOMAIN (I13): aggregation removed from async repository", strict=False)
+async def test_aggregate_trading_balance(async_uow):
     """Aggregate debit/credit per currency matches sync semantics."""
     uow = async_uow
     now = datetime.now(UTC)

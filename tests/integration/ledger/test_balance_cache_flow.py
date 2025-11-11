@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+
 from application.dto.models import EntryLineDTO
 from presentation.async_bridge import (
     create_account_sync,
@@ -12,6 +14,7 @@ from presentation.async_bridge import (
 )
 
 
+@pytest.mark.xfail(reason="OBSOLETE (I13): repo balance computation removed; to be covered by domain/use cases", strict=False)
 def test_sql_balance_flow_via_bridge(monkeypatch):
     """Verify balance changes using async runtime via presentation facades."""
     import tempfile

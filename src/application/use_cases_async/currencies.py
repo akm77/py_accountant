@@ -5,87 +5,90 @@ from decimal import Decimal
 
 from application.dto.models import CurrencyDTO
 from application.interfaces.ports import AsyncUnitOfWork
+from domain.currencies import BaseCurrencyRule, Currency
 
 
 @dataclass(slots=True)
 class AsyncCreateCurrency:
-    """Purpose:
-    Create a currency if absent or update its exchange rate if it exists.
+    """Create or update a currency using domain validation.
 
-    Parameters:
-    - uow: AsyncUnitOfWork providing access to ``currencies`` repository.
-    - code: ISO-like currency code (case-insensitive normalized by repository).
-    - exchange_rate: Optional decimal rate relative to base currency; ignored if
-      setting the currency as base.
+    Business rules:
+    - Validate/normalize code via domain Currency (upper, length 3..10).
+    - If exchange_rate is provided, validate via domain (>0, quantized to 6dp).
+    - Base currency must keep exchange_rate=None (invariant).
 
-    Returns:
-    - CurrencyDTO with possibly updated ``exchange_rate``.
-
-    Raises:
-    - ValueError: if repository upsert encounters invalid state (e.g., base rules).
-
-    Notes:
-    - If the currency already exists and ``exchange_rate`` is provided, it's
-      overwritten (unless base). Base currency has ``exchange_rate=None``.
+    Repository remains CRUD-only; this use case decides desired state.
     """
+
     uow: AsyncUnitOfWork
 
     async def __call__(self, code: str, exchange_rate: Decimal | None = None) -> CurrencyDTO:
-        """Create or update currency and return resulting DTO."""
-        existing = await self.uow.currencies.get_by_code(code)
+        """Create or update a currency and return resulting DTO.
+
+        Raises ValidationError on invalid code or non-positive exchange_rate.
+        """
+        # Domain validation/normalization
+        dom = Currency(code=code)
+        q_rate: Decimal | None = None
+        if exchange_rate is not None:
+            q_rate = dom.set_rate(exchange_rate)
+
+        # Check existing state
+        existing = await self.uow.currencies.get_by_code(dom.code)
         if existing:
-            if exchange_rate is not None and not existing.is_base:
-                existing.exchange_rate = exchange_rate
+            # Base currency never stores a rate
+            if existing.is_base:
+                return existing  # ignore provided rate per invariant
+            # Non-base: update rate only if provided
+            if q_rate is not None:
+                existing.exchange_rate = q_rate
                 return await self.uow.currencies.upsert(existing)
             return existing
-        dto = CurrencyDTO(code=code)
-        if exchange_rate is not None:
-            dto.exchange_rate = exchange_rate
+
+        # New currency: persist DTO based on domain projection (non-base by default)
+        dto = CurrencyDTO(code=dom.code, exchange_rate=q_rate, is_base=False)
         return await self.uow.currencies.upsert(dto)
 
 
 @dataclass(slots=True)
 class AsyncSetBaseCurrency:
-    """Purpose:
-    Mark the specified currency as base, ensuring uniqueness.
+    """Select and persist a single base currency via domain rule.
 
-    Parameters:
-    - uow: AsyncUnitOfWork.
-    - code: Currency code to mark as base.
-
-    Returns:
-    - None.
-
-    Raises:
-    - ValueError: if currency does not exist (propagated from repository).
-
-    Notes:
-    - Exchange rate for base currency will be set to ``None``.
+    Uses BaseCurrencyRule.ensure_single_base to validate presence and mark only
+    one base in-memory, then persists using CRUD operations (Variant B):
+    clear_base() then upsert() the target with is_base=True and rate cleared.
     """
+
     uow: AsyncUnitOfWork
 
     async def __call__(self, code: str) -> None:
-        """Set specified currency as base; propagate repository errors."""
-        await self.uow.currencies.set_base(code)
+        """Set specified currency as the single base.
+
+        Raises ValidationError if the currency code is not present.
+        """
+        # Load and project repository state into domain objects
+        rows = await self.uow.currencies.list_all()
+        domain_currencies: list[Currency] = []
+        for r in rows:
+            # Validate each code and rate through domain constructor
+            domain_currencies.append(
+                Currency(code=r.code, is_base=r.is_base, rate_to_base=r.exchange_rate)
+            )
+
+        # Domain rule: ensure exactly one base (idempotent if same)
+        target = BaseCurrencyRule.ensure_single_base(domain_currencies, code)
+
+        # Persist desired state with CRUD ops only: clear all base flags, then set target as base
+        await self.uow.currencies.clear_base()
+        await self.uow.currencies.upsert(
+            CurrencyDTO(code=target.code, is_base=True, exchange_rate=None)
+        )
 
 
 @dataclass(slots=True)
 class AsyncListCurrencies:
-    """Purpose:
-    List all currencies currently stored.
+    """List all currencies as-is from repository (passthrough)."""
 
-    Parameters:
-    - uow: AsyncUnitOfWork.
-
-    Returns:
-    - list[CurrencyDTO]: possibly empty list in unspecified order.
-
-    Raises:
-    - None.
-
-    Notes:
-    - Caller may sort/filter externally; repository returns raw set.
-    """
     uow: AsyncUnitOfWork
 
     async def __call__(self) -> list[CurrencyDTO]:  # noqa: D401 - simple passthrough

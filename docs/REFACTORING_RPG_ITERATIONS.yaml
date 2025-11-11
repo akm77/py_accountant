@@ -353,50 +353,104 @@ rpg_plan:
     - id: I13
       name: infrastructure.repositories.async_crud
       scope:
-        - create new repositories.py with CRUD only
-        - exclude trading balance aggregation
+        - simplify async repositories to CRUD-only (no aggregations/conversions)
+        - remove trading/account balance calculations from repositories
+        - keep simple filters/sorting/pagination only
+        - preserve async Protocol signatures from application.ports
+        - balance cache: allowed as CRUD only (DEPRECATED), no smart updates
       dependencies: [I12]
       deliverables:
-        - src/infrastructure/persistence/sqlalchemy/repositories_async.py (trimmed)
-        - tests/integration/db/test_repositories_crud.py
+        - src/infrastructure/persistence/sqlalchemy/repositories_async.py (trimmed to CRUD)
+        - tests/integration/db/test_repositories_crud.py (new)
       tests:
         - test_currency_crud
         - test_account_crud
       acceptance_criteria:
-        - CRUD operations work; no aggregation code
-      risk_mitigation: "Сохранить сигнатуры используемых методов."
+        - no business aggregation/compute/convert methods present in async repos
+        - public methods match async Protocols; have short docstrings
+        - new CRUD tests green in CI
+      risk_mitigation: "Stub removed business methods with NotImplementedError and DEPRECATED docstrings if imports remain; adjust/xfail legacy tests in later iterations."
+      status: done
+      completed_at: 2025-11-11
+      notes: "repositories_async.py cleaned to CRUD-only; added minimal integration CRUD tests for Currency and Account. Aggregations moved to domain/use cases in later iterations."
 
     - id: I14
       name: infrastructure.uow.simplified
       scope:
-        - implement simplified AsyncUoW (remove retry/timeout)
-        - basic enter/exit commit/rollback semantics
+        - implement simplified AsyncUoW (remove retry/timeout/backoff/transient detection)
+        - drop _committed/_commit_attempted and settings dependency
+        - preserve public surface: __aenter__/__aexit__/commit/rollback/session/engine + repo properties
+        - add _explicit_commit flag (True only after explicit commit())
+        - auto-commit on context exit if no exception and no explicit commit
+        - rollback on exception; always close session
+        - keep lazy repositories (single instance per context)
+        - no SET LOCAL statement_timeout
+        - do not touch sync UoW (deferred removal I27+)
       dependencies: [I13]
       deliverables:
-        - src/infrastructure/persistence/sqlalchemy/uow.py
-        - tests/integration/db/test_uow_lifecycle.py
+        - src/infrastructure/persistence/sqlalchemy/uow.py (simplified class)
+        - tests/integration/db/test_uow_lifecycle.py (new lifecycle tests)
+        - tests/unit/infrastructure/test_async_uow_retries.py (marked xfail OBSOLETE I14)
+        - rpg_py_accountant.yaml (component description updated)
+        - docs/REFACTORING_RPG_ITERATIONS.yaml (this node expanded)
       tests:
         - test_commit_persists
         - test_rollback_discards
+        - test_double_enter_raises
+        - test_session_property_outside_context_raises
+        - test_repositories_lazy_singleton_per_context
+        - test_no_retry_backoff_left_in_source (grep assertions)
+        - xfail: test_commit_retries_then_succeeds (OBSOLETE I14)
+        - xfail: test_commit_gives_up_on_non_transient (OBSOLETE I14)
       acceptance_criteria:
-        - No retry/backoff logic present
-      risk_mitigation: "Докстроки про ответственность retry на верхнем уровне."
+        - AsyncSqlAlchemyUnitOfWork has no _is_transient_error/_commit_with_retry methods
+        - File contains no tokens: retry, backoff, statement_timeout, _commit_with_retry, _is_transient_error
+        - Public methods/properties have concise docstrings
+        - All new lifecycle tests green
+        - Previous CRUD tests from I13 remain green
+        - Obsolete retry tests marked xfail with reason OBSOLETE (I14)
+        - Updated component description in rpg_py_accountant.yaml reflects simplification
+      risk_mitigation: "Retry/timeout responsibility shifted outward; document in class docstring; guard re-entry and session access outside context via RuntimeError tests."
+      status: done
+      completed_at: 2025-11-11
+      notes: |
+        Simplified Async UoW eliminates internal retry/backoff and statement timeout configuration.
+        Responsibility for transient failure retries now sits with orchestrators or external infra.
+        Cleanup reduced state to _entered and _explicit_commit for clarity. Obsolete tests retained as xfail for traceability.
 
     # === APPLICATION USE CASES ===
     - id: I15
       name: use_cases.currencies_refactor
       scope:
         - adapt currency use cases to domain services + new ports
+        - move validation of code/rate into domain.currencies (Currency)
+        - base selection via BaseCurrencyRule in use case, repositories remain CRUD-only
+        - prefer Variant B persistence: clear_base + upsert(is_base=True, exchange_rate=None)
       dependencies: [I14]
       deliverables:
-        - src/application/use_cases/currencies.py
+        - src/application/use_cases_async/currencies.py
         - tests/unit/application/test_use_cases_currencies.py
+        - rpg_py_accountant.yaml (node description for use_cases_async/currencies updated)
       tests:
-        - test_create_currency_sets_rate
-        - test_set_base_currency
+        - test_create_currency_creates_with_rate_via_domain_quantize
+        - test_create_currency_invalid_code_raises_validation_error
+        - test_set_base_currency_switches_single_base_no_rate_changes
+        - test_set_base_currency_missing_raises_validation_error
+        - test_list_currencies_passthrough
       acceptance_criteria:
-        - Use cases call domain logic not repository logic directly
-      risk_mitigation: "Сохранить поверхность аргументов."
+        - AsyncCreateCurrency/AsyncSetBaseCurrency use domain.currencies for validation/logic
+        - Repositories used only for CRUD operations (get_by_code, list_all, upsert, clear_base)
+        - Public ports/DTO unchanged; signatures preserved
+        - Concise docstrings present on public classes/methods
+        - New tests green; existing I13 tests not broken
+      risk_mitigation: "Репозитории остаются CRUD-only (I13 freeze); покрыть edge кейсы тестами."
+      status: done
+      completed_at: 2025-11-11
+      notes: |
+        Use cases now own currency business decisions: code and rate validation via domain.Currency;
+        base selection via BaseCurrencyRule with idempotency. Persistence uses clear_base + upsert to
+        avoid depending on set_base semantics. Rates for base currency are always None. Added a focused
+        test module covering quantization, invalid inputs, base switching stability, and passthrough list.
 
     - id: I16
       name: use_cases.accounts_refactor
