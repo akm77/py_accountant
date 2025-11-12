@@ -140,11 +140,3 @@ def test_cli_trading_detailed_with_explicit_base_ok(db_path: Path):
     proc = run_cli(["trading", "detailed", "--base", "usd", "--json"], db_path)
     assert proc.returncode == 0
 
-
-@pytest.mark.xfail(reason="Domains forbid creating non-positive rate; scenario validated at domain layer")
-def test_cli_trading_detailed_non_positive_rate_raises(db_path: Path):
-    prepare_base_usd(db_path)
-    # If allowed to create, setting EUR with non-positive rate should trigger ValidationError in use case
-    assert run_cli(["currency", "add", "EUR", "--rate", "0.000000"], db_path).returncode == 2
-
-

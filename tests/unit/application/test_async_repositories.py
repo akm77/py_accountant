@@ -87,39 +87,6 @@ async def test_transactions_add_and_list_between_with_meta(async_uow: AsyncSqlAl
     assert [r.memo for r in alpha_rows] == ["T1"]
 
 
-@pytest.mark.xfail(reason="REWRITE-DOMAIN (I13): aggregation removed from async repository", strict=False)
-async def test_aggregate_trading_balance(async_uow):
-    """Aggregate debit/credit per currency matches sync semantics."""
-    uow = async_uow
-    now = datetime.now(UTC)
-    # Add lines across two currencies
-    for _ in range(2):
-        await uow.transactions.add(
-            TransactionDTO(
-                id="",
-                occurred_at=now,
-                lines=[
-                    EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("10"), currency_code="USD"),
-                    EntryLineDTO(side="CREDIT", account_full_name="Income:X", amount=Decimal("10"), currency_code="USD"),
-                ],
-            )
-        )
-    await uow.transactions.add(
-        TransactionDTO(
-            id="",
-            occurred_at=now,
-            lines=[
-                EntryLineDTO(side="DEBIT", account_full_name="Assets:EUR", amount=Decimal("5"), currency_code="EUR"),
-                EntryLineDTO(side="CREDIT", account_full_name="Income:Y", amount=Decimal("5"), currency_code="EUR"),
-            ],
-        )
-    )
-    tb = await uow.transactions.aggregate_trading_balance(as_of=now)
-    lines = {l.currency_code: l for l in tb.lines}
-    assert lines["USD"].total_debit == Decimal("20") and lines["USD"].total_credit == Decimal("20")
-    assert lines["EUR"].total_debit == Decimal("5") and lines["EUR"].total_credit == Decimal("5")
-
-
 async def test_ledger_pagination_order_and_edges(async_uow: AsyncSqlAlchemyUnitOfWork):
     """Ledger honors ordering, offset/limit, and meta filter edge-cases."""
     uow = async_uow

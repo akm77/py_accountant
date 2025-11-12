@@ -110,7 +110,6 @@ async def test_trading_balance_snapshot_raw_mode_empty(async_uow):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason="Detailed snapshot requires base currency; raising ValidationError when absent (planned behavior).")
 async def test_trading_balance_snapshot_detailed_requires_base_or_rates(async_uow):
     clock = _Clock()
     # No base set; detailed should raise ValidationError through underlying detailed use case
@@ -139,4 +138,3 @@ async def test_trading_balance_snapshot_raw_and_detailed_flow(async_uow):
     det_snap = await AsyncGetTradingBalanceSnapshotReport(async_uow, clock)(detailed=True)
     assert raw_snap.lines_raw and det_snap.lines_detailed
     assert raw_snap.mode == "raw" and det_snap.mode == "detailed"
-

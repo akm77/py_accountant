@@ -4,8 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 PACKAGE_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -32,11 +30,3 @@ def test_cli_ping():
     proc = run_cli(["diagnostics", "ping"])
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout.strip() == "pong"
-
-
-@pytest.mark.xfail(reason="ValidationError command not yet implemented (I21 scope minimal)")
-def test_cli_validation_error_exit_code():
-    # Intentionally pass an unknown command to trigger domain error -> code 2
-    proc = run_cli(["nonexistent:command"])
-    # Typer will treat unknown command as usage error; may exit with 2
-    assert proc.returncode == 2

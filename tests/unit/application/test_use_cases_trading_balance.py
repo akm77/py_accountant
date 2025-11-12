@@ -151,14 +151,6 @@ async def test_trading_balance_detailed_nonbase_missing_rate_raises_validation_e
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason="Domain Currency enforces positive rate on construction; cannot persist non-positive.")
-async def test_trading_balance_detailed_non_positive_rate_validation_error(async_uow):
-    # If infrastructure allowed, we'd create a currency with non-positive rate. Since domain Currency
-    # forbids this on construction, this negative test is marked xfail per plan.
-    pass
-
-
-@pytest.mark.asyncio
 async def test_trading_balance_detailed_multi_currency_correct_conversion_and_used_rate_quantized(async_uow):
     clock = _Clock()
     await AsyncCreateCurrency(async_uow)("USD")
