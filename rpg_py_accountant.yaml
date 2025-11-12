@@ -5,7 +5,7 @@ rpg:
     last_updated: "2025-11-12"
     environments:
       - name: "test"
-        description: "Тестовая среда: локальный запуск, in-memory ил�� локальный Postgres, подробные логи."
+        description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
         env_vars:
           - name: "ENV"
             required: true
@@ -72,7 +72,7 @@ rpg:
             notes: "true"
           - name: "LOG_FILE"
             required: false
-            notes: "Рекомен��уется указать путь до файла для ротации JSON логов."
+            notes: "Рекомендуется указать путь до файла для ротации JSON логов."
           - name: "LOG_ROTATION"
             required: false
             notes: "'time' (по умолчанию, ротация в полночь) или 'size'."
@@ -147,7 +147,7 @@ rpg:
         description: "Конфигурация приложения на pydantic-settings; выбор профиля окружения."
       - name: "logging"
         path: "src/infrastructure/logging"
-        description: "Структурированное логирование на structlog; единая инициалиация логгера."
+        description: "Структурированное логирование на structlog; единая инициализация логгера."
       - name: "py_accountant"
         path: "src/py_accountant"
         description: "Публичный пакет-оболочка корневого проекта (версия, утилиты)."
@@ -268,7 +268,7 @@ rpg:
         description: "Async аккаунты: AsyncCreateAccount использует domain.Account для валидации и нормализации full_name/currency_code; проверяет существование валюты и уникальность full_name; репозитории — только CRUD. AsyncGetAccount/AsyncListAccounts — passthrough."
       - name: "src/application/use_cases_async/ledger.py"
         parent_module: "use_cases_async"
-        description: "Async леджер и баланс: AsyncPostTransaction (доменная проверка баланса через LedgerValidator ��еред записью), AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance. Ошибки: ValidationError (формат/валидация), DomainError (несбалансированность), ValueError (отсутствующие ресурсы). Legacy AsyncGetTradingBalance помечен DEPRECATED в докстроке (I18)."
+        description: "Async леджер и баланс: AsyncPostTransaction (доменная проверка баланса через LedgerValidator перед записью), AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance. Ошибки: ValidationError (формат/валидация), DomainError (несбалансированность), ValueError (отсутствующие ресурсы). Legacy AsyncGetTradingBalance помечен DEPRECATED в докстроке (I18)."
       - name: "src/application/use_cases_async/fx_audit.py"
         parent_module: "use_cases_async"
         description: "Async FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents."
@@ -307,13 +307,13 @@ rpg:
         description: "Тесты Account: валидация full_name, derive name/parent_path, опциональный parent_id."
       - name: "tests/unit/domain/test_ledger_balance.py"
         parent_module: "domain.ledger"
-        description: "Тесты валидатора баланса: одно- и мультивалютные кейсы, несбалансированность, негативные сценарии, проверка контекста Decimal и округле���ия."
+        description: "Тесты валидатора баланса: одно- и мультивалютные кейсы, несбалансированность, негативные сценарии, проверка контекста Decimal и округления."
       - name: "tests/unit/domain/test_trading_balance_raw.py"
         parent_module: "domain.trading_balance"
-        description: "Тесты RawAggregator: пустой вход, одиночная валюта, мульти-валюта, округление HALF_EVEN, неизменность Decimal контекста, защита от неверн��го типа."
+        description: "Тесты RawAggregator: пустой вход, одиночная валюта, мульти-валюта, округление HALF_EVEN, неизменность Decimal контекста, защита от неверного типа."
       - name: "tests/unit/domain/test_trading_balance_converted.py"
         parent_module: "domain.trading_balance"
-        description: "Тесты ConvertedAggregator/ConvertedBalanceLine: пустой вход, passthrough базовой валюты, небаза с курсом, смешанные валюты и сортировка, HALF_EVEN в базе, отсутствие/неположительный курс — ValidationError, неизвестная валюта — ValidationError, определение базы через get_base_currency, сохранение Decimal контекста, guard на н��-LedgerEntry."
+        description: "Тесты ConvertedAggregator/ConvertedBalanceLine: пустой вход, passthrough базовой валюты, небаза с курсом, смешанные валюты и сортировка, HALF_EVEN в базе, отсутствие/неположительный курс — ValidationError, неизвестная валюта — ValidationError, определение базы через get_base_currency, сохранение Decimal контекста, guard на не-LedgerEntry."
       - name: "tests/unit/domain/test_fx_audit_ttl.py"
         parent_module: "domain.fx_audit"
         description: "Юнит‑тесты TTL: identify_old (naive/aware/strictly older), batch_plan (offset/limit покрытие), make_cutoff нормализация UTC, валидации аргументов."
