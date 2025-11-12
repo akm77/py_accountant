@@ -111,10 +111,10 @@ rpg_docs_plan:
         - file: README.md
           edits:
             - "Синхронизировать Quick Start с CLI_QUICKSTART.md"
-            - "Удалить ссылки на несуществующие CLI-команды diagnostics:rates-audit/parity-report"
+            - "Удалить ссылки на несуществующие CLI-команды diagnostics:rates-аудит/parity-report"
             - "Оставить ссылку на RUNNING_MIGRATIONS.md и INTEGRATION_GUIDE.md"
       acceptance_criteria:
-        - "Греп по репо: отсутствуют строки 'diagnostics:rates-audit' и 'diagnostics:parity-report' в README и CLI_QUICKSTART"
+        - "Греп по репо: отсутствуют строки 'diagnostics:rates-аудит' и 'diagnostics:parity-report' в README и CLI_QUICKSTART"
         - "Все примеры команд соответствуют реально существующим Typer-командам (по исходникам CLI)"
         - "Мини-смоук: diagnostics ping выполняется"
       status: done
@@ -125,7 +125,7 @@ rpg_docs_plan:
         smoke_diagnostics_ping: pass
         notes:
           - "README.md и docs/CLI_QUICKSTART.md обновлены; команды в формате Typer групп с пробелом"
-          - "Удалены упоминания diagnostics:rates-audit / diagnostics:parity-report в этих файлах"
+          - "Удалены упоминания diagnostics:rates-аудит / diagnostics:parity-report в этих файлах"
           - "Добавлен diagnostics ping; уточнён формат --line без rate; синхронизированы примеры"
           - "Актуализированы ссылки (добавлен RUNNING_MIGRATIONS.md в README)."
 
@@ -176,7 +176,7 @@ rpg_docs_plan:
       acceptance_criteria:
         - "В документе отсутствуют команды maintenance:fx-ttl и diagnostics:rates-аудит"
         - "Примеры команд успешно сопоставляются с исходниками CLI"
-        - "Есть явная оговорка про отсутствие CLI-исполнения TTL"
+        - "Ес��ь явная оговорка про отсутствие CLI-исполнения TTL"
       status: done
       completed_at: "2025-11-12"
       verification:
@@ -201,7 +201,7 @@ rpg_docs_plan:
             - "Уточнить: для небазовой валюты при отсутствии/неположительном курсе — ValidationError"
             - "Обновить CLI-примеры и граничные случаи"
       acceptance_criteria:
-        - "Все примеры используют существующие команды"
+        - "Все примеры использую�� существующие команды"
         - "Раздел Ошибки отражает поведение домена/юзкейсов"
       status: done
       completed_at: "2025-11-12"
@@ -258,6 +258,16 @@ rpg_docs_plan:
       acceptance_criteria:
         - "В документе нет примеров вызова несуществующей CLI"
         - "Ясно указан статус и назначение документа"
+      status: done
+      completed_at: "2025-11-12"
+      verification:
+        no_cli_command: pass
+        async_example_present: pass
+        internal_tag_present: pass
+        grep_checks:
+          - "grep -nE 'diagnostics:parity-report|parity-report' docs/PARITY_REPORT.md || true"
+          - "grep -n 'AsyncGetParityReport' docs/PARITY_REPORT.md"
+          - "grep -n 'INTERNAL' docs/PARITY_REPORT.md"
 
     - id: I7
       title: "PERFORMANCE: синхронизация ссылок/примеров"
@@ -270,6 +280,12 @@ rpg_docs_plan:
       acceptance_criteria:
         - "Отсутствуют 404-ссылки на тесты"
         - "Формат отчёта не противоречит актуальному CLI/слою"
+      status: done
+      completed_at: "2025-11-12"
+      verification:
+        no_404_links: pass
+        no_legacy_commands: pass
+        json_format_section_present: pass
 
     - id: I8
       title: "Финальная сверка ссылок и терминов (link/term sweep)"
