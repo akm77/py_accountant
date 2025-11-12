@@ -651,10 +651,24 @@ rpg_plan:
         - src/presentation/cli/main.py
         - tests/integration/cli/test_cli_startup.py
       tests:
-        - test_cli_starts
+        - test_cli_starts_help
+        - test_cli_version_outputs_version
+        - test_cli_ping
       acceptance_criteria:
-        - CLI runs help command
-      risk_mitigation: "Пустой каркас."
+        - CLI runs help command with usage banner
+        - version command prints package version (fallback 'unknown')
+        - diagnostics ping prints 'pong' (async loop active)
+        - DATABASE_URL_ASYNC absent -> fallback to in-memory URL without error
+        - Validation/domain errors produce exit code 2; unexpected -> 1
+        - Legacy extended CLI tests (currency/add etc.) marked xfail (deferred to I22+)
+        - Public functions (cli, version_cmd, diagnostics_ping) have short docstrings
+      risk_mitigation: "Пустой каркас; преддиспетчер для минимальных команд без зависимостей click internals."
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Async foundation established. Only help/version/diagnostics ping implemented. Legacy Argparse commands removed.
+        All out-of-scope CLI tests (currency/add, diagnostics:rates, trading, fx audit, parity-report, maintenance:fx-ttl) marked xfail with reason
+        'migrated to async CLI foundation; commands deferred to I22+'. Future iterations (I22–I26) will reintroduce business commands atop Typer.
 
     - id: I22
       name: cli.currencies_commands

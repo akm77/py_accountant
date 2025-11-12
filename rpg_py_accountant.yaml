@@ -163,6 +163,9 @@ rpg:
       - name: "async_bridge"
         path: "src/presentation/async_bridge.py"
         description: "Синхронные фасады над async use cases для CLI (currency/account/tx/ledger/balance/trading/FX)."
+      - name: "async_cli_foundation"
+        path: "src/presentation/cli/main.py"
+        description: "Async Typer CLI foundation (I21): provides 'version' and 'diagnostics ping' commands, minimal DI (_get_uow, _get_clock), predispatch for help/version/ping without full click stack. Future business commands added in I22+."
 
     files:
       - name: "__init__.py"
@@ -393,6 +396,12 @@ rpg:
         description: "Фасады: create_currency_sync, set_base_currency_sync, list_currencies_sync, create_account_sync, post_transaction_sync, list_transactions_between_sync, get_ledger_sync, get_account_balance_sync, get_trading_balance_sync, get_trading_balance_detailed_sync, add/list FX событий, set/bulk rates."
         testable: true
         test_priority: "high"
+
+      - name: "AsyncCLIFoundation"
+        parent_file: "src/presentation/cli/main.py"
+        type: "module"
+        description: "Typer app skeleton: app=Typer(help=..), version_cmd prints __version__, diagnostics_ping checks event loop & UoW, cli() wrapper with error classification (ValidationError=2, DomainError=2, unexpected=1). Predispatch for help/version/ping."
+        testable: true
 
   tests:
     unit_tests:
