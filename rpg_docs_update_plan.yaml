@@ -169,18 +169,18 @@ rpg_docs_plan:
       changes:
         - file: docs/FX_AUDIT.md
           edits:
-            - "Заменить fx:update/diagnostics:rates-аudit/maintenance:fx-ttl на: fx add-event, fx list, fx ttl-plan"
+            - "Заменить fx:update/diagnostics:rates-аудит/maintenance:fx-ttl на: fx add-event, fx list, fx ttl-plan"
             - "Сохранить описание схемы exchange_rate_events и archive, индексы"
             - "Явно зафиксировать: в CLI есть только план TTL; выполнение — через AsyncExecuteFxAuditTTL (SDK/воркер)"
             - "Примеры JSON: rate шестью знаками, datetime в ISO8601 UTC"
       acceptance_criteria:
-        - "В документе отсутствуют команды maintenance:fx-ttl и diagnostics:rates-аudit"
+        - "В документе отсутствуют команды maintenance:fx-ttl и diagnostics:rates-аудит"
         - "Примеры команд успешно сопоставляются с исходниками CLI"
         - "Есть явная оговорка про отсутствие CLI-исполнения TTL"
       status: done
       completed_at: "2025-11-12"
       verification:
-        criteria_no_legacy_commands: pass  # нет maintenance:fx-ttl и diagnostics:rates-аudit в docs/FX_AUDIT.md
+        criteria_no_legacy_commands: pass  # нет maintenance:fx-ttl и diagnostics:rates-аудит в docs/FX_AUDIT.md
         commands_match_typer: pass  # команды соответствуют src/presentation/cli/fx_audit.py (add-event, list, ttl-plan)
         ttl_execute_outside_cli: pass  # раздел с явной оговоркой присутствует
         examples_json_formats: pass  # rate=6dp (строка), datetime=ISO8601 UTC
@@ -203,6 +203,18 @@ rpg_docs_plan:
       acceptance_criteria:
         - "Все примеры используют существующие команды"
         - "Раздел Ошибки отражает поведение домена/юзкейсов"
+      status: done
+      completed_at: "2025-11-12"
+      verification:
+        no_legacy_commands_in_doc: pass  # нет trading:balance/trading:detailed в docs/TRADING_WINDOWS.md
+        commands_match_typer: pass  # команды соответствуют src/presentation/cli/trading_balance.py
+        formats_quantization_stated: pass  # деньги=2dp, used_rate=6dp; Decimal как строки; ISO8601 UTC
+        errors_listed: pass  # перечислены invalid datetime, start>end, invalid meta, empty/missing base, unknown currency, missing/non-positive rate
+        notes:
+          - "docs/TRADING_WINDOWS.md обновлён под async-only; команды trading raw/detailed."
+          - "Удалены упоминания trading:balance/trading:detailed; добавлены Typer-примеры с --json."
+          - "Добавлены разделы: окно времени, meta, квантизация (2dp/6dp), примеры JSON, ошибки."
+          - "Зафиксировано требование к base в detailed; used_rate=1 для базовой; проверки ставок > 0."
 
     - id: I5
       title: "INTEGRATION_GUIDE: переписать на async-only"
@@ -214,6 +226,7 @@ rpg_docs_plan:
             - "Добавить минимальные примеры с AsyncSqlAlchemyUnitOfWork и application.use_cases_async.*"
             - "Раздел Runtime vs Migration URLs оставить; подчеркнуть sync для Alembic"
             - "TTL: показать план и выполнение через use cases; запуск как фонового джоба"
+            - "Показать настройки пакета py_accountant для async работы"
             - "Telegram Bot: на каждый запрос — новый Async UoW; список используемых async use cases"
       acceptance_criteria:
         - "Нет упоминаний sync UoW/обёрток"
