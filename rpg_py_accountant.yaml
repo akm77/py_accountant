@@ -456,29 +456,27 @@ rpg:
             "test_currency_set_base_missing_raises",
             "test_account_create_and_unique",
             "test_transactions_add_and_list_between_with_meta",
-            "test_aggregate_trading_balance",
             "test_ledger_pagination_order_and_edges",
             "test_balances_cache_upsert_get_clear",
             "test_fx_events_list_filters_and_limits",
           ]
         coverage_status: "added"
-      - target_component: "Async use cases smoke"
+      - target_component: "Async use cases smoke (negative only)"
         test_file: "tests/unit/application/test_async_use_cases_smoke.py"
         test_functions:
           [
-            "test_async_use_cases_smoke",
             "test_async_set_base_missing_currency_raises",
             "test_async_create_account_missing_currency",
             "test_async_post_transaction_missing_account",
           ]
-        coverage_status: "added"
-      - target_component: "FX Audit repository (sync)"
-        test_file: "tests/unit/test_fx_audit.py"
-        test_functions: ["test_fx_audit_events_basic", "test_fx_audit_limit"]
-        coverage_status: "exists"
+        coverage_status: "updated"
       - target_component: "Docs sections presence"
         test_file: "tests/docs/test_docs_sections_present.py"
         test_functions: ["test_required_doc_sections_present"]
+        coverage_status: "added"
+      - target_component: "NoXfailStructural"
+        test_file: "tests/unit/test_no_xfail_left.py"
+        test_functions: ["test_no_xfail_markers_left"]
         coverage_status: "added"
       - target_component: "DTO trading balance refactor I09"
         test_file: "tests/unit/domain/test_dto_trading_balance_refactor.py"
