@@ -10,8 +10,14 @@ from typer import Typer
 
 from domain.errors import DomainError, ValidationError
 
+# NEW import for accounts sub-app (I23)
+from . import accounts as accounts_module  # type: ignore
+
 # NEW import for currencies sub-app
 from . import currencies as currencies_module  # type: ignore
+
+# NEW import for ledger sub-app (I24)
+from . import ledger as ledger_module  # type: ignore
 
 try:  # version import (fallback if metadata absent)
     from py_accountant import __version__ as _PKG_VERSION  # type: ignore
@@ -37,6 +43,10 @@ diagnostics = Typer(help="Diagnostics and health checks (foundation).")
 app.add_typer(diagnostics, name="diagnostics")
 # Register currencies sub-app (I22)
 app.add_typer(currencies_module.currencies, name="currency")
+# Register accounts sub-app (I23)
+app.add_typer(accounts_module.accounts, name="account")
+# Register ledger sub-app (I24)
+app.add_typer(ledger_module.ledger, name="ledger")
 
 
 # Internal cached singletons (lazy)

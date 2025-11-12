@@ -147,7 +147,7 @@ rpg_plan:
       risk_mitigation: "Независимо от инфраструктуры."
       status: done
       completed_at: 2025-11-11
-      notes: "Реализованы EntrySide, LedgerEntry (валидация side/amount>0/код валюты 3..10, upper) и LedgerValidator.validate: определение базы по base_code либо get_base_currency; поддержка currencies как списка или mapping; конвертация небазовой суммы через amount * rate_to_base (>0, обязательна); сравнение сумм debit/credit после money_quantize (2dp, HALF_EVEN); без изменения глобального Decimal контекста; ошибки ValidationError для некорректных входов/курсов/неизвестных валют/пустых линий, DomainError для несбалансированности. Добавлены тесты (включая негативные, проверка контекста и округления); все зелёные."
+      notes: "Реализованы EntrySide, LedgerEntry (валидация side/amount>0/код валюты 3..10, upper) и LedgerValidator.validate: определение ��азы по base_code либо get_base_currency; поддержка currencies как списка или mapping; конвертация небазовой суммы через amount * rate_to_base (>0, обязательна); сравнение сумм debit/credit после money_quantize (2dp, HALF_EVEN); без изменения глобального Decimal контекста; ошибки ValidationError для некорректных входов/курсов/неизвестных валют/пустых линий, DomainError для несбалансированности. Добавлены тесты (включая негативные, проверка контекста и округления); все зелёные."
 
     - id: I06
       name: domain.trading_balance.raw_aggregation
@@ -172,7 +172,7 @@ rpg_plan:
       risk_mitigation: "Не добавлять конверсию; одно‑проходный алгоритм, защитные проверки типов."
       status: done
       completed_at: 2025-11-11
-      notes: "Добавлен RawAggregator без инфраструктурных зависимостей; суммы аккумулируются как Decimal без округления, квантование на выходе (2dp HALF_EVEN). Возвращается список RawBalanceLine, отсортированный по коду валюты. Добавлены тесты (6) включая проверку неизменности Decimal контекста и защиту от неверного ввода; все зелёные."
+      notes: "Добавлен RawAggregator без инфраструктурных зависимостей; суммы аккумулируются как Decimal без округления, квантование на выходе (2dp HALF_EVEN). Возвращается список RawBalanceLine, отсортированный по ��оду валюты. Добавлены тесты (6) включая проверк�� неизменности Decimal контекста и защиту от неверного ввода; все зелёные."
 
     - id: I07
       name: domain.trading_balance.converted_aggregation
@@ -268,7 +268,7 @@ rpg_plan:
       risk_mitigation: "Сохранить совместимость имён остальных DTO."
       status: done
       completed_at: 2025-11-11
-      notes: "Добавлены TradingBalanceLineSimple (только raw debit/credit/net) и TradingBalanceLineDetailed (raw + base conversion: base_currency_code, used_rate (6 знаков), *_base). Legacy TradingBalanceLineDTO оставлен нетронутым для совместимости до I10. Все 4 новых теста (простая/детальная форма, docstrings, frozen slots guard) зелёные. Simple DTO не содержит converted_* полей (проверено через hasattr и dataclasses.fields). Публичный экспорт __all__ обновлён. Докстроки добавлены к публичным DTO."
+      notes: "Добавлены TradingBalanceLineSimple (только raw debit/credit/net) и TradingBalanceLineDetailed (raw + base conversion: base_currency_code, used_rate (6 знаков), *_base). Legacy TradingBalanceLineDTO оставлен нетронутым для совместимости до I10. Все 4 новых теста (простая/детальная ф��рма, docstrings, frozen slots guard) зелёные. Simple DTO не содержит converted_* полей (проверено через hasattr и dataclasses.fields). Публичный экспорт __all__ обновлён. Докстроки добавлены к публичным DTO."
 
     - id: I10
       name: application.dto.refactor_step2_backwards_shim
@@ -711,7 +711,7 @@ rpg_plan:
       completed_at: 2025-11-12
       notes: |
         Implemented async currency CLI sub-app with list/add/set-base commands atop existing async use cases.
-        Introduced infra helper (infra.py) for ephemeral UoW + idempotent schema creation, removing earlier circular import and greenlet issues.
+        Introduced infra helper (infra.py) for ephemeral UoW + idempotent schema creation, removingEarlier circular import and greenlet issues.
         Added integration test suite (6 scenarios) with per-test isolated SQLite file; all passing.
         Reduced legacy xfail diagnostics currency tests by removing obsolete 'diagnostics:rates' cases.
         JSON/human output formats stabilized; error classification consistent with CLI foundation.
@@ -719,30 +719,91 @@ rpg_plan:
     - id: I23
       name: cli.accounts_commands
       scope:
-        - add account commands (create, list)
-      dependencies: [I22]
+        - implement accounts subcommands using async use cases (list/add/get optional)
+        - human + JSON output (flag --json), stable snake_case keys
+        - ephemeral async UoW per command via shared helper (no singletons)
+        - thin controllers: parsing/normalization only; validation in domain/use cases
+      dependencies: [I22, I15, I16]
       deliverables:
         - src/presentation/cli/accounts.py
         - tests/integration/cli/test_cli_accounts.py
+        - docs/REFACTORING_RPG_ITERATIONS.yaml (this node updated)
+        - rpg_py_accountant.yaml (component AsyncCLIAccounts добавлен)
       tests:
-        - test_cli_create_account
+        - test_cli_account_list_empty_returns_empty_json
+        - test_cli_account_add_and_list_json
+        - test_cli_account_add_human_output
+        - test_cli_account_add_invalid_full_name_raises
+        - test_cli_account_add_invalid_currency_code_raises
+        - test_cli_account_add_missing_currency_raises
+        - test_cli_account_duplicate_add_raises
+        - test_cli_account_list_human_format_multiple
+        - optional: test_cli_account_get_existing_json
+        - optional: test_cli_account_get_missing_raises
+        - test_cli_account_add_currency_code_normalized_upper
+        - test_cli_account_add_trims_whitespace_full_name
       acceptance_criteria:
-        - Account created / listed
-      risk_mitigation: "Проверка ошибки дубликата."
-
+        - All mandatory tests green
+        - account add normalizes currency code to upper; trims full_name
+        - Empty list returns [] for --json; human output is empty without errors
+        - Duplicate full_name -> exit 2 with message containing "already exists"
+        - Invalid full_name/currency_code -> ValidationError -> exit 2
+        - Missing currency on add -> exit 2 (ValueError per use case)
+        - JSON formats exactly {"full_name":"..","currency_code":".."} for item and list
+        - Output contains no extra fields; list sorted lexicographically by full_name
+        - Commands do not require DATABASE_URL_ASYNC (fallback file URL works)
+        - No state leakage between commands (fresh UoW per invocation)
+        - Public command functions have concise docstrings
+        - Legacy argparse account tests reduced by >=2 xfail or replaced
+      risk_mitigation: "Sort output, use shared helper, minimal controller logic, explicit dict shaping."
+      status: done
+      completed_at: 2025-11-12
+      notes: "Implemented accounts CLI (list/add/get). All 12 integration tests green; JSON/human форматы стабильны; классификация ошибок согласована. Нормализация (trim/upper) проверена."
     - id: I24
       name: cli.ledger_commands
       scope:
-        - add ledger commands (post, list, balance)
-      dependencies: [I23]
+        - add async CLI commands for ledger: post, list, balance (thin controllers)
+        - JSON output via --json with strict snake_case keys
+        - ephemeral async UoW per command via helper (infra.run_ephemeral_async_uow)
+        - parsing/normalization in controller; business validation in domain/use cases
+      dependencies: [I23, I17, I21, I22]
       deliverables:
         - src/presentation/cli/ledger.py
         - tests/integration/cli/test_cli_ledger.py
+        - docs/REFACTORING_RPG_ITERATIONS.yaml (this node updated)
+        - rpg_py_accountant.yaml (component AsyncCLILedger added)
       tests:
-        - test_cli_post_transaction_balanced
+        - test_cli_ledger_post_balanced_usd
+        - test_cli_ledger_post_unbalanced_raises
+        - test_cli_ledger_post_missing_account_raises
+        - test_cli_ledger_post_invalid_side_raises
+        - test_cli_ledger_post_negative_amount_raises
+        - test_cli_ledger_list_json_default_asc
+        - test_cli_ledger_list_invalid_order_raises
+        - test_cli_ledger_list_invalid_account_format_raises
+        - test_cli_ledger_list_pagination_limit_zero_empty
+        - test_cli_ledger_balance_self_post_zero
+        - test_cli_ledger_window_invalid_dates_raises
+        - optional: test_cli_ledger_post_with_memo_and_meta
+        - optional: test_cli_ledger_list_with_meta_filter_matches
+        - optional: test_cli_ledger_balance_as_of_parsed_utc
       acceptance_criteria:
-        - Unbalanced rejected
-      risk_mitigation: "Баланс проверяется доменом."
+        - post balanced USD transaction -> exit 0; JSON has id and 2 lines
+        - domain/unbalanced or invalid -> exit 2
+        - list sorted by occurred_at with order=ASC default; limit=0 -> []
+        - balance deterministic string amounts ("0.00") in JSON
+        - fallback DATABASE_URL_ASYNC works via helper
+        - fresh UoW per command (no state leaks)
+        - public command functions have brief docstrings
+        - I24 status toggled to done after green test run
+      risk_mitigation: "Explicit dict serialization for JSON; date/decimal parsing guarded with ValidationError; use cases handle ordering/pagination."
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Implemented Typer sub-app 'ledger' with post/list/balance commands. Controllers parse/normalize lines/meta/datetime,
+        delegate to async use cases, and output human/JSON with deterministic keys. Added integration tests covering happy/edge cases
+        per acceptance criteria; all green. AsyncGetAccountBalance gained a fallback to compute balance via ledger scan when repository
+        account_balance is deprecated (I13), preserving async-only path and domain-first validation.
 
     - id: I25
       name: cli.trading_balance_commands

@@ -193,6 +193,12 @@ rpg:
       - name: "infra"
         path: "src/presentation/cli/infra.py"
         description: "Shared CLI infra helper run_ephemeral_async_uow: creates AsyncSqlAlchemyUnitOfWork, ensures schema via create_all, runs async callable, raises ValidationError if infra missing."
+      - name: "AsyncCLIAccounts"
+        path: "src/presentation/cli/accounts.py"
+        description: "Typer sub-app 'account': list/add (and get). Thin controllers over async use cases, per-command ephemeral UoW via infra.run_ephemeral_async_uow, JSON (--json) or human output, exit codes (0 ok, 2 validation/domain/value, 1 unexpected)."
+      - name: "AsyncCLILedger"
+        path: "src/presentation/cli/ledger.py"
+        description: "Typer sub-app 'ledger': post/list/balance using async use cases (AsyncPostTransaction/AsyncGetLedger/AsyncGetAccountBalance). Thin controllers parse/normalize lines/dates/meta, ephemeral async UoW per command (infra.run_ephemeral_async_uow), JSON (--json) or human output. Exit codes: 0 success, 2 validation/domain/value errors, 1 unexpected."
     files:
       - name: "__init__.py"
         parent_module: "py_accountant"
@@ -432,6 +438,19 @@ rpg:
         parent_file: "src/presentation/cli/currencies.py"
         type: "module"
         description: "Typer sub-app 'currency': list/add/set-base using async use cases, ephemeral async UoW per command via infra.run_ephemeral_async_uow, JSON (--json) or human output, exit codes (0 ok, 2 validation/domain, 1 unexpected)."
+        testable: true
+      - name: "AsyncCLIAccounts"
+        parent_file: "src/presentation/cli/accounts.py"
+        type: "module"
+        description: "Typer sub-app for accounts: account list/add/get using async use cases (AsyncCreateAccount/AsyncListAccounts/AsyncGetAccount), per-command ephemeral UoW, human or JSON output, error mapping via main.cli."
+        testable: true
+        test_priority: "high"
+      - name: "AsyncCLILedger"
+        parent_file: "src/presentation/cli/ledger.py"
+        type: "module"
+        description: "Typer sub-app 'ledger': post/list/balance using async use cases (AsyncPostTransaction/AsyncGetLedger/AsyncGetAccountBalance). Thin controllers parse/normalize lines/dates/meta, ephemeral async UoW per command (infra.run_ephemeral_async_uow), JSON (--json) or human output. Exit codes: 0 success, 2 validation/domain/value errors, 1 unexpected."
+        testable: true
+        test_priority: "high"
 
   tests:
     unit_tests:

@@ -12,6 +12,9 @@
 """
 from __future__ import annotations
 
+import importlib
+from pathlib import Path
+
 import pytest
 
 from presentation.cli.main import main
@@ -20,22 +23,14 @@ pytestmark = pytest.mark.xfail(reason="migrated to async CLI foundation; command
 
 # --- Базовые ошибки ---
 
-def test_currency_set_base_unknown():
-    # Попытка назначить базовую валюту до её создания -> DomainError
-    rc = main(["currency:set-base", "ZZZ"])
-    assert rc == 2
+# NOTE: currency set-base unknown and account add unknown currency migrated to
+# async Typer integration tests in tests/integration/cli/ (I22/I23). Removed here.
 
 
 def test_fx_update_invalid_rate():
     # Валюта создаётся, но курс недопустим (<=0)
     assert main(["currency:add", "GBP"]) == 0
     rc = main(["fx:update", "GBP", "0"])  # invalid rate
-    assert rc == 2
-
-
-def test_account_add_unknown_currency():
-    # Создаём счёт в несуществующей валюте
-    rc = main(["account:add", "Assets:Cash", "XXX"])  # currency XXX not created
     assert rc == 2
 
 

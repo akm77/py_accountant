@@ -228,14 +228,38 @@ class AsyncGetAccountBalance:
 
     Notes:
     - Repository currently ignores ``as_of`` detail due to simplified schema.
+    - Fallback: if transactions.account_balance is DEPRECATED (NotImplementedError),
+      compute balance manually by scanning ledger entries up to ``as_of``.
     """
     uow: AsyncUnitOfWork
     clock: Clock
 
     async def __call__(self, account_full_name: str, as_of: datetime | None = None) -> Decimal:
-        """Return computed account balance at ``as_of`` (or now)."""
+        """Return computed account balance at ``as_of`` (or now).
+
+        Fallback logic handles repositories where account_balance was removed in I13
+        (CRUD-only). Manual computation sums DEBIT amounts minus CREDIT amounts
+        for matching account ledger lines.
+        """
         ts = as_of or self.clock.now()
-        return await self.uow.transactions.account_balance(account_full_name, ts)
+        try:
+            return await self.uow.transactions.account_balance(account_full_name, ts)
+        except NotImplementedError:
+            from decimal import Decimal
+            # Manual ledger scan from epoch to ts
+            start = datetime.fromtimestamp(0, tz=ts.tzinfo)
+            entries = await self.uow.transactions.ledger(account_full_name, start, ts, None, offset=0, limit=None, order="ASC")
+            total = Decimal("0")
+            for tx in entries:
+                for line in tx.lines:
+                    if line.account_full_name != account_full_name:
+                        continue
+                    side = line.side if isinstance(line.side, str) else str(line.side.value)
+                    if side.upper() == "DEBIT":
+                        total += line.amount
+                    elif side.upper() == "CREDIT":
+                        total -= line.amount
+            return total
 
 
 @dataclass(slots=True)
