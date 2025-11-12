@@ -317,9 +317,6 @@ rpg:
       - name: "tests/unit/domain/test_fx_audit_ttl.py"
         parent_module: "domain.fx_audit"
         description: "Юнит‑тесты TTL: identify_old (naive/aware/strictly older), batch_plan (offset/limit покрытие), make_cutoff нормализация UTC, валидации аргументов."
-      - name: "tests/report/test_inventory.md"
-        parent_module: "py_accountant"
-        description: "Снимок инвентаризации тестов (I08A): категории и план миграции тестов (KEEP-ASIS/ADAPT-SHALLOW/REWRITE-DOMAIN/UPGRADE-CLI/DROP-TRIVIAL/OBSOLETE/PERF-OPTIONAL/SPLIT/MOVE)."
 
     components:
       - name: "DomainErrors"
