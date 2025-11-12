@@ -19,6 +19,10 @@ __all__ = [
     # New DTOs introduced in I09
     "TradingBalanceLineSimple",
     "TradingBalanceLineDetailed",
+    # I19 TTL planning DTOs
+    "BatchDTO",
+    "FxAuditTTLPlanDTO",
+    "FxAuditTTLResultDTO",
 ]
 
 
@@ -170,4 +174,47 @@ class TradingBalanceLineDetailed:
     debit_base: Decimal
     credit_base: Decimal
     net_base: Decimal
+
+
+# I19: TTL planning DTOs (kept minimal, application-layer only)
+@dataclass(slots=True, frozen=True)
+class BatchDTO:
+    """Processing window (offset, limit) covering a contiguous slice of IDs."""
+
+    offset: int
+    limit: int
+
+
+@dataclass(slots=True)
+class FxAuditTTLPlanDTO:
+    """Computed TTL plan: cutoff timestamp + batching and candidate IDs.
+
+    old_event_ids may be restricted by optional limit; total_old reflects full
+    count of old events ignoring that limit. batches always cover [0..total_old).
+    """
+
+    cutoff: datetime
+    mode: str
+    retention_days: int
+    batch_size: int
+    dry_run: bool
+    total_old: int
+    batches: list[BatchDTO]
+    old_event_ids: list[int]
+
+
+@dataclass(slots=True)
+class FxAuditTTLResultDTO:
+    """Result of executing a TTL plan (delete/archive) or dry-run/no-op.
+
+    executed_mode echoes plan.mode; archived_count/deleted_count apply to subset
+    actually processed (old_event_ids). batches_executed <= len(batches).
+    """
+
+    executed_mode: str
+    archived_count: int
+    deleted_count: int
+    dry_run: bool
+    batches_executed: int
+    cutoff: datetime
 

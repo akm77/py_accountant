@@ -579,17 +579,53 @@ rpg_plan:
     - id: I19
       name: use_cases.fx_audit_refactor
       scope:
-        - incorporate FxAuditTTLService for archival planning
+        - integrate domain FxAuditTTLService into async path (planning + execution)
+        - add TTL DTOs (BatchDTO, FxAuditTTLPlanDTO, FxAuditTTLResultDTO) to application.dto.models
+        - create async use cases AsyncPlanFxAuditTTL and AsyncExecuteFxAuditTTL
+        - update use_cases_async/__init__.py export surface (I19)
+        - remove reliance on deprecated move_events_to_archive orchestration
+        - classify errors: ValidationError (parameters/plan consistency), ValueError (missing repo - unexpected)
+        - ensure dry_run transparency (zero side-effects counts)
       dependencies: [I18]
       deliverables:
-        - src/application/use_cases/fx_audit.py
-        - tests/unit/application/test_use_cases_fx_audit.py
+        - src/application/dto/models.py (TTL DTOs added)
+        - src/application/use_cases_async/fx_audit_ttl.py (new module)
+        - src/application/use_cases_async/__init__.py (exports updated)
+        - tests/unit/application/test_use_cases_fx_audit_ttl.py (new unit tests)
+        - tests/integration/test_async_fx_ttl.py (refactored integration test)
+        - docs/REFACTORING_RPG_ITERATIONS.yaml (this node expanded)
+        - rpg_py_accountant.yaml (new nodes for TTL use cases & DTOs pending next update)
       tests:
-        - test_add_event
-        - test_ttl_archival_plan
+        - unit: test_plan_ttl_empty_events_returns_empty_batches
+        - unit: test_plan_ttl_negative_retention_raises_validation_error
+        - unit: test_plan_ttl_zero_retention_cutoff_now
+        - unit: test_plan_ttl_batch_plan_matches_total
+        - unit: test_plan_ttl_limit_restricts_old_event_ids
+        - unit: test_execute_ttl_dry_run_no_side_effects
+        - unit: test_execute_ttl_mode_none_no_side_effects
+        - unit: test_execute_ttl_delete_mode_removes_events
+        - unit: test_execute_ttl_archive_mode_archives_events (archive+delete)
+        - unit: test_execute_ttl_invalid_mode_raises_validation_error
+        - unit: test_execute_ttl_no_ids_with_delete_mode_raises
+        - integration: test_fx_ttl_plan_and_delete_flow
+        - integration: test_fx_ttl_plan_and_archive_flow
+        - integration: test_fx_ttl_plan_large_events_batch_sizes
       acceptance_criteria:
-        - Archival plan operations not inside repository
-      risk_mitigation: "Разделение read/list vs plan."
+        - Planning returns correct UTC cutoff, batch plan covering [0..total_old) without overlaps/gaps
+        - limit restricts old_event_ids while total_old reflects full count
+        - Execution dry_run produces zero side-effects counts and batches_executed=0
+        - mode 'none' produces no side effects regardless of candidate IDs
+        - delete removes all targeted old events; archive archives then deletes (counts equal total_old)
+        - ValidationError raised for invalid params, modes, empty candidate IDs with destructive modes, batch coverage mismatch
+        - No DomainError usage (only ValidationError / ValueError)
+        - Updated integration tests pass; legacy xfail removed
+        - All public classes/methods have concise docstrings
+      risk_mitigation: |
+        Snapshot ID list prevents drift during batch execution; archive path refetches rows once per batch (acceptable for current scale). Large scans capped at _MAX_SCAN (100k) to avoid runaway memory. Additional optimization (count query) deferred to later iteration if needed.
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Implemented TTL planning/execution async use cases; integrated domain service. Removed dependency on deprecated move_events_to_archive. Added DTOs with minimal docstrings. All new unit (11) and integration (3) tests pass. Dry-run logic verified. Error classification consistent with RPG principles. Pending graph update for rpg_py_accountant.yaml in follow-up commit.
 
     - id: I20
       name: use_cases.reporting_initial

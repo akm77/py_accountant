@@ -11,7 +11,7 @@ Contents:
     - accounts: create/get/list
     - transactions/ledger: post/list/query balances
     - trading: aggregate trading balance
-    - fx audit: basic event insertion/listing
+    - fx audit: basic event insertion/listing + TTL planning/execution (I19)
 
 Notes:
     Import DTOs strictly from ``application.dto.models``. All orchestration
@@ -34,6 +34,10 @@ from .currencies import (
 from .fx_audit import (
     AsyncAddExchangeRateEvent,
     AsyncListExchangeRateEvents,
+)
+from .fx_audit_ttl import (
+    AsyncExecuteFxAuditTTL,
+    AsyncPlanFxAuditTTL,
 )
 from .ledger import (
     AsyncGetAccountBalance,
@@ -68,4 +72,7 @@ __all__ = [
     # fx audit
     "AsyncAddExchangeRateEvent",
     "AsyncListExchangeRateEvents",
+    # fx audit TTL (I19)
+    "AsyncPlanFxAuditTTL",
+    "AsyncExecuteFxAuditTTL",
 ]
