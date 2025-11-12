@@ -23,6 +23,10 @@ __all__ = [
     "BatchDTO",
     "FxAuditTTLPlanDTO",
     "FxAuditTTLResultDTO",
+    # I20 reporting DTOs
+    "ParityLineDTO",
+    "ParityReportDTO",
+    "TradingBalanceSnapshotDTO",
 ]
 
 
@@ -217,4 +221,52 @@ class FxAuditTTLResultDTO:
     dry_run: bool
     batches_executed: int
     cutoff: datetime
+
+
+# I20: Reporting DTOs
+@dataclass(slots=True, frozen=True)
+class ParityLineDTO:
+    """Single currency parity line.
+
+    Fields:
+      - currency_code: ISO-like code (upper)
+      - is_base: True if this is the base currency
+      - latest_rate: latest known rate to base (None for base or unknown)
+      - deviation_pct: heuristic deviation vs base parity 1.0 in percent; None when not computed
+    """
+
+    currency_code: str
+    is_base: bool
+    latest_rate: Decimal | None
+    deviation_pct: Decimal | None
+
+
+@dataclass(slots=True, frozen=True)
+class ParityReportDTO:
+    """Parity report snapshot for all or selected currencies.
+
+    Contains generation timestamp, detected base currency code (if any), lines
+    in unspecified order, total count, and has_deviation flag.
+    """
+
+    generated_at: datetime
+    base_currency: str | None
+    lines: list[ParityLineDTO]
+    total_currencies: int
+    has_deviation: bool
+
+
+@dataclass(slots=True, frozen=True)
+class TradingBalanceSnapshotDTO:
+    """Trading balance snapshot wrapper for reporting.
+
+    Depending on mode, either lines_raw or lines_detailed is populated. The
+    as_of timestamp is UTC-aware. base_currency reflects detected base if any.
+    """
+
+    as_of: datetime
+    lines_raw: list[TradingBalanceLineSimple] | None
+    lines_detailed: list[TradingBalanceLineDetailed] | None
+    mode: str  # 'raw' | 'detailed'
+    base_currency: str | None
 

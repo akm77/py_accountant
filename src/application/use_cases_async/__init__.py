@@ -12,6 +12,7 @@ Contents:
     - transactions/ledger: post/list/query balances
     - trading: aggregate trading balance
     - fx audit: basic event insertion/listing + TTL planning/execution (I19)
+    - reporting: parity report + trading balance snapshot (I20)
 
 Notes:
     Import DTOs strictly from ``application.dto.models``. All orchestration
@@ -46,6 +47,10 @@ from .ledger import (
     AsyncListTransactionsBetween,
     AsyncPostTransaction,
 )
+from .reporting import (
+    AsyncGetParityReport,
+    AsyncGetTradingBalanceSnapshotReport,
+)
 from .trading_balance import (
     AsyncGetTradingBalanceDetailed,
     AsyncGetTradingBalanceRaw,
@@ -75,4 +80,7 @@ __all__ = [
     # fx audit TTL (I19)
     "AsyncPlanFxAuditTTL",
     "AsyncExecuteFxAuditTTL",
+    # reporting (I20)
+    "AsyncGetParityReport",
+    "AsyncGetTradingBalanceSnapshotReport",
 ]
