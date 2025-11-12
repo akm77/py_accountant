@@ -146,6 +146,22 @@ rpg_docs_plan:
         - "Документ упоминает правильные масштабы квантизации (2dp/6dp)"
         - "Нет упоминаний про sync UoW/репозитории или кэш-баланс"
         - "Есть раздел про TTL: CLI план есть, execute только через use case"
+      status: done
+      completed_at: "2025-11-12"
+      verification:
+        criteria_quantization_scales: pass  # money=2dp, rate=6dp, ROUND_HALF_EVEN зафиксированы
+        criteria_no_sync_uow_mentions: pass  # sync UoW/кэши не упоминаются
+        criteria_ttl_plan_vs_execute: pass  # CLI только ttl-plan; execute через use case/SDK
+        diagram_sources_present: pass  # docs/ARCHITECTURE_OVERVIEW.puml присутствует
+        readme_links_updated: pass  # добавлены ссылка и встройка SVG в README
+        notes:
+          - "Обновлён docs/ARCHITECTURE_OVERVIEW.md под async-only ядро и порты (src/application/ports.py)"
+          - "Закреплена квантизация: money=2dp, rate=6dp, ROUND_HALF_EVEN (src/domain/quantize.py)"
+          - "Описано поведение Trading Detailed: base обязателен; used_rate=1 для базы; ошибки при отсутствии/неположительном курсе"
+          - "Добавлен раздел про FX TTL (план vs исполнение); CLI не вызывает execute"
+          - "Добавлена PlantUML-диаграмма docs/ARCHITECTURE_OVERVIEW.puml"
+          - "Сгенерирован SVG docs/ARCHITECTURE_OVERVIEW.svg; ссылка добавлена в README и встройка предпросмотра"
+          - "Поток данных и таблицы БД перечислены (accounts, currencies, transactions/lines, exchange_rate_events, exchange_rate_events_archive)"
 
     - id: I3
       title: "FX_AUDIT: команды fx и TTL-план вместо maintenance"
@@ -153,12 +169,12 @@ rpg_docs_plan:
       changes:
         - file: docs/FX_AUDIT.md
           edits:
-            - "Заменить fx:update/diagnostics:rates-audit/maintenance:fx-ttl на: fx add-event, fx list, fx ttl-plan"
+            - "Заменить fx:update/diagnostics:rates-аudit/maintenance:fx-ttl на: fx add-event, fx list, fx ttl-plan"
             - "Сохранить описание схемы exchange_rate_events и archive, индексы"
             - "Явно зафиксировать: в CLI есть только план TTL; выполнение — через AsyncExecuteFxAuditTTL (SDK/воркер)"
             - "Примеры JSON: rate шестью знаками, datetime в ISO8601 UTC"
       acceptance_criteria:
-        - "В документе отсутствуют команды maintenance:fx-ttl и diagnostics:rates-audit"
+        - "В документе отсутствуют команды maintenance:fx-ttl и diagnostics:rates-аudit"
         - "Примеры команд успешно сопоставляются с исходниками CLI"
         - "Есть явная оговорка про отсутствие CLI-исполнения TTL"
 
