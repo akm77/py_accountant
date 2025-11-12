@@ -117,6 +117,17 @@ rpg_docs_plan:
         - "Греп по репо: отсутствуют строки 'diagnostics:rates-audit' и 'diagnostics:parity-report' в README и CLI_QUICKSTART"
         - "Все примеры команд соответствуют реально существующим Typer-командам (по исходникам CLI)"
         - "Мини-смоук: diagnostics ping выполняется"
+      status: done
+      completed_at: "2025-11-12"
+      verification:
+        grep_readme_cli_quickstart: pass
+        commands_match_typer: pass
+        smoke_diagnostics_ping: pass
+        notes:
+          - "README.md и docs/CLI_QUICKSTART.md обновлены; команды в формате Typer групп с пробелом"
+          - "Удалены упоминания diagnostics:rates-audit / diagnostics:parity-report в этих файлах"
+          - "Добавлен diagnostics ping; уточнён формат --line без rate; синхронизированы примеры"
+          - "Актуализированы ссылки (добавлен RUNNING_MIGRATIONS.md в README)."
 
     - id: I2
       title: "ARCHITECTURE_OVERVIEW: async-only, порты, квантизация и поведение Trading"
@@ -241,4 +252,3 @@ rpg_docs_plan:
   risks:
     - "Возможны скрытые упоминания устаревших команд в неохваченных документах — минимизируем финальной сверкой"
     - "Потребуется уточнение формулировок на английском/русском — держать стиль единым"
-

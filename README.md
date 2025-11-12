@@ -74,6 +74,7 @@ poetry run python -m presentation.cli.main diagnostics ping
 - docs/TRADING_WINDOWS.md
 - docs/PARITY_REPORT.md
 - docs/PERFORMANCE.md
+- docs/RUNNING_MIGRATIONS.md
 - docs/MIGRATION_HISTORY.md
 - docs/INTEGRATION_GUIDE.md ← новый гайд по встраиванию
 - examples/telegram_bot/README.md ← пример Telegram Bot
