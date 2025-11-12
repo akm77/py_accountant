@@ -994,98 +994,52 @@ rpg_plan:
 
     # === TEST MIGRATION & CLEAN UP ===
     - id: I29
-      name: tests.migration_cleanup
+      name: removal.sync_repositories_and_uow
+      goal: "Физически удалить sync repositories.py и legacy sync UoW; закрепить async-only путь исполнения."
       scope:
-        - adjust existing tests to new DTOs & ports
-        - remove flaky retry tests
-      dependencies: [I28]
+        - Удалить файл `src/infrastructure/persistence/sqlalchemy/repositories.py` (sync repos)
+        - Удалить legacy классы sync UoW из `src/infrastructure/persistence/sqlalchemy/uow.py`:
+          - `SqlAlchemyUnitOfWork`
+          - `SyncUnitOfWorkWrapper`
+        - Очистить оставшиеся импорты/упоминания этих классов в src/ и tests/
+        - Обновить RPG граф (`rpg_py_accountant.yaml`): удалить компонент "SqlAlchemy*Repository (sync)" и legacy UoW, проставить заметку об удалении
+        - Обновить документацию (README.md, MIGRATION_HISTORY.md, ARCHITECTURE_OVERVIEW.md): отметить завершение перехода на async-only и удаление sync слоя
+        - Обновить/добавить структурные тесты: запрет импортов удалённых сущностей
+      dependencies: [I28, I14, I26]
       deliverables:
-        - updated tests tree
-        - tests/report/test_cleanup_report.md
+        removed_files:
+          - src/infrastructure/persistence/sqlalchemy/repositories.py
+        modified_files:
+          - src/infrastructure/persistence/sqlalchemy/uow.py (удалены legacy классы)
+          - rpg_py_accountant.yaml (компоненты удалены/обновлены)
+          - docs/MIGRATION_HISTORY.md (раздел об удалении sync слоя)
+          - README.md (секция про async-only ядро обновлена)
+          - docs/ARCHITECTURE_OVERVIEW.md (убраны оставшиеся упоминания sync пути)
+          - tests/unit/infrastructure/test_no_sync_legacy_imports.py (новый структурный тест)
       tests:
-        - test_all_pass_post_cleanup
+        mandatory:
+          - test_no_sync_repositories_imports_left
+          - test_no_legacy_sync_uow_imports_left
+          - test_alembic_sync_migrations_still_work (Smoke: Alembic не зависит от UoW)
+          - test_full_suite_green_after_removal
+        details:
+          - test_no_sync_repositories_imports_left: глобальный grep на `infrastructure.persistence.sqlalchemy.repositories` и `SqlAlchemy[A-Za-z]+Repository` — пусто
+          - test_no_legacy_sync_uow_imports_left: глобальный grep на `SqlAlchemyUnitOfWork` и `SyncUnitOfWorkWrapper` — пусто
       acceptance_criteria:
-        - All previous suites green
-      risk_mitigation: "Пошагово запускать pytest -k groups."
-
-    # === METRICS & DOCUMENTATION ===
-    - id: I30
-      name: metrics.baseline_collection
-      scope:
-        - collect LOC, cyclomatic complexity before refactor finalization
-      dependencies: [I29]
-      deliverables:
-        - metrics/before.json
-      tests: []
-      acceptance_criteria:
-        - Metrics file generated
-      risk_mitigation: "Скрипт замера отдельно от основного кода."
-
-    - id: I31
-      name: metrics.post_collection
-      scope:
-        - collect LOC & complexity after changes; compute deltas
-      dependencies: [I30]
-      deliverables:
-        - metrics/after.json
-        - metrics/delta.json
-      tests: []
-      acceptance_criteria:
-        - Delta shows target improvements
-      risk_mitigation: "Сравнение автоматическое."
-
-    - id: I32
-      name: docs.architecture_update
-      scope:
-        - update ARCHITECTURE_OVERVIEW.md (async-only)
-      dependencies: [I31]
-      deliverables:
-        - docs/ARCHITECTURE_OVERVIEW.md (updated)
-      tests:
-        - test_docs_sections_present (should still pass)
-      acceptance_criteria:
-        - Async pathway documented; no sync mentions except migration note
-      risk_mitigation: "Сделать diff review."
-
-    - id: I33
-      name: docs.migration_history_update
-      scope:
-        - add "Async Consolidation" section
-      dependencies: [I32]
-      deliverables:
-        - docs/MIGRATION_HISTORY.md (updated)
-      tests:
-        - test_docs_sections_present (unchanged required header still there)
-      acceptance_criteria:
-        - New section added without breaking existing headers
-      risk_mitigation: "Сохранить требуемые заголовки."
-
-    - id: I34
-      name: docs.readme_async_transition
-      scope:
-        - add README section "Переход на полностью асинхронное ядро"
-      dependencies: [I33]
-      deliverables:
-        - README.md (updated)
-      tests:
-        - test_docs_sections_present (ENV variables header remains)
-      acceptance_criteria:
-        - New section present; legacy guidance included
-      risk_mitigation: "Не удалять существующий ENV блок."
-
-    - id: I35
-      name: final_validation_and_release
-      scope:
-        - full test run
-        - generate final summary report
-      dependencies: [I34]
-      deliverables:
-        - reports/final_summary.md
-      tests:
-        - pytest full suite
-      acceptance_criteria:
-        - All suites green; metrics targets met
-      risk_mitigation: "Повторный прогон при временных сбоях."
+        - Файл `repositories.py` отсутствует в репозитории
+        - В `uow.py` отсутствуют классы `SqlAlchemyUnitOfWork` и `SyncUnitOfWorkWrapper`
+        - Нет импортов/упоминаний удалённых сущностей в кодовой базе (структурные тесты зелёные)
+        - Полный pytest прогон зелёный; alembic миграции не сломаны
+        - Документация и граф обновлены и проходят тест на заголовки
+      risks:
+        - risk: скрытая зависимость сторонних скриптов на legacy UoW
+          mitigation: чёткая запись в MIGRATION_HISTORY и README; major‑note в релизах
+        - risk: alembic косвенно зависел от sync UoW
+          mitigation: проверка/тесты подтверждают, что alembic использует только sync engine и models
+        - risk: остаточные импорты в тестах
+          mitigation: структурные тесты и предварительный grep перед удалением
+      status: planned
+      planned_at: 2025-11-12
 
   execution_rules:
     test_first: true
