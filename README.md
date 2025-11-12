@@ -22,18 +22,19 @@
 ```bash
 poetry install --with dev
 poetry run alembic upgrade head
-poetry run python -m presentation.cli.main currency:add USD
-poetry run python -m presentation.cli.main currency:set-base USD
-poetry run python -m presentation.cli.main currency:add EUR
-poetry run python -m presentation.cli.main fx:update EUR 1.1111
-poetry run python -m presentation.cli.main fx:update EUR 1.1234
-poetry run python -m presentation.cli.main diagnostics:rates-audit --json
-poetry run python -m presentation.cli.main account:add Assets:Cash USD
-poetry run python -m presentation.cli.main account:add Income:Sales USD
-poetry run python -m presentation.cli.main tx:post --line DEBIT:Assets:Cash:100:USD --line CREDIT:Income:Sales:100:USD
-poetry run python -m presentation.cli.main trading:detailed --base USD --json
-poetry run python -m presentation.cli.main diagnostics:parity-report --expected-file examples/expected_parity.json --json
-poetry run pytest -q tests/docs
+poetry run python -m presentation.cli.main currency add USD
+poetry run python -m presentation.cli.main currency set-base USD
+poetry run python -m presentation.cli.main currency add EUR --rate 1.123400
+poetry run python -m presentation.cli.main account add Assets:Cash USD
+poetry run python -m presentation.cli.main account add Income:Sales USD
+poetry run python -m presentation.cli.main ledger post --line DEBIT:Assets:Cash:100:USD --line CREDIT:Income:Sales:100:USD --memo "Initial sale" --json
+poetry run python -m presentation.cli.main ledger balance Assets:Cash --json
+poetry run python -m presentation.cli.main trading raw --json
+poetry run python -m presentation.cli.main trading detailed --base USD --json
+poetry run python -m presentation.cli.main fx add-event EUR 1.123400 --json
+poetry run python -m presentation.cli.main fx list --json
+poetry run python -m presentation.cli.main fx ttl-plan --retention-days 0 --batch-size 10 --json
+poetry run python -m presentation.cli.main diagnostics ping
 ```
 
 ## Архитектура слоёв
@@ -48,20 +49,15 @@ poetry run pytest -q tests/docs
 
 ## FX Audit
 
-См. docs/FX_AUDIT.md — таблица exchange_rate_events, индексы, примеры вывода diagnostics:rates-audit, политика хранения.
+См. docs/FX_AUDIT.md — таблицы exchange_rate_events + archive, индексы, политика хранения. В CLI доступны команды `fx add-event`, `fx list`, `fx ttl-plan` (только планирование TTL; выполнение — через SDK/use case).
 
 ## Trading Balance и окна времени
 
 См. docs/TRADING_WINDOWS.md — семантика окна времени, примеры CLI, граничные случаи.
 
-## Parity-report (без legacy)
+## Parity-report (внутренний инструмент)
 
-Команда diagnostics:parity-report сравнивает текущий движок с ожидаемым JSON из expected-file. Если expected не передан — сценарии помечаются как skipped. Формат ожидаемого и отчёта — см. docs/PARITY_REPORT.md.
-
-Короткий прогон:
-```bash
-poetry run python -m presentation.cli.main diagnostics:parity-report --expected-file examples/expected_parity.json --json
-```
+См. docs/PARITY_REPORT.md — спецификация формата отчёта; публичной CLI-команды нет.
 
 ## Performance
 
@@ -70,17 +66,6 @@ poetry run python -m presentation.cli.main diagnostics:parity-report --expected-
 ## Migration History
 
 См. docs/MIGRATION_HISTORY.md — ключевые шаги и удалённый код (историческая справка).
-
-## Roadmap
-
-- NS13: done — Parity internal consistency, примеры expected
-- NS15: done — Trading windows CLI/документация
-- NS16: done — FX Audit events + диагностика
-- NS17: Внешние FX провайдеры (адаптеры + health)
-- NS18: FastAPI слой
-- NS19: Экспорт отчётов (CSV/JSON)
-- NS20: TTL/архивация exchange_rate_events
-- NS21: done — Интеграция (SDK паттерны, Telegram Bot пример, docs/INTEGRATION_GUIDE.md)
 
 ## Полезные ссылки
 - docs/CLI_QUICKSTART.md
