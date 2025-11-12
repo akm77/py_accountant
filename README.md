@@ -65,7 +65,7 @@ poetry run python -m presentation.cli.main diagnostics:parity-report --expected-
 
 ## Performance
 
-См. docs/PERFORMANCE.md — формат отчёта JSON, инструкция за��уска профиля и интерпретация полей.
+См. docs/PERFORMANCE.md — формат отчёта JSON, инструкция запуска профиля и интерпретация полей.
 
 ## Migration History
 
@@ -95,8 +95,4 @@ poetry run python -m presentation.cli.main diagnostics:parity-report --expected-
 
 ## Полностью асинхронное ядро
 
-Начиная с итерации I28, синхронные репозитории SQLAlchemy помечены как DEPRECATED и заменены
-на заглушки в `infrastructure.persistence.sqlalchemy.repositories` (при создании — RuntimeError с
-подсказкой использовать async). Рабочий путь — только через async реализации в
-`infrastructure.persistence.sqlalchemy.repositories_async` (CRUD-only). Удаление sync-файла планируется
-в одной из следующих итераций.
+Синхронные репозитории и legacy sync UoW удалены в I29 (async-only завершён). Единственный поддерживаемый путь выполнения — async (CLI также async). Alembic по-прежнему использует sync драйверы только для миграций.

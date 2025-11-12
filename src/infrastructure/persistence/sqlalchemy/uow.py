@@ -22,17 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 class AsyncSqlAlchemyUnitOfWork:
-    """Minimal async SQLAlchemy Unit of Work.
+    """Minimal async SQLAlchemy Unit of Work (legacy sync слой удалён в I29).
 
     Responsibilities:
     - Manage a single AsyncSession per context (open, begin, commit/rollback, close).
     - Expose lazy repositories bound to the current session.
-
-    Non-goals (delegated to outer orchestration/infrastructure):
-    - No automatic re-attempts or special handling of transient DB errors.
-    - No per-transaction time limits or DB-specific session tweaks.
-
-    If resilience policies are required, apply them outside this class.
     """
 
     def __init__(self, url: str | None = None, *, echo: bool = False) -> None:
@@ -228,4 +222,3 @@ class AsyncSqlAlchemyUnitOfWork:
         if not self._a_rate_events:
             self._a_rate_events = AsyncSqlAlchemyExchangeRateEventsRepository(self._session)
         return self._a_rate_events
-

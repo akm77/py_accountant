@@ -281,15 +281,12 @@ rpg:
       - name: "src/infrastructure/persistence/sqlalchemy/models.py"
         parent_module: "infrastructure"
         description: "ORM schema only: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, BalanceORM (DEPRECATED balance cache), ExchangeRateEventORM, ExchangeRateEventArchiveORM. No helpers or business logic (I12)."
-      - name: "src/infrastructure/persistence/sqlalchemy/repositories.py"
-        parent_module: "infrastructure"
-        description: "DEPRECATED (I28): синхронные репозитории заменены заглушками, при создании бросают RuntimeError; используйте async в repositories_async.py."
       - name: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
         parent_module: "infrastructure"
         description: "Async реализации портов репозиториев на SQLAlchemy."
       - name: "src/infrastructure/persistence/sqlalchemy/uow.py"
         parent_module: "infrastructure"
-        description: "UoW: legacy sync + AsyncSqlAlchemyUnitOfWork (упрощённый: без retry/backoff/statement_timeout; ответственность за повторные попытки вынесена наружу; ленивые async репозитории)."
+        description: "AsyncSqlAlchemyUnitOfWork only (legacy sync UoW и wrapper удалены в I29)."
       - name: "docs/RUNNING_MIGRATIONS.md"
         parent_module: "infrastructure"
         description: "Helper для CI: запуск Alembic миграций, примеры GitHub Actions/GitLab, checklist."
@@ -304,7 +301,7 @@ rpg:
         description: "Тесты для функций квантования денег и курсов: money_quantize, rate_quantize."
       - name: "tests/unit/domain/test_currency_base_rule.py"
         parent_module: "domain.currencies"
-        description: "Тесты правила единственной базо��ой валюты: смена базы без изменения курсов и очистка базы."
+        description: "Тесты правила единственной базовой валюты: смена базы без изменения курсов и очистка базы."
       - name: "tests/unit/domain/test_accounts.py"
         parent_module: "domain.accounts"
         description: "Тесты Account: валидация full_name, derive name/parent_path, опциональный parent_id."
@@ -373,86 +370,11 @@ rpg:
         description: "Сервис домена: make_cutoff(now, retention_days) -> UTC datetime; identify_old(events, cutoff) -> list[ExchangeRateEventRef] (stable order); batch_plan(total, batch_size) -> list[Batch]. Валидация аргументов через ValidationError."
         testable: true
         test_priority: "high"
-      - name: "SqlAlchemyUnitOfWork"
-        parent_file: "src/infrastructure/persistence/sqlalchemy/uow.py"
-        type: "class"
-        description: "Legacy sync UoW на SQLAlchemy; sessionmaker, транзакции (обратная совместимость)."
-        testable: true
-        test_priority: "medium"
 
       - name: "AsyncSqlAlchemyUnitOfWork"
         parent_file: "src/infrastructure/persistence/sqlalchemy/uow.py"
         type: "class"
-        description: "Асинхронный UoW (упрощённый): async context manager (__aenter__/__aexit__), один AsyncSession, явный commit()/rollback(); при отсутствии явного commit — автокоммит на выход, без retry/backoff/statement_timeout."
-        testable: true
-        test_priority: "high"
-
-      - name: "SyncUnitOfWorkWrapper"
-        parent_file: "src/infrastructure/persistence/sqlalchemy/uow.py"
-        type: "class"
-        description: "Синхронная обёртка поверх async UoW: использует asyncio.run, запрещена внутри активного event loop."
-        testable: true
-        test_priority: "medium"
-
-      - name: "SqlAlchemy*Repository (sync)"
-        parent_file: "src/infrastructure/persistence/sqlalchemy/repositories.py"
-        type: "class"
-        description: "DEPRECATED (I28): синхронные репозитории заменены заглушками, при создании бросают RuntimeError; используйте async в repositories_async.py."
-        testable: false
-        test_priority: "none"
-        deprecated: true
-      - name: "AsyncSqlAlchemy*Repository"
-        parent_file: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
-        type: "class"
-        description: "Async реализации репозиториев: Currency/Account/Transaction/Balance/ExchangeRateEvents — CRUD-only; без агрегаций/конверсии. Balance cache помечен DEPRECATED."
-        testable: true
-        test_priority: "high"
-
-      - name: "AsyncUseCases"
-        parent_file: "src/application/use_cases_async/*"
-        type: "module"
-        description: "Async аналоги основных use cases; тонкая оркестрация поверх AsyncUnitOfWork."
-        testable: true
-        test_priority: "medium"
-
-      - name: "run_sync"
-        parent_file: "src/infrastructure/utils/asyncio_utils.py"
-        type: "function"
-        description: "Generic PEP695 синхронный запуск корутин; проверка активного event loop, close() + RuntimeError."
-        testable: true
-        test_priority: "high"
-
-      - name: "AsyncCLIFoundation"
-        parent_file: "src/presentation/cli/main.py"
-        type: "module"
-        description: "Typer app skeleton: app=Typer(help=..), version_cmd prints __version__, diagnostics_ping checks event loop & UoW, cli() wrapper with error classification (ValidationError=2, DomainError=2, unexpected=1). Predispatch for help/version/ping."
-        testable: true
-      - name: "AsyncCLICurrencies"
-        parent_file: "src/presentation/cli/currencies.py"
-        type: "module"
-        description: "Typer sub-app 'currency': list/add/set-base using async use cases, ephemeral async UoW per command via infra.run_ephemeral_async_uow, JSON (--json) or human output, exit codes (0 ok, 2 validation/domain, 1 unexpected)."
-        testable: true
-      - name: "AsyncCLIAccounts"
-        parent_file: "src/presentation/cli/accounts.py"
-        type: "module"
-        description: "Typer sub-app for accounts: account list/add/get using async use cases (AsyncCreateAccount/AsyncListAccounts/AsyncGetAccount), per-command ephemeral UoW, human or JSON output, error mapping via main.cli."
-        testable: true
-        test_priority: "high"
-      - name: "AsyncCLILedger"
-        parent_file: "src/presentation/cli/ledger.py"
-        type: "module"
-        description: "Typer sub-app 'ledger': post/list/balance using async use cases (AsyncPostTransaction/AsyncGetLedger/AsyncGetAccountBalance). Thin controllers parse/normalize lines/dates/meta, ephemeral async UoW per command (infra.run_ephemeral_async_uow), JSON (--json) or human output. Exit codes: 0 success, 2 validation/domain/value errors, 1 unexpected."
-        testable: true
-        test_priority: "high"
-      - name: "AsyncCLITradingBalance"
-        parent_file: "src/presentation/cli/trading_balance.py"
-        type: "module"
-        description: "Typer sub-app 'trading': raw/detailed trading balance reports. Async-only path with per-command ephemeral UoW via infra.run_ephemeral_async_uow. Thin controllers: parse ISO start/end (naive->UTC), meta k=v, optional base (upper/trim). Use cases: AsyncGetTradingBalanceRaw/Detailed. JSON snake_case with Decimal as strings; human output single-line per currency; deterministic ordering by currency_code. Exit codes: 0 success, 2 expected validation/value errors, 1 unexpected."
-        testable: true
-      - name: "AsyncCLIFxAudit"
-        parent_file: "src/presentation/cli/fx_audit.py"
-        type: "module"
-        description: "Typer sub-app 'fx': команды add-event (добавить событие курса), list (фильтр по коду/окну времени, пагинация offset/limit, order ASC|DESC), ttl-plan (план архивирования none/delete/archive). Эфемерный UоW через infra.run_ephemeral_async_uow; JSON snake_case; Decimal 6 знаков; datetime ISO UTC; ошибки ValidationError/ValueError -> exit 2."
+        description: "AsyncSqlAlchemyUnitOfWork: async context manager, один AsyncSession, ленивые async репозитории; legacy sync слой удалён (I29)."
         testable: true
         test_priority: "high"
 
@@ -643,3 +565,7 @@ rpg:
       title: "Deprecate sync repositories"
       status: "done"
       notes: "repositories.py заменён на заглушки; добавлены структурные тесты; граф обновлён."
+    - id: "I29"
+      title: "Удаление legacy sync UoW и репозиториев"
+      status: "done"
+      notes: "Удалены классы SqlAlchemyUnitOfWork, SyncUnitOfWorkWrapper и репозитории из repositories.py; осталась только асинхронная реализация."

@@ -49,6 +49,20 @@
 - Гарантии: совместимость с существующими CLI и sync тестами
 - Следующие шаги: ASYNC-03 — перевод SQLAlchemy-репозиториев на async API
 
+## I28: Deprecation of synchronous repositories
+- Date: 2025-11-12
+- Change: `src/infrastructure/persistence/sqlalchemy/repositories.py` заменён заглушками классов, каждый создаёт DeprecationWarning и RuntimeError.
+- Motivation: закрепить async-only путь, исключить скрытое использование sync слоя перед физическим удалением.
+- Migration: заменить любые импорты на async аналоги из `repositories_async.py`.
+- Next: физическое удаление файла и обновление UoW (легаси sync) в последующих итерациях.
+
+## I29: Удаление sync repositories и legacy sync UoW
+- Date: 2025-11-12
+- Change: физически удалён файл `src/infrastructure/persistence/sqlalchemy/repositories.py`; из `uow.py` удалены классы `SqlAlchemyUnitOfWork` и `SyncUnitOfWorkWrapper` (async-only путь завершён).
+- Motivation: устранить скрытый sync API и мосты, упростить архитектуру и стабилизировать интерфейсы.
+- Impact: runtime — только async UoW и async репозитории; CLI — async; Alembic не затронут (использует только sync engine/models).
+- Tests: добавлен структурный тест, запрещающий импорт legacy модулей/классов; полный pytest зелёный.
+
 ## Async vs Sync URL
 
 Разделение путей — ключ к безопасной эволюции:
@@ -78,10 +92,3 @@ Smoke проверки (тесты):
 - TTL/архив exchange_rate_events (NS20)
 - FastAPI слой (NS18)
 - Внешние FX провайдеры (NS17)
-
-## I28: Deprecation of synchronous repositories
-- Date: 2025-11-12
-- Change: `src/infrastructure/persistence/sqlalchemy/repositories.py` заменён заглушками классов, каждый создаёт DeprecationWarning и RuntimeError.
-- Motivation: закрепить async-only путь, исключить скрытое использование sync слоя перед физическим удалением.
-- Migration: заменить любые импорты на async аналоги из `repositories_async.py`.
-- Next: физическое удаление файла и обновление UoW (легаси sync) в последующих итерациях.

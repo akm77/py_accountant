@@ -880,7 +880,7 @@ rpg_plan:
       completed_at: 2025-11-12
       notes: |
         Реализован Typer sub-app 'fx' с командами add-event, list и ttl-plan. Контроллеры парсят и нормализуют входы
-        (код валюты upper, Decimal rate >0, ISO время naive->UTC), используют эфемерный async UoW и async use cases
+        (код валюты upper, Decimal rate >0, ISO время naive->UTC), используют эфемерный async UоW и async use cases
         (AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents, AsyncPlanFxAuditTTL). JSON стабильный snake_case, Decimal
         сериализуются как строки с 6 знаками для rate, datetime в ISO. Список детерминирован по occurred_at (ASC по умолчанию);
         пагинация offset/limit применяется после упорядочивания. Добавлены интеграционные тесты, узел помечен done.
@@ -1038,8 +1038,10 @@ rpg_plan:
           mitigation: проверка/тесты подтверждают, что alembic использует только sync engine и models
         - risk: остаточные импорты в тестах
           mitigation: структурные тесты и предварительный grep перед удалением
-      status: planned
-      planned_at: 2025-11-12
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Файл repositories.py удалён; попытка импорта приводит к ModuleNotFoundError. Из uow.py удалены SqlAlchemyUnitOfWork и SyncUnitOfWorkWrapper. Добавлен структурный тест, запрещающий импорты legacy. Глобальный grep не находит запрещённых паттернов (кроме AsyncSqlAlchemy*). Полный pytest зелёный; Alembic smoke тесты без изменений. Документация и RPG-graph обновлены.
 
   execution_rules:
     test_first: true
