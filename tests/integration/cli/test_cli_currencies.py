@@ -24,19 +24,21 @@ def run_cli_with_db(db_id: str, args: list[str]) -> subprocess.CompletedProcess[
 
 
 def run_cli(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return run_cli_with_db("cli_currencies_default", args)
+    return run_cli_with_db(":memory:", args)
 
 
 def test_cli_currency_list_empty_returns_empty_json():
     # fresh DB
-    db_id = "cli_currency_empty"
+    db_id = ":memory:"
+    os.environ["CLI_DB_RESET"] = "1"
     list_proc = run_cli_with_db(db_id, ["currency", "list", "--json"])
+    os.environ["CLI_DB_RESET"] = "0"
     assert list_proc.returncode == 0, list_proc.stderr
     assert list_proc.stdout.strip() == "[]"
 
 
 def test_cli_currency_add_list_json():
-    db_id = "cli_currency_add_list"
+    db_id = ":memory:"
     os.environ["CLI_DB_RESET"] = "1"
     proc_add = run_cli_with_db(db_id, ["currency", "add", "USD", "--json"])
     os.environ["CLI_DB_RESET"] = "0"
@@ -64,7 +66,7 @@ def test_cli_currency_add_with_rate_and_human_output():
 
 
 def test_cli_currency_set_base():
-    db_id = "cli_currency_set_base"
+    db_id = ":memory:"
     os.environ["CLI_DB_RESET"] = "1"
     assert run_cli_with_db(db_id, ["currency", "add", "USD"]).returncode == 0
     os.environ["CLI_DB_RESET"] = "0"
