@@ -85,7 +85,7 @@ export DATABASE_URL=sqlite+pysqlite:///./dev.db
 poetry run alembic upgrade head
 # Запуск приложения (если есть async runtime)
 export DATABASE_URL_ASYNC=sqlite+aiosqlite:///./dev.db
-poetry run python -m presentation.cli.main trading:detailed --base USD
+poetry run python -m presentation.cli.main trading detailed --base USD
 ```
 
 ## 6. Проверка на misconfiguration
@@ -144,4 +144,3 @@ print("Migration URL OK; runtime URL OK")
 
 ---
 Поддерживается в рамках итерации ASYNC-04.
-

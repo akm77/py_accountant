@@ -85,7 +85,7 @@
 
 - Отсутствуют legacy colon‑команды (ищем по каталогу docs/, исключая этот файл):
   ```bash
-  grep -R -nE 'trading:balance|maintenance:fx-ttl|diagnostics:rates-audit|diagnostics:parity-report' docs/ --exclude 'PERFORMANCE.md' || true
+  grep -R -nE 'trading:balance|trading:detailed|maintenance:fx-ttl|diagnostics:rates-audit|diagnostics:parity-report' docs/ --exclude 'PERFORMANCE.md' || true
   ```
 - Есть секция форматов (по ключевой фразе):
   ```bash
