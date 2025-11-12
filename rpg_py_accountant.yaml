@@ -283,7 +283,7 @@ rpg:
         description: "ORM schema only: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, BalanceORM (DEPRECATED balance cache), ExchangeRateEventORM, ExchangeRateEventArchiveORM. No helpers or business logic (I12)."
       - name: "src/infrastructure/persistence/sqlalchemy/repositories.py"
         parent_module: "infrastructure"
-        description: "Sync реализации портов репозиториев на SQLAlchemy (legacy путь)."
+        description: "DEPRECATED (I28): синхронные репозитории заменены заглушками, при создании бросают RuntimeError; используйте async в repositories_async.py."
       - name: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
         parent_module: "infrastructure"
         description: "Async реализации портов репозиториев на SQLAlchemy."
@@ -397,10 +397,10 @@ rpg:
       - name: "SqlAlchemy*Repository (sync)"
         parent_file: "src/infrastructure/persistence/sqlalchemy/repositories.py"
         type: "class"
-        description: "Реализации портов репозиториев на SQLAlchemy (синхронные)."
-        testable: true
-        test_priority: "medium"
-
+        description: "DEPRECATED (I28): синхронные репозитории заменены заглушками, при создании бросают RuntimeError; используйте async в repositories_async.py."
+        testable: false
+        test_priority: "none"
+        deprecated: true
       - name: "AsyncSqlAlchemy*Repository"
         parent_file: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
         type: "class"
@@ -639,3 +639,7 @@ rpg:
       notes: |
         CLI ранее временно использовал async use cases через синхронные фасады (presentation/async_bridge.py) и helper run_sync.
         В I27 этот слой удалён; CLI работает напрямую через async команды и эфемерный async UoW.
+    - id: "I28"
+      title: "Deprecate sync repositories"
+      status: "done"
+      notes: "repositories.py заменён на заглушки; добавлены структурные тесты; граф обновлён."

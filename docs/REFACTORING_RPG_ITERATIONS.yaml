@@ -952,22 +952,45 @@ rpg_plan:
         status: done
         notes: |
           Удалён слой синхронных фасадов, снижена сложность и исчезла магия _uow_key().
-          CLI использует только async команды и эфемерный UoW helper.
+          CLI использует только async команды и эфемерный UоW helper.
           Число legacy xfail тестов сокращено; синхронный путь официально прекращён.
 
     - id: I28
       name: deprecation.sync_repositories
       scope:
-        - replace ImportError raise with DeprecationWarning stub OR remove
-      dependencies: [I27]
+        - Заменить жёсткий ImportError в src/infrastructure/persistence/sqlalchemy/repositories.py на заглушки классов
+        - Единое сообщение DEPRECATED + ссылка на repositories_async.py
+        - Минимальные зависимости: без импорта async кода
+        - Добавить __all__ со списком публичных заглушек
+      dependencies: [I27, I11, I13, I14]
       deliverables:
-        - updated repositories.py (or deleted)
-        - tests/unit/infrastructure/test_sync_repo_stub.py
+        - src/infrastructure/persistence/sqlalchemy/repositories.py (заглушки)
+        - tests/unit/infrastructure/test_sync_repositories_deprecated.py (новый)
+        - rpg_py_accountant.yaml (компонент sync repos помечен DEPRECATED)
+        - README.md / MIGRATION_HISTORY.md (упоминание депрекации) — кратко
       tests:
-        - test_sync_repo_import_warns_or_absent
+        - test_sync_repositories_not_imported_elsewhere
+        - test_sync_repositories_deprecated_import_and_classes_raise
+        - test_module_public_surface_matches_stub_names
       acceptance_criteria:
-        - No hard ImportError
-      risk_mitigation: "Докстрока с указанием перехода."
+        - repositories.py содержит только заглушки и модульную докстроку депрекации
+        - Инстанцирование любого класса приводит к RuntimeError; предупреждение DeprecationWarning генерируется
+        - Структурный тест подтверждает отсутствие использования sync репозиториев в кодовой базе
+        - rpg_py_accountant.yaml обновлён: компонент SqlAlchemy*Repository (sync) помечен deprecated
+        - Полный прогон pytest зелёный (допустимы прежние xfail без регресса)
+      risks:
+        - risk: скрытые импорты на repositories.py
+          mitigation: структурный тест + глобальный grep внутри теста
+        - risk: Alembic импортирует модуль repositories.py
+          mitigation: мы не импортируем async код и ничего не выполняем на импорт
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Жёсткий ImportError заменён на предсказуемые заглушки классов, которые при создании
+        поднимают DeprecationWarning и затем RuntimeError с сообщением, содержащим "DEPRECATED" и
+        ссылку на repositories_async.py. Добавлен юнит-тест, проверяющий отсутствие использования
+        sync репозиториев и корректность поведения заглушек. Граф rpg обновлён: компонент помечен
+        deprecated с test_priority=none. Документация (README/MIGRATION_HISTORY) обновлена кратким упоминанием.
 
     # === TEST MIGRATION & CLEAN UP ===
     - id: I29

@@ -78,3 +78,10 @@ Smoke проверки (тесты):
 - TTL/архив exchange_rate_events (NS20)
 - FastAPI слой (NS18)
 - Внешние FX провайдеры (NS17)
+
+## I28: Deprecation of synchronous repositories
+- Date: 2025-11-12
+- Change: `src/infrastructure/persistence/sqlalchemy/repositories.py` заменён заглушками классов, каждый создаёт DeprecationWarning и RuntimeError.
+- Motivation: закрепить async-only путь, исключить скрытое использование sync слоя перед физическим удалением.
+- Migration: заменить любые импорты на async аналоги из `repositories_async.py`.
+- Next: физическое удаление файла и обновление UoW (легаси sync) в последующих итерациях.
