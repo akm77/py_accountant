@@ -149,11 +149,11 @@ rpg_docs_plan:
       status: done
       completed_at: "2025-11-12"
       verification:
-        criteria_quantization_scales: pass  # money=2dp, rate=6dp, ROUND_HALF_EVEN зафиксированы
-        criteria_no_sync_uow_mentions: pass  # sync UoW/кэши не упоминаются
-        criteria_ttl_plan_vs_execute: pass  # CLI только ttl-plan; execute через use case/SDK
-        diagram_sources_present: pass  # docs/ARCHITECTURE_OVERVIEW.puml присутствует
-        readme_links_updated: pass  # добавлены ссылка и встройка SVG в README
+        criteria_quantization_scales: pass
+        criteria_no_sync_uow_mentions: pass
+        criteria_ttl_plan_vs_execute: pass
+        diagram_sources_present: pass
+        readme_links_updated: pass
         notes:
           - "Обновлён docs/ARCHITECTURE_OVERVIEW.md под async-only ядро и порты (src/application/ports.py)"
           - "Закреплена квантизация: money=2dp, rate=6dp, ROUND_HALF_EVEN (src/domain/quantize.py)"
@@ -180,10 +180,10 @@ rpg_docs_plan:
       status: done
       completed_at: "2025-11-12"
       verification:
-        criteria_no_legacy_commands: pass  # нет maintenance:fx-ttl и diagnostics:rates-аудит в docs/FX_AUDIT.md
-        commands_match_typer: pass  # команды соответствуют src/presentation/cli/fx_audit.py (add-event, list, ttl-plan)
-        ttl_execute_outside_cli: pass  # раздел с явной оговоркой присутствует
-        examples_json_formats: pass  # rate=6dp (строка), datetime=ISO8601 UTC
+        criteria_no_legacy_commands: pass
+        commands_match_typer: pass
+        ttl_execute_outside_cli: pass
+        examples_json_formats: pass
         notes:
           - "docs/FX_AUDIT.md переписан под async-only: add-event, list, ttl-plan; удалены устаревшие команды."
           - "Добавлен раздел 'TTL исполнение (execute) — вне CLI' с описанием AsyncExecuteFxAuditTTL."
@@ -206,10 +206,10 @@ rpg_docs_plan:
       status: done
       completed_at: "2025-11-12"
       verification:
-        no_legacy_commands_in_doc: pass  # нет trading:balance/trading:detailed в docs/TRADING_WINDOWS.md
-        commands_match_typer: pass  # команды соответствуют src/presentation/cli/trading_balance.py
-        formats_quantization_stated: pass  # деньги=2dp, used_rate=6dp; Decimal как строки; ISO8601 UTC
-        errors_listed: pass  # перечислены invalid datetime, start>end, invalid meta, empty/missing base, unknown currency, missing/non-positive rate
+        no_legacy_commands_in_doc: pass
+        commands_match_typer: pass
+        formats_quantization_stated: pass
+        errors_listed: pass
         notes:
           - "docs/TRADING_WINDOWS.md обновлён под async-only; команды trading raw/detailed."
           - "Удалены упоминания trading:balance/trading:detailed; добавлены Typer-примеры с --json."
@@ -231,6 +231,21 @@ rpg_docs_plan:
       acceptance_criteria:
         - "Нет упоминаний sync UoW/обёрток"
         - "Присутствуют рабочие async-примеры с актуальными импортами"
+      status: done
+      completed_at: "2025-11-12"
+      verification:
+        no_sync_uow_mentions: pass  # grep -nE 'SqlAlchemyUnitOfWork\b|SyncUnitOfWorkWrapper' пуст для sync вариантов
+        no_colon_cli_commands: pass  # grep legacy patterns пуст
+        commands_match_typer: pass  # примеры соответствуют src/presentation/cli/*.py
+        async_examples_present: pass  # есть AsyncSqlAlchemyUnitOfWork + async use cases
+        ttl_plan_vs_execute: pass  # CLI только ttl-plan; execute через AsyncExecuteFxAuditTTL
+        formats_consistent: pass  # Decimal строки, ISO8601 UTC, 2dp/6dp
+        notes:
+          - "Документ переписан на async-only; удалены все sync примеры."
+          - "CLI команды в формате групп (currency add, ledger post, trading detailed,...)."
+          - "TTL: план через CLI, исполнение через AsyncExecuteFxAuditTTL (SDK пример добавлен)."
+          - "Telegram Bot секция обновлена на фабрику нового Async UoW."
+          - "Smoke сценарии без двоеточий, все команды актуальны."
 
     - id: I6
       title: "PARITY_REPORT: пометить как внутренний инструмент (без публичной CLI)"
