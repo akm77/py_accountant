@@ -1,149 +1,218 @@
-# FX Audit
+# FX Audit (Async)
 
-## Цель
-Фиксировать историю обновлений курсов валют для диагностики, воспроизводимости расчётов и последующего анализа.
+Документ описывает аудит курсов валют: какие события хранятся, как их добавлять и читать из CLI, и как планировать TTL. Архитектура async-only: работа ведётся через async use cases.
 
-- Источник событий: CLI-команды `fx:update` и `fx:batch`, а также обновления из транзакций при наличии политики курса.
-- Использование: команда `diagnostics:rates-audit` выводит последние N событий по валютам.
+## Назначение
+FX Audit фиксирует «события курса» (exchange rate event) — точечные значения курса в момент времени. Это нужно для воспроизводимости расчётов, диагностики и аналитики.
 
-## Схема
-Таблица `exchange_rate_events` (Alembic ревизия `0004_add_exchange_rate_events`, см. `alembic/versions/0004_add_exchange_rate_events.py`).
+- События добавляются явно (CLI или SDK) и не изменяются задним числом.
+- Чтение событий поддерживает фильтры и пагинацию.
+- Политики хранения (TTL) планируются из CLI; исполнение — фоновым воркером/SDK.
+
+## Таблицы (schema summary)
+Основная таблица: `exchange_rate_events` (см. Alembic ревизию `0004_add_exchange_rate_events`).
 
 Поля:
 - `id` Integer PK — идентификатор события
 - `code` String(10) — код валюты (верхний регистр)
 - `rate` Numeric(20, 10) — курс (Decimal)
-- `occurred_at` DateTime(tz) — время события (UTC)
-- `policy_applied` String(64) — применённая политика (например `last_write`, `weighted_average`, `none`)
-- `source` String(64) NULL — источник (`cli:fx:update`, `cli:fx:batch`, др.)
+- `occurred_at` DateTime(tz) — момент события (UTC)
+- `policy_applied` String(64) — применённая политика (в текущей реализации: `manual`)
+- `source` String(64) NULL — источник/тег (например, `cli`, внешняя система)
 
 Индексы:
-- `ix_fx_events_code` — по `code`
-- `ix_fx_events_occurred_at` — по `occurred_at`
-- `ix_fx_events_code_occurred_at` — составной (`code`, `occurred_at`)
+- `ix_fx_events_code`
+- `ix_fx_events_occurred_at`
+- `ix_fx_events_code_occurred_at`
 
-## Пример
+Архивная таблица: `exchange_rate_events_archive` (см. Alembic ревизию `0005_exchange_rate_events_archive`).
 
-Создание базовой валюты и обновление курса:
-```bash
-poetry run python -m presentation.cli.main currency:add USD
-poetry run python -m presentation.cli.main currency:set-base USD
-poetry run python -m presentation.cli.main currency:add EUR
-poetry run python -m presentation.cli.main fx:update EUR 1.1111
-poetry run python -m presentation.cli.main fx:update EUR 1.1234
-```
-
-Вывод аудита (JSON):
-```bash
-poetry run python -m presentation.cli.main diagnostics:rates-audit --json
-```
-Пример ответа (структура):
-```json
-{
-  "currencies": [
-    {
-      "code": "EUR",
-      "events": [
-        {
-          "rate": "1.1234000000",
-          "occurred_at": "2025-11-10T12:00:00Z",
-          "policy": "last_write",
-          "source": "cli:fx:update"
-        },
-        {
-          "rate": "1.1111000000",
-          "occurred_at": "2025-11-10T11:59:00Z",
-          "policy": "last_write",
-          "source": "cli:fx:update"
-        }
-      ],
-      "count": 2
-    }
-  ],
-  "limit": null
-}
-```
-
-## Фильтрация и лимиты
-
-- По конкретному коду (можно повторять флаг `--code`):
-```bash
-poetry run python -m presentation.cli.main diagnostics:rates-audit --code EUR --json
-```
-- Лимит на количество событий по каждой валюте:
-```bash
-poetry run python -m presentation.cli.main diagnostics:rates-audit --limit 1 --json
-```
-- Совместно:
-```bash
-poetry run python -m presentation.cli.main diagnostics:rates-audit --code EUR --code GBP --limit 2 --json
-```
-
-Замечания по формату:
-- `occurred_at` — ISO8601 в UTC с суффиксом `Z`.
-- `rate` сериализуется как строка (Decimal → string) для точности.
-
-## Ограничения
-- TTL/архивация отсутствуют: объём таблицы будет расти со временем.
-- События пишутся «как есть» при успешном обновлении курса; ретроактивные правки не выполняются.
-
-## Политики хранения (TTL/архив)
-
-Начиная с NS20 поддерживаются политики хранения для `exchange_rate_events`.
-
-- Режимы (ENV `FX_TTL_MODE` или флаг `--mode`):
-  - `none` — по умолчанию, ничего не делать
-  - `delete` — удалять события старше ретенции
-  - `archive` — переносить события в таблицу `exchange_rate_events_archive` и удалять из основной
-- Параметры:
-  - `FX_TTL_RETENTION_DAYS` — число дней хранения (например, 90)
-  - `FX_TTL_BATCH_SIZE` — размер партии (например, 1000)
-  - `FX_TTL_DRY_RUN` — сухой прогон (ничего не изменять), можно включить CLI-флагом `--dry-run`
-
-Архивная таблица (Alembic 0005): `exchange_rate_events_archive`
-- `id` Integer PK
-- `source_id` Integer NOT NULL (id из основной таблицы)
+Поля:
+- `id` Integer PK — идентификатор записи в архиве
+- `source_id` Integer NOT NULL — исходный `id` из `exchange_rate_events`
 - `code` String(10) NOT NULL
-- `rate` Numeric(20,10) NOT NULL
+- `rate` Numeric(20, 10) NOT NULL
 - `occurred_at` DateTime(tz) NOT NULL
 - `policy_applied` String(64) NOT NULL
 - `source` String(64)
-- `archived_at` DateTime(tz) NOT NULL
+- `archived_at` DateTime(tz) NOT NULL — время фактической архивации
 
-Индексы: `ix_fx_events_archive_code`, `ix_fx_events_archive_occurred_at`, `ix_fx_events_archive_code_occurred_at`, `ix_fx_events_archive_source_id`.
+Индексы:
+- `ix_fx_events_archive_code`
+- `ix_fx_events_archive_occurred_at`
+- `ix_fx_events_archive_code_occurred_at`
+- `ix_fx_events_archive_source_id`
 
-CLI обслуживание:
+## Квантизация курсов
+Для отображения курс форматируется до 6 знаков после запятой с банковским округлением (ROUND_HALF_EVEN). Используется helper `rate_quantize` из `src/domain/quantize.py`.
 
-```bash
-poetry run python -m presentation.cli.main maintenance:fx-ttl \
-  --mode archive \
-  --retention-days 90 \
-  --batch-size 1000 \
-  --json
+- Правило: 6 дробных знаков, ROUND_HALF_EVEN.
+- В БД хранится точность как введена; на выводе — 6 знаков.
+
+## Команды CLI
+CLI-группа: `fx` (см. `src/presentation/cli/fx_audit.py`). Все команды async, JSON-вывод включается флагом `--json`.
+
+### add-event — добавить событие
+Добавляет новое событие курса (append-only).
+
+Синтаксис:
+- `poetry run python -m presentation.cli.main fx add-event CODE RATE [--occurred-at ISO] [--source TEXT] [--json]`
+
+Правила/валидация:
+- `CODE` нормализуется к верхнему регистру; пустой код — ошибка.
+- `RATE` парсится как Decimal, должен быть > 0.
+- `--occurred-at` — ISO8601; если дата без таймзоны, считается UTC; по умолчанию — текущее UTC.
+- `policy_applied` устанавливается как `manual`.
+- `source` — произвольный тег; по умолчанию `cli`.
+
+JSON-ответ (событие):
 ```
-
-Пример JSON ответа (поля и формат времени ISO8601 Z):
-```json
 {
-  "scanned": 1234,
-  "affected": 1234,
-  "archived": 1234,
-  "deleted": 1234,
-  "mode": "archive",
-  "retention_days": 90,
-  "batches": 2,
-  "started_at": "2025-11-10T00:00:00Z",
-  "finished_at": "2025-11-10T00:00:50Z",
-  "duration_ms": 50321
+  "id": 42,
+  "code": "EUR",
+  "rate": "1.123400",
+  "occurred_at": "2025-11-12T10:15:30+00:00",
+  "policy_applied": "manual",
+  "source": "cli"
 }
 ```
 
-Замечания и ограничения:
-- Все сравнения по времени выполняются в UTC; при отсутствии tzinfo время нормализуется к UTC.
-- Операция выполняется партиями малых транзакций для минимизации блокировок.
-- Поддерживаются SQLite и Postgres без специфичных расширений.
-- Рекомендуется запускать в непиковое время.
-- Команда `diagnostics:rates-audit` после TTL показывает только актуальные (не удалённые) события.
+### list — список событий
+Возвращает список событий с фильтрами и пагинацией.
 
-## Roadmap
-- NS17: внешние провайдеры курсов — расширить `source` и добавить health-диагностику.
+Синтаксис и параметры:
+- `--code CODE` — фильтр по валюте (опционально)
+- `--start ISO` — начало окна (включительно, опционально)
+- `--end ISO` — конец окна (включительно, опционально)
+- `--offset N` — смещение (>= 0; по умолчанию 0)
+- `--limit N` — максимум записей (None = без ограничений; 0 = пустой список)
+- `--order ASC|DESC` — порядок по `occurred_at` (ASC по умолчанию)
+- `--json` — вывод в JSON
+
+Формат JSON:
+- Массив объектов события (как в примере для add-event).
+- Поля:
+  - `rate` — строка с 6 знаками после запятой.
+  - `occurred_at` — ISO8601 в UTC (`+00:00`).
+
+Примечания:
+- При `limit` не задано список может быть большим — осторожно с памятью.
+- `limit=0` вернёт пустой массив без обращения к БД.
+
+### ttl-plan — план TTL
+Команда только планирует действия по TTL. Никаких изменений данных не выполняется.
+
+Синтаксис и параметры:
+- `--mode MODE` — `none|delete|archive` (по умолчанию `none`)
+- `--retention-days D` — окно хранения в днях (>= 0; по умолчанию 90)
+- `--batch-size N` — размер батча (> 0; по умолчанию 1000)
+- `--limit N` — ограничить количество candidate ID (>= 0; опционально)
+- `--dry-run/--no-dry-run` — сухой прогон (по умолчанию `--dry-run`)
+- `--json` — вывод плана в JSON
+
+JSON-ответ (план):
+```
+{
+  "cutoff": "2025-11-12T00:00:00+00:00",
+  "mode": "archive",
+  "retention_days": 90,
+  "batch_size": 1000,
+  "dry_run": true,
+  "total_old": 12345,
+  "batches": [{"offset": 0, "limit": 1000}],
+  "old_event_ids": [1, 2, 3]
+}
+```
+
+Подсказка: для машинной обработки всегда добавляйте `--json`.
+
+## TTL исполнение (execute) — вне CLI
+Исполнение TTL из CLI недоступно. Выполнение делает фоновый воркер/SDK через use case `AsyncExecuteFxAuditTTL` (см. `src/application/use_cases_async/fx_audit_ttl.py`).
+
+Поведение:
+- `mode=none` — никаких действий.
+- `mode=delete` — удаление указанных событий батчами.
+- `mode=archive` — копирование событий в `exchange_rate_events_archive` c `archived_at`, затем удаление из `exchange_rate_events`.
+
+Контроль целостности плана (в use case):
+- `old_event_ids` не пустой для `delete`/`archive`.
+- Сумма `batches.limit` должна равняться `total_old` (или 0 при отсутствии кандидатов).
+- `batch_size > 0`; `total_old >= 0`.
+
+## Ошибки и валидация (типичные случаи)
+CLI и use cases проверяют входные данные. Частые ошибки:
+- Неверная ставка: `rate <= 0` или не парсится — ошибка "Invalid rate".
+- Неверная дата: плохой ISO-формат — "Invalid datetime".
+- Окно времени: `start > end` — ошибка.
+- Порядок: `--order` не из `ASC|DESC` — ошибка.
+- Пагинация: `offset < 0`, `limit < 0` — ошибка.
+- TTL режим: неизвестный `--mode` — ошибка.
+- TTL параметры: `retention_days < 0`, `batch_size <= 0` — ошибка.
+- TTL план/execute (SDK): пустые IDs при `delete|archive`; покрытие `batches` не равно `total_old`.
+
+## Примеры JSON
+Событие:
+```
+{
+  "id": 42,
+  "code": "EUR",
+  "rate": "1.123400",
+  "occurred_at": "2025-11-12T10:15:30+00:00",
+  "policy_applied": "manual",
+  "source": "cli"
+}
+```
+
+Результат list (массив объектов):
+```
+[
+  {
+    "id": 41,
+    "code": "EUR",
+    "rate": "1.120000",
+    "occurred_at": "2025-11-11T09:00:00+00:00",
+    "policy_applied": "manual",
+    "source": "cli"
+  },
+  {
+    "id": 42,
+    "code": "EUR",
+    "rate": "1.123400",
+    "occurred_at": "2025-11-12T10:15:30+00:00",
+    "policy_applied": "manual",
+    "source": "cli"
+  }
+]
+```
+
+План TTL:
+```
+{
+  "cutoff": "2025-11-12T00:00:00+00:00",
+  "mode": "archive",
+  "retention_days": 90,
+  "batch_size": 1000,
+  "dry_run": true,
+  "total_old": 12345,
+  "batches": [{"offset": 0, "limit": 1000}],
+  "old_event_ids": [1, 2, 3]
+}
+```
+
+## Ограничения и замечания
+- События иммутабельны: обновление/редактирование не поддерживается, только добавление.
+- Архивация переносит запись в архив без изменения `rate`; затем из основной таблицы запись удаляется (для `archive`).
+- При вводе `rate` с лишними знаками хранится исходная точность; на выводе — форматирование до 6 знаков.
+- Даты без tz интерпретируются как UTC; все ответы возвращают время в ISO8601 UTC (`+00:00`).
+- Режим `none` + `--dry-run` в плане TTL даёт нулевую побочную активность.
+
+## Ссылки
+- Архитектура: `docs/ARCHITECTURE_OVERVIEW.md` (async-only, TTL план vs execute)
+- Квантизация: `src/domain/quantize.py` (rate=6dp, ROUND_HALF_EVEN)
+
+---
+Мини-чеклист (внутренний):
+- [x] Нет упоминаний устаревших команд.
+- [x] Раздел TTL: план в CLI, исполнение — вне CLI.
+- [x] Примеры JSON содержат нужные поля и форматы (6dp, ISO8601 UTC).
+- [x] Зафиксированы режимы TTL: none, delete, archive, и правила ошибок.

@@ -177,6 +177,18 @@ rpg_docs_plan:
         - "В документе отсутствуют команды maintenance:fx-ttl и diagnostics:rates-аudit"
         - "Примеры команд успешно сопоставляются с исходниками CLI"
         - "Есть явная оговорка про отсутствие CLI-исполнения TTL"
+      status: done
+      completed_at: "2025-11-12"
+      verification:
+        criteria_no_legacy_commands: pass  # нет maintenance:fx-ttl и diagnostics:rates-аudit в docs/FX_AUDIT.md
+        commands_match_typer: pass  # команды соответствуют src/presentation/cli/fx_audit.py (add-event, list, ttl-plan)
+        ttl_execute_outside_cli: pass  # раздел с явной оговоркой присутствует
+        examples_json_formats: pass  # rate=6dp (строка), datetime=ISO8601 UTC
+        notes:
+          - "docs/FX_AUDIT.md переписан под async-only: add-event, list, ttl-plan; удалены устаревшие команды."
+          - "Добавлен раздел 'TTL исполнение (execute) — вне CLI' с описанием AsyncExecuteFxAuditTTL."
+          - "JSON-форматы: Decimal как строка с 6 знаками; datetime ISO8601 UTC."
+          - "Добавлены ссылки на quantize.py и ARCHITECTURE_OVERVIEW.md для согласованной терминологии."
 
     - id: I4
       title: "TRADING_WINDOWS: raw/detailed, требования к базе и ошибкам"
