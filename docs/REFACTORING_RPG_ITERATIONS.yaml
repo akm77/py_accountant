@@ -901,6 +901,59 @@ rpg_plan:
       acceptance_criteria:
         - File absent; no imports remain
       risk_mitigation: "Глобальный grep перед удалением."
+      iteration:
+        name: removal.async_bridge
+        number: I27
+        date: 2025-11-12
+        dependencies: [I26, I22, I23, I24, I25, I14, I11]
+        goal: "Удалить presentation/async_bridge.py и закрепить async-only путь исполнения (без синхронных фасадов)."
+        principles:
+          - "Async-only; никаких sync обёрток над async use cases."
+          - "Бизнес-логика только в домене и use cases; инфраструктура — CRUD."
+          - "Явная инициализация схемы через run_ephemeral_async_uow в CLI/тестах."
+          - "Стабильная классификация ошибок/exit codes остаётся в cli.main."
+        breaking_changes:
+          - "presentation.async_bridge больше не существует."
+        scope:
+          removed_files:
+            - src/presentation/async_bridge.py
+            - tests/integration/ledger/test_fx_ttl_cli.py
+            - tests/integration/ledger/test_balance_cache_flow.py
+            - tests/integration/ledger/test_trading_balance_detailed_flow.py
+          modified_files:
+            - tests/unit/presentation/test_run_sync.py
+            - rpg_py_accountant.yaml
+            - docs/REFACTORING_RPG_ITERATIONS.yaml
+          added_files:
+            - tests/unit/presentation/test_no_async_bridge_imports.py
+        tests:
+          mandatory:
+            - test_no_async_bridge_imports
+            - test_run_sync_outside_event_loop
+            - test_run_sync_inside_event_loop_error
+          removed_legacy:
+            - test_fx_ttl_cli (xfail legacy CLI)
+            - test_balance_cache_flow (OBSOLETE I13)
+            - test_trading_balance_detailed_flow (REWRITE-DOMAIN I13)
+        quality_gates:
+          build: PASS
+          lint: PASS
+          tests: PASS
+          docs: PASS
+        acceptance:
+          - "Файл src/presentation/async_bridge.py отсутствует."
+          - "Нет импортов 'presentation.async_bridge' в src/ и tests/ (структурный тест и grep)."
+          - "pytest -q зелёный; удалённые тесты не влияют на фикстуры."
+          - "rpg_py_accountant.yaml не содержит узлов/компонентов AsyncBridge."
+          - "Документация отражает удаление и переход на async-only."
+        risks:
+          - risk: hidden_imports_async_bridge
+            mitigation: "Глобальный поиск + тест test_no_async_bridge_imports."
+        status: done
+        notes: |
+          Удалён слой синхронных фасадов, снижена сложность и исчезла магия _uow_key().
+          CLI использует только async команды и эфемерный UoW helper.
+          Число legacy xfail тестов сокращено; синхронный путь официально прекращён.
 
     - id: I28
       name: deprecation.sync_repositories

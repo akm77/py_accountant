@@ -160,9 +160,6 @@ rpg:
       - name: "asyncio_utils"
         path: "src/infrastructure/utils/asyncio_utils.py"
         description: "Helper run_sync(coro): безопасный запуск корутин из sync-контекста (guard на running loop, PEP695 generic)."
-      - name: "async_bridge"
-        path: "src/presentation/async_bridge.py"
-        description: "Синхронные фасады над async use cases для CLI (currency/account/tx/ledger/balance/trading/FX)."
       - name: "async_cli_foundation"
         path: "src/presentation/cli/main.py"
         description: "Async Typer CLI foundation (I21): provides 'version' and 'diagnostics ping' commands, minimal DI (_get_uow, _get_clock), predispatch for help/version/ping without full click stack. Future business commands added in I22+."
@@ -299,9 +296,6 @@ rpg:
       - name: "src/infrastructure/utils/asyncio_utils.py"
         parent_module: "infrastructure"
         description: "run_sync(coro): запрет nested loop, корректное закрытие корутины при ошибке."
-      - name: "src/presentation/async_bridge.py"
-        parent_module: "presentation"
-        description: "Слой фасадов для CLI, ensure_schema(), маппинг параметров 1-в-1 с командами."
       - name: "tests/unit/domain/test_errors.py"
         parent_module: "domain.errors"
         description: "Тест проверяет иерархию DomainError/ValidationError и текст сообщений."
@@ -322,7 +316,7 @@ rpg:
         description: "Тесты RawAggregator: пустой вход, одиночная валюта, мульти-валюта, округление HALF_EVEN, неизменность Decimal контекста, защита от неверн��го типа."
       - name: "tests/unit/domain/test_trading_balance_converted.py"
         parent_module: "domain.trading_balance"
-        description: "Тесты ConvertedAggregator/ConvertedBalanceLine: пустой вход, passthrough базовой валюты, небаза с курсом, смешанные валюты и сортировка, HALF_EVEN в базе, отсутствие/неположительный курс — ValidationError, неизвестная валюта — ValidationError, определение базы через get_base_currency, сохранение Decimal контекста, guard на не-LedgerEntry."
+        description: "Тесты ConvertedAggregator/ConvertedBalanceLine: пустой вход, passthrough базовой валюты, небаза с курсом, смешанные валюты и сортировка, HALF_EVEN в базе, отсутствие/неположительный курс — ValidationError, неизвестная валюта — ValidationError, определение базы через get_base_currency, сохранение Decimal контекста, guard на н��-LedgerEntry."
       - name: "tests/unit/domain/test_fx_audit_ttl.py"
         parent_module: "domain.fx_audit"
         description: "Юнит‑тесты TTL: identify_old (naive/aware/strictly older), batch_plan (offset/limit покрытие), make_cutoff нормализация UTC, валидации аргументов."
@@ -428,13 +422,6 @@ rpg:
         testable: true
         test_priority: "high"
 
-      - name: "AsyncBridgeFacades"
-        parent_file: "src/presentation/async_bridge.py"
-        type: "module"
-        description: "Фасады: create_currency_sync, set_base_currency_sync, list_currencies_sync, create_account_sync, post_transaction_sync, list_transactions_between_sync, get_ledger_sync, get_account_balance_sync, get_trading_balance_sync, get_trading_balance_detailed_sync, add/list FX событий, set/bulk rates."
-        testable: true
-        test_priority: "high"
-
       - name: "AsyncCLIFoundation"
         parent_file: "src/presentation/cli/main.py"
         type: "module"
@@ -465,7 +452,7 @@ rpg:
       - name: "AsyncCLIFxAudit"
         parent_file: "src/presentation/cli/fx_audit.py"
         type: "module"
-        description: "Typer sub-app 'fx': команды add-event (добавить событие курса), list (фильтр по коду/окну времени, пагинация offset/limit, order ASC|DESC), ttl-plan (план архивирования none/delete/archive). Эфемерный UoW через infra.run_ephemeral_async_uow; JSON snake_case; Decimal 6 знаков; datetime ISO UTC; ошибки ValidationError/ValueError -> exit 2."
+        description: "Typer sub-app 'fx': команды add-event (добавить событие курса), list (фильтр по коду/окну времени, пагинация offset/limit, order ASC|DESC), ttl-plan (план архивирования none/delete/archive). Эфемерный UоW через infra.run_ephemeral_async_uow; JSON snake_case; Decimal 6 знаков; datetime ISO UTC; ошибки ValidationError/ValueError -> exit 2."
         testable: true
         test_priority: "high"
 
@@ -650,6 +637,5 @@ rpg:
       title: "CLI/Presentation: синхронные обёртки поверх async use cases"
       status: "done"
       notes: |
-        CLI теперь использует async use cases через синхронные фасады (presentation/async_bridge.py) и общий helper run_sync.
-        Публичное поведение CLI (формат вывода, тексты ошибок) не изменилось; perf/e2e тесты зелёные.
-        Добавлена защита от вложенного event loop, исправлены замечания линтера (UP047, SIM105, import shadowing).
+        CLI ранее временно использовал async use cases через синхронные фасады (presentation/async_bridge.py) и helper run_sync.
+        В I27 этот слой удалён; CLI работает напрямую через async команды и эфемерный async UoW.
