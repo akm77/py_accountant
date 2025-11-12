@@ -345,7 +345,7 @@ rpg_plan:
         - BalanceORM clearly marked DEPRECATED
         - Integration test asserts minimal set of tables exists
         - All existing tests green
-      risk_mitigation: "Diff проверка на удаление кода; быстрый grep на aggregate/balance/compute/convert."
+      risk_mitigation: "Diff проверка на удаление ��ода; быстрый grep на aggregate/balance/compute/convert."
       status: done
       completed_at: 2025-11-11
       notes: "models.py очищен: оставлены только ORM схемы, удалены make_engine/make_session_factory; BalanceORM помечен DEPRECATED (удаление в будущей миграции). Добавлен тест tests/integration/db/test_models_exist.py, актуализирован test_performance_indices для прямого create_engine."
@@ -771,7 +771,7 @@ rpg_plan:
         - src/presentation/cli/ledger.py
         - tests/integration/cli/test_cli_ledger.py
         - docs/REFACTORING_RPG_ITERATIONS.yaml (this node updated)
-        - rpg_py_accountant.yaml (component AsyncCLILedger added)
+        - rpg_py_accountant.yaml (component AsyncCLILedger добавлен)
       tests:
         - test_cli_ledger_post_balanced_usd
         - test_cli_ledger_post_unbalanced_raises
@@ -809,15 +809,42 @@ rpg_plan:
       name: cli.trading_balance_commands
       scope:
         - add trading balance commands (raw, detailed)
-      dependencies: [I24]
+      dependencies: [I24, I21, I22, I23, I17, I18]
       deliverables:
         - src/presentation/cli/trading_balance.py
         - tests/integration/cli/test_cli_trading_balance.py
+        - rpg_py_accountant.yaml (component AsyncCLITradingBalance добавлен)
       tests:
-        - test_cli_trading_balance_detailed
+        - test_cli_trading_raw_empty_returns_empty_json
+        - test_cli_trading_raw_usd_simple
+        - test_cli_trading_detailed_eur_converted_to_usd
+        - test_cli_trading_window_invalid_dates_raises
+        - test_cli_trading_invalid_meta_item_raises
+        - test_cli_trading_detailed_missing_base_raises
+        - optional: test_cli_trading_raw_with_meta_filter
+        - optional: test_cli_trading_detailed_with_explicit_base_ok
+        - xfail: test_cli_trading_detailed_non_positive_rate_raises
       acceptance_criteria:
-        - Detailed output flag works
-      risk_mitigation: "Проверка пустого результата."
+        - trading raw on empty DB returns exit 0 and prints [] with --json
+        - USD transactions aggregate into one raw line with correct debit/credit/net (strings)
+        - detailed converts EUR to USD with used_rate=6dp and *_base quantized to 2dp
+        - invalid date window/meta/base produce exit code 2 with [ERROR] prefix
+        - JSON keys strictly match DTO fields; all Decimal values serialized as strings
+        - Deterministic ordering by currency_code enforced by domain aggregators (ASC)
+        - Per-command ephemeral async UoW (no cross-command state leakage) validated by multiple sequential CLI invocations
+        - Public command functions include concise docstrings (3–6 lines) and helpers have brief docstrings
+        - rpg_py_accountant.yaml updated with AsyncCLITradingBalance component
+        - Iteration marked done with notes after green test run
+        - Attempted reduction of legacy xfail CLI trading tests (none remaining for Argparse path)
+      risk_mitigation: "Explicit serialization and thin controllers; reuse shared helpers for date/meta parsing; domain sorting guarantees deterministic output."
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Implemented 'trading' Typer sub-app with 'raw' and 'detailed' commands. Controllers parse ISO dates (naive->UTC),
+        meta k=v, optional base (upper/trim), and delegate to AsyncGetTradingBalanceRaw/Detailed with a fresh async UoW per invocation.
+        JSON output strictly snake_case with Decimals as strings; human output minimal per line. Added integration tests covering empty,
+        simple USD aggregate, EUR converted with rate, invalid params, and optional scenarios. Wired into main CLI, updated graph.
+        Full suite green; legacy Argparse trading tests retired. Per-command isolation confirmed by separate DB file runs.
 
     - id: I26
       name: cli.fx_audit_commands
@@ -827,11 +854,36 @@ rpg_plan:
       deliverables:
         - src/presentation/cli/fx_audit.py
         - tests/integration/cli/test_cli_fx_audit.py
+        - docs/REFACTORING_RPG_ITERATIONS.yaml (this node updated)
+        - rpg_py_accountant.yaml (graph updated with AsyncCLIFxAudit component)
       tests:
-        - test_cli_add_event
+        - test_cli_fx_add_event_and_list_json
+        - test_cli_fx_add_event_invalid_code_raises
+        - test_cli_fx_add_event_invalid_rate_raises
+        - test_cli_fx_list_filter_by_code
+        - test_cli_fx_list_window_invalid_dates_raises
+        - test_cli_fx_ttl_plan_basic
+        - test_cli_fx_ttl_plan_invalid_params_raises
+        - optional: test_cli_fx_list_pagination_limit_zero_empty
+        - optional: test_cli_fx_add_event_human_output_smoke
+        - optional: test_cli_fx_ttl_plan_human_output_smoke
       acceptance_criteria:
-        - TTL plan visible
-      risk_mitigation: "Никаких скрытых retries."
+        - fx add-event returns 0; JSON contains id, code, rate (string), occurred_at (ISO), policy_applied, source
+        - fx list filters by code and window; order=ASC|DESC; limit=0 -> []
+        - ttl-plan computes plan JSON with keys: cutoff, mode, retention_days, batch_size, dry_run, total_old, batches, old_event_ids
+        - invalid params (code empty, rate invalid/<=0, bad dates/order/offset/limit/mode/batch_size/retention_days) -> exit 2
+        - JSON snake_case; Decimal -> strings; datetimes ISO8601; deterministic ordering by occurred_at
+        - per-command ephemeral UoW; DATABASE_URL_ASYNC fallback works
+        - public command functions and helpers have short docstrings
+      risk_mitigation: "Строгая сериализация JSON; окно и пагинация применяются после фильтрации; логика репозиториев — CRUD-only."
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Реализован Typer sub-app 'fx' с командами add-event, list и ttl-plan. Контроллеры парсят и нормализуют входы
+        (код валюты upper, Decimal rate >0, ISO время naive->UTC), используют эфемерный async UoW и async use cases
+        (AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents, AsyncPlanFxAuditTTL). JSON стабильный snake_case, Decimal
+        сериализуются как строки с 6 знаками для rate, datetime в ISO. Список детерминирован по occurred_at (ASC по умолчанию);
+        пагинация offset/limit применяется после упорядочивания. Добавлены интеграционные тесты, узел помечен done.
 
     # === REMOVALS & DEPRECATIONS ===
     - id: I27

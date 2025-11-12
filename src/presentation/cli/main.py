@@ -16,8 +16,12 @@ from . import accounts as accounts_module  # type: ignore
 # NEW import for currencies sub-app
 from . import currencies as currencies_module  # type: ignore
 
+# NEW import for fx audit sub-app (I26)
+from . import fx_audit as fx_audit_module  # type: ignore
+
 # NEW import for ledger sub-app (I24)
 from . import ledger as ledger_module  # type: ignore
+from . import trading_balance as trading_balance_module  # type: ignore
 
 try:  # version import (fallback if metadata absent)
     from py_accountant import __version__ as _PKG_VERSION  # type: ignore
@@ -47,6 +51,9 @@ app.add_typer(currencies_module.currencies, name="currency")
 app.add_typer(accounts_module.accounts, name="account")
 # Register ledger sub-app (I24)
 app.add_typer(ledger_module.ledger, name="ledger")
+app.add_typer(trading_balance_module.trading, name="trading")
+# Register fx audit sub-app (I26)
+app.add_typer(fx_audit_module.fx, name="fx")
 
 
 # Internal cached singletons (lazy)
