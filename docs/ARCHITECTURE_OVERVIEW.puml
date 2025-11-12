@@ -1,0 +1,151 @@
+@startuml
+title py_accountant Architecture (Iteration I2 Focus)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Courier
+skinparam wrapWidth 180
+skinparam maxMessageSize 160
+
+legend left
+I2 Goals:
+ - Обновить ARCHITECTURE_OVERVIEW.md (async-only ядро)
+ - Отразить порты (application/ports.py) как Protocol интерфейсы
+ - Квантизация: money=2dp, rate=6dp, ROUND_HALF_EVEN
+ - Trading Detailed: требует base (явно или из справочника), ошибки при отсутствии курса
+ - FX Audit TTL: CLI только план (ttl-plan), исполнение через воркер/SDK (execute)
+ - Удалить упоминания sync UoW / кэш баланс / устаревшие diagnostics:*
+ - Поток данных: CLI -> Async Use Case -> Ports -> Infra (Async UoW + Repos) -> DB
+ - Domain чистый: Value Objects, Services, без I/O
+endlegend
+
+rectangle "Presentation\n(Async Typer CLI)" as CLI {
+  component "diagnostics" as diag
+  component "currency" as cur
+  component "account" as acc
+  component "ledger" as led
+  component "trading" as trad
+  component "fx" as fxcli
+}
+
+package "Application Layer (Async Use Cases)" as APP {
+  component "Currencies UC" as uc_cur
+  component "Accounts UC" as uc_acc
+  component "Ledger UC" as uc_led
+  component "Trading Balance UC" as uc_trad
+  component "FX Audit UC" as uc_fx
+  component "FX Audit TTL Plan UC" as uc_ttl_plan
+  component "FX Audit TTL Execute UC" as uc_ttl_exec
+}
+
+package "Ports (Protocols)" as PORTS {
+  interface "CurrenciesRepo" as p_cur
+  interface "AccountsRepo" as p_acc
+  interface "LedgerRepo" as p_led
+  interface "ExchangeRateEventsRepo" as p_fx
+  interface "Clock" as p_clock
+  interface "UnitOfWork" as p_uow
+}
+
+package "Infrastructure" as INFRA {
+  component "AsyncSqlAlchemyUnitOfWork" as uow
+  component "SQLAlchemy Repos" as repos
+  component "Alembic (sync only migrations)" as alembic
+  component "Logging" as logging
+}
+
+package "Database (SQL)" as DB {
+  component "accounts" as t_accounts
+  component "currencies" as t_currencies
+  component "transactions + lines" as t_ledger
+  component "exchange_rate_events" as t_fx_events
+  component "exchange_rate_events_archive" as t_fx_archive
+}
+
+package "Domain" as DOMAIN {
+  component "Value Objects" as vo
+  component "Entities/Models" as ent
+  component "Services (Trading Aggregation, FX Policies)" as svc
+  component "Quantize (money/rate)" as quant
+}
+
+' Relationships Presentation -> Application
+CLI --> uc_cur : commands
+CLI --> uc_acc
+CLI --> uc_led
+CLI --> uc_trad
+CLI --> uc_fx
+CLI --> uc_ttl_plan : fx ttl-plan
+' TTL execute через SDK/воркер (не через CLI)
+rectangle "Worker/SDK" as WORKER
+WORKER --> uc_ttl_exec : execute TTL
+
+' Use Cases depend on Ports
+uc_cur --> p_cur
+uc_acc --> p_acc
+uc_led --> p_led
+uc_trad --> p_led : read ledger lines
+uc_trad --> p_cur : base currency
+uc_fx --> p_fx
+uc_ttl_plan --> p_fx
+uc_ttl_exec --> p_fx
+
+' Use Cases depend on Clock & UoW
+uc_cur --> p_uow
+uc_acc --> p_uow
+uc_led --> p_uow
+uc_trad --> p_uow
+uc_fx --> p_uow
+uc_ttl_plan --> p_uow
+uc_ttl_exec --> p_uow
+uc_led --> p_clock
+uc_trad --> p_clock
+uc_ttl_plan --> p_clock
+uc_ttl_exec --> p_clock
+
+' Ports implemented by Infrastructure
+p_uow <.. uow
+p_cur <.. repos
+p_acc <.. repos
+p_led <.. repos
+p_fx <.. repos
+p_clock <.. uow : now()
+
+' Infra to DB
+uow --> DB
+repos --> DB
+alembic --> DB : migrations (sync)
+
+' Domain usage
+APP ..> DOMAIN : invoke domain logic
+DOMAIN ..> quant : quantize money/rate
+quant ..> vo
+svc ..> vo
+svc ..> ent
+
+' FX TTL separation
+fxcli -[#red,dashed]-> uc_ttl_exec : (нет прямой связи / запрещено)
+
+note right of uc_ttl_plan
+CLI генерирует только план TTL.
+Поля: cutoff, mode, retention_days,
+batches, candidate IDs.
+end note
+
+note right of uc_ttl_exec
+Исполнение TTL (delete/archive) —
+фоновый воркер/SDK, не CLI.
+end note
+
+note bottom of quant
+money: 2dp (ROUND_HALF_EVEN)
+rate: 6dp (ROUND_HALF_EVEN)
+end note
+
+note top of uc_trad
+Detailed требует base currency.
+Ошибки: отсутствует база,
+неположительный/отсутствующий FX rate.
+end note
+
+@enduml

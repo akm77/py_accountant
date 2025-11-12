@@ -39,6 +39,8 @@ poetry run python -m presentation.cli.main diagnostics ping
 
 ## Архитектура слоёв
 
+![Architecture Overview](docs/ARCHITECTURE_OVERVIEW.svg)
+
 См. docs/ARCHITECTURE_OVERVIEW.md. Кратко:
 - Domain — value-объекты, сервисы (балансы, политика курсов). Чистый слой.
 - Application — DTO и use case'ы. Зависит от Domain; работает через порты.
@@ -70,6 +72,7 @@ poetry run python -m presentation.cli.main diagnostics ping
 ## Полезные ссылки
 - docs/CLI_QUICKSTART.md
 - docs/ARCHITECTURE_OVERVIEW.md
+- docs/ARCHITECTURE_OVERVIEW.svg
 - docs/FX_AUDIT.md
 - docs/TRADING_WINDOWS.md
 - docs/PARITY_REPORT.md
