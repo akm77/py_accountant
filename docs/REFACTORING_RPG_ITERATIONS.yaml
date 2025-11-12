@@ -673,18 +673,48 @@ rpg_plan:
     - id: I22
       name: cli.currencies_commands
       scope:
-        - implement currencies subcommands using async use cases
-        - list/create/set-base
+        - implement currencies subcommands using async use cases (list/add/set-base)
+        - human + JSON output (flag --json)
+        - ephemeral async UoW per command (no shared mutable state)
+        - lazy schema creation (create_all) via shared helper infra.run_ephemeral_async_uow
       dependencies: [I21]
       deliverables:
+        - src/presentation/cli/infra.py (shared CLI helper)
         - src/presentation/cli/currencies.py
         - tests/integration/cli/test_cli_currencies.py
+        - docs/REFACTORING_RPG_ITERATIONS.yaml (updated I22 node)
+        - rpg_py_accountant.yaml (component AsyncCLICurrencies добавлен)
       tests:
-        - test_cli_list_currencies
-        - test_cli_set_base_currency
+        - test_cli_currency_list_empty_returns_empty_json
+        - test_cli_currency_add_list_json
+        - test_cli_currency_add_with_rate_and_human_output
+        - test_cli_currency_set_base
+        - test_cli_currency_set_base_missing_raises
+        - test_cli_currency_duplicate_add_raises
       acceptance_criteria:
-        - Commands return expected output
-      risk_mitigation: "Тонкий слой над use cases."
+        - All listed tests pass (green)
+        - currency list --json returns [] for fresh DB
+        - currency add USD normalizes code upper and is_base False, rate None
+        - currency add EUR --rate 1.2500 stores quantized exchange_rate (string) and is_base False
+        - currency set-base USD produces single base (USD is_base True, exchange_rate null)
+        - duplicate add without rate produces exit code 2 with ValidationError message
+        - set-base for missing code exit code 2 with ValidationError message
+        - JSON format: [{"code":"USD","is_base":true,"exchange_rate":null}, ...]
+        - human format: Currency USD base=True rate=None
+        - Exit codes: success=0, validation/domain=2, unexpected=1
+        - DATABASE_URL_ASYNC absent -> fallback sqlite+aiosqlite file path (py_accountant_cli.db) works
+        - No shared UoW state leaks between commands (fresh instance per invocation)
+        - Docstrings present on public command functions and shared helper
+        - Legacy diagnostics:rates currency tests removed / xfail count reduced >=2
+      risk_mitigation: "Thin controller layer; shared helper centralizes schema creation; isolated file DB per test to avoid cross-test leakage."
+      status: done
+      completed_at: 2025-11-12
+      notes: |
+        Implemented async currency CLI sub-app with list/add/set-base commands atop existing async use cases.
+        Introduced infra helper (infra.py) for ephemeral UoW + idempotent schema creation, removing earlier circular import and greenlet issues.
+        Added integration test suite (6 scenarios) with per-test isolated SQLite file; all passing.
+        Reduced legacy xfail diagnostics currency tests by removing obsolete 'diagnostics:rates' cases.
+        JSON/human output formats stabilized; error classification consistent with CLI foundation.
 
     - id: I23
       name: cli.accounts_commands

@@ -10,6 +10,9 @@ from typer import Typer
 
 from domain.errors import DomainError, ValidationError
 
+# NEW import for currencies sub-app
+from . import currencies as currencies_module  # type: ignore
+
 try:  # version import (fallback if metadata absent)
     from py_accountant import __version__ as _PKG_VERSION  # type: ignore
 except Exception:  # pragma: no cover
@@ -32,6 +35,9 @@ app: Typer = Typer(help=_app_help, add_completion=False)
 
 diagnostics = Typer(help="Diagnostics and health checks (foundation).")
 app.add_typer(diagnostics, name="diagnostics")
+# Register currencies sub-app (I22)
+app.add_typer(currencies_module.currencies, name="currency")
+
 
 # Internal cached singletons (lazy)
 _SINGLETONS: dict[str, Any] = {}
@@ -165,6 +171,9 @@ def cli(argv: list[str] | None = None) -> int:
         return 2
     except DomainError as de:
         print(f"[ERROR] {de}", file=sys.stderr)
+        return 2
+    except ValueError as ve:  # treat ValueError similarly (missing resource / duplicate)
+        print(f"[ERROR] {ve}", file=sys.stderr)
         return 2
     except SystemExit as se:
         return int(se.code) if isinstance(se.code, int) else 0
