@@ -5,7 +5,7 @@ rpg:
     last_updated: "2025-11-12"
     environments:
       - name: "test"
-        description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
+        description: "Тестовая среда: локальный запуск, in-memory ил�� локальный Postgres, подробные логи."
         env_vars:
           - name: "ENV"
             required: true
@@ -268,7 +268,7 @@ rpg:
         description: "Async аккаунты: AsyncCreateAccount использует domain.Account для валидации и нормализации full_name/currency_code; проверяет существование валюты и уникальность full_name; репозитории — только CRUD. AsyncGetAccount/AsyncListAccounts — passthrough."
       - name: "src/application/use_cases_async/ledger.py"
         parent_module: "use_cases_async"
-        description: "Async леджер и баланс: AsyncPostTransaction (доменная проверка баланса через LedgerValidator перед записью), AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance. Ошибки: ValidationError (формат/валидация), DomainError (несбалансированность), ValueError (отсутствующие ресурсы). Legacy AsyncGetTradingBalance помечен DEPRECATED в докстроке (I18)."
+        description: "Async леджер и баланс: AsyncPostTransaction (доменная проверка баланса через LedgerValidator ��еред записью), AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance. Ошибки: ValidationError (формат/валидация), DomainError (несбалансированность), ValueError (отсутствующие ресурсы). Legacy AsyncGetTradingBalance помечен DEPRECATED в докстроке (I18)."
       - name: "src/application/use_cases_async/fx_audit.py"
         parent_module: "use_cases_async"
         description: "Async FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents."
@@ -529,7 +529,7 @@ rpg:
       - from: "infrastructure"
         to: "application"
         data_type: "Реализации портов (репозитории/UoW)"
-        description: "Адаптеры предоставляют реализацию интерфейсов (sync и async)."
+        description: "Адаптеры предоставляют реализацию интерфейсов (async only)."
 
   roadmap_updates:
     - id: "ASYNC-03"
