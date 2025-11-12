@@ -1020,28 +1020,27 @@ rpg_plan:
         mandatory:
           - test_no_sync_repositories_imports_left
           - test_no_legacy_sync_uow_imports_left
+          - test_no_xfail_left
           - test_alembic_sync_migrations_still_work (Smoke: Alembic не зависит от UoW)
           - test_full_suite_green_after_removal
         details:
           - test_no_sync_repositories_imports_left: глобальный grep на `infrastructure.persistence.sqlalchemy.repositories` и `SqlAlchemy[A-Za-z]+Repository` — пусто
           - test_no_legacy_sync_uow_imports_left: глобальный grep на `SqlAlchemyUnitOfWork` и `SyncUnitOfWorkWrapper` — пусто
+          - test_no_xfail_left: структурный тест запрещает присутствие любых xfail-маркеров в tests/
       acceptance_criteria:
         - Файл `repositories.py` отсутствует в репозитории
         - В `uow.py` отсутствуют классы `SqlAlchemyUnitOfWork` и `SyncUnitOfWorkWrapper`
         - Нет импортов/упоминаний удалённых сущностей в кодовой базе (структурные тесты зелёные)
+        - В тестовом наборе не осталось xfail-маркеров; `test_no_xfail_left` зелёный
         - Полный pytest прогон зелёный; alembic миграции не сломаны
         - Документация и граф обновлены и проходят тест на заголовки
-      risks:
-        - risk: скрытая зависимость сторонних скриптов на legacy UoW
-          mitigation: чёткая запись в MIGRATION_HISTORY и README; major‑note в релизах
-        - risk: alembic косвенно зависел от sync UoW
-          mitigation: проверка/тесты подтверждают, что alembic использует только sync engine и models
-        - risk: остаточные импорты в тестах
-          mitigation: структурные тесты и предварительный grep перед удалением
       status: done
       completed_at: 2025-11-12
       notes: |
-        Файл repositories.py удалён; попытка импорта приводит к ModuleNotFoundError. Из uow.py удалены SqlAlchemyUnitOfWork и SyncUnitOfWorkWrapper. Добавлен структурный тест, запрещающий импорты legacy. Глобальный grep не находит запрещённых паттернов (кроме AsyncSqlAlchemy*). Полный pytest зелёный; Alembic smoke тесты без изменений. Документация и RPG-graph обновлены.
+        Файл repositories.py удалён; попытка импорта приводит к ModuleNotFoundError. Из uow.py удалены SqlAlchemyUnitOfWork и SyncUnitOfWorkWrapper.
+        Добавлен структурный тест `tests/unit/test_no_xfail_left.py`, запрещающий любые xfail-маркеры, и удалены устаревшие xfail-тесты (legacy CLI/репозитории и OBSOLETE сценарии).
+        Глобальный grep не находит запрещённых паттернов (кроме AsyncSqlAlchemy*). Полный pytest зелёный, в сьюте 0 xfail. Alembic smoke тесты без изменений.
+        Документация и RPG-graph обновлены: удалены ссылки на sync слой и устаревшие тесты, добавлен структурный тест.
 
   execution_rules:
     test_first: true
