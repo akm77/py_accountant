@@ -1,179 +1,211 @@
-rpg_plan:
+# Repository Planning Graph (RPG) — DX/UX план внедрения
+# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDIT_GPT5.md, ARCHITECTURE_AUDIT.md
+
+rpg:
   metadata:
     project_name: "py_accountant"
-    plan_name: "DX+UX SDK rollout (concise)"
-    date: "2025-11-13"
-    authors: ["architect", "python-engineer", "accountant"]
-    rationale: |
-      Ввести стабильный SDK-слой и UX-фасады для интеграторов (боты/веб/воркеры),
-      не затрагивая домен и минимально изменяя существующие слои.
-    constraints:
-      - "Итерации маленькие (<= ~200 LOC/PR), чтобы не переполнять контекст LLM."
-      - "Без изменения доменного слоя и ORM-схемы в этой дорожной карте."
-      - "Сохранить обратную совместимость CLI и текущих импортов."
+    plan_name: "DX_UX_Enhancements"
+    description: "Пошаговый план улучшений DX/UX: публичный SDK-слой, улучшения CLI, идемпотентность постинга, стандартизация ошибок и JSON, документация."
+    last_updated: "2025-11-13"
+    sizing_guideline: "Размер одной итерации <= ~5–6k токенов для LLM; каждую итерацию выполнять и тестировать отдельно."
 
-  nodes:
-    # Новые SDK-артефакты
-    - name: "sdk.__init__"
-      path: "src/py_accountant/sdk/__init__.py"
-      purpose: "Единая точка импорта SDK-поверхности (bootstrap, use_cases, json, errors)"
-    - name: "sdk.bootstrap"
-      path: "src/py_accountant/sdk/bootstrap.py"
-      purpose: "init_app() -> AppContext(uow_factory, clock, logger, settings)"
-    - name: "sdk.settings"
-      path: "src/py_accountant/sdk/settings.py"
-      purpose: "load_from_env(), validate_dual_url(sync, async)"
-    - name: "sdk.logging"
-      path: "src/py_accountant/sdk/logging.py"
-      purpose: "Конфигурация логгера для приложений (structlog/stdlib)"
-    - name: "sdk.uow"
-      path: "src/py_accountant/sdk/uow.py"
-      purpose: "Фабрики UoW, реэкспорт протоколов портов"
-    - name: "sdk.errors"
-      path: "src/py_accountant/sdk/errors.py"
-      purpose: "Публичные исключения и map_exception() для HTTP/ботов"
-    - name: "sdk.json"
-      path: "src/py_accountant/sdk/json.py"
-      purpose: "Сериализация Decimal/datetime и snake_case presenter"
-    - name: "sdk.use_cases"
-      path: "src/py_accountant/sdk/use_cases.py"
-      purpose: "Фасады: get_account_balance, list_accounts_state, post_transaction_simple, get_trading_balance, fx_ttl_*"
+  goals:
+    - Упростить интеграцию (DX) через стабильный слой `py_accountant.sdk` (bootstrap, uow, use cases, json, errors).
+    - Улучшить UX бухгалтера в CLI (дата операции, курс на строке, загрузка из файла, дружелюбные ошибки).
+    - Добавить идемпотентность постинга транзакций.
+    - Централизовать сериализацию и маппинг ошибок для CLI/ботов/HTTP.
+    - Обновить примеры и документацию (SDK surface, dual-URL, шпаргалка проводок).
 
-    # Обновления существующих
-    - name: "package.__init__ (re-export)"
-      path: "src/py_accountant/__init__.py"
-      purpose: "Переэкспорт sdk.* фасадов, сохраняя текущие __all__"
+  scope:
+    in_scope:
+      - Новый пакет `src/py_accountant/sdk/*` и переэкспорт в `src/py_accountant/__init__.py`.
+      - Изменения CLI: `src/presentation/cli/ledger.py`, `src/presentation/cli/infra.py` (минимальные правки контроллеров).
+      - Идемпотентность: модель/репозиторий журналов, миграция Alembic, тесты.
+      - Документация и примеры (README/INTEGRATION_GUIDE/Telegram).
+    out_of_scope:
+      - Переписывание домена/use case’ов (сохраняем чистоту слоёв).
+      - Полный рефактор CLI за пределами указанных команд.
+      - Нефункциональные оптимизации, не влияющие на DX/UX.
+
+  planned_nodes:
+    modules_to_add:
+      - name: "py_accountant.sdk"
+        path: "src/py_accountant/sdk"
+        description: "Публичный SDK-слой: bootstrap, settings, uow, use_cases, json, errors, logging."
+      - name: "py_accountant.sdk.bootstrap"
+        path: "src/py_accountant/sdk/bootstrap.py"
+        description: "init_app(settings|env) -> AppContext{uow_factory, clock, logger, settings}; runtime‑валидация dual‑URL."
+      - name: "py_accountant.sdk.uow"
+        path: "src/py_accountant/sdk/uow.py"
+        description: "Фабрики Async UoW, нормализация async URL, таймауты/параметры пула."
+      - name: "py_accountant.sdk.settings"
+        path: "src/py_accountant/sdk/settings.py"
+        description: "Загрузка настроек из env; validate_dual_url(sync, async)."
+      - name: "py_accountant.sdk.errors"
+        path: "src/py_accountant/sdk/errors.py"
+        description: "Публичные ошибки (UserInputError/DomainViolation/NotFound/UnexpectedError) и map_exception()."
+      - name: "py_accountant.sdk.json"
+        path: "src/py_accountant/sdk/json.py"
+        description: "JSON presenter: Decimal→str, datetime→UTC ISO, snake_case."
+      - name: "py_accountant.sdk.use_cases"
+        path: "src/py_accountant/sdk/use_cases.py"
+        description: "Тонкие фасады: постинг, баланс счёта, выписка, trading balance, FX TTL."
+
+    files_to_update:
+      - name: "src/py_accountant/__init__.py"
+        description: "Переэкспорт SDK фасадов (не ломая совместимость)."
+      - name: "src/presentation/cli/ledger.py"
+        description: "CLI улучшения: --occurred-at, пятый токен Rate, дружелюбные ошибки, --idempotency-key, (позже) --lines-file."
+      - name: "src/presentation/cli/infra.py"
+        description: "Опционально: использование SDK bootstrap/uow helper'ов."
+      - name: "src/infrastructure/persistence/sqlalchemy/models.py"
+        description: "Индекс идемпотентности: уникальный ключ для idempotency_key (nullable unique)."
+      - name: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
+        description: "Guard на идемпотентность: поиск по key перед insert; возврат существующей транзакции."
+      - name: "alembic/versions/0006_add_journal_idempotency_key.py"
+        description: "Новая миграция: добавить колонку idempotency_key и уникальный индекс."
+
+    components_to_add:
+      - name: "SimpleTransactionParser"
+        parent_file: "src/py_accountant/sdk/use_cases.py"
+        type: "function"
+        description: "Парсер формата SIDE:Account:Amount:Currency[:Rate] → list[EntryLineDTO], валидация."
+      - name: "ErrorMatrix"
+        parent_file: "src/py_accountant/sdk/errors.py"
+        type: "mapping"
+        description: "Карта кодов ошибок → человекочитаемые подсказки (invalid_line_format, unbalanced_ledger, missing_base_currency и т.д.)."
 
   edges:
-    - from: "sdk.uow"
-      to: "src/infrastructure/persistence/sqlalchemy/uow.py"
-      why: "Использует AsyncSqlAlchemyUnitOfWork"
-    - from: "sdk.uow"
-      to: "src/application/ports.py"
-      why: "Реэкспорт протоколов"
-    - from: "sdk.use_cases"
-      to: "src/application/use_cases_async"
-      why: "Делегирует бизнес-операции"
-    - from: "sdk.use_cases"
-      to: "src/application/dto/models.py"
-      why: "Возвращает/принимает DTO"
-    - from: "sdk.bootstrap"
-      to: ["sdk.settings", "sdk.logging", "sdk.uow"]
-      why: "Конструирует AppContext"
-    - from: "examples/telegram_bot/*"
-      to: ["sdk.bootstrap", "sdk.use_cases", "sdk.json"]
-      why: "Миграция примера на SDK (в поздней итерации)"
-    - from: "presentation/cli/*"
-      to: ["sdk.bootstrap", "sdk.use_cases"]
-      why: "Опциональная миграция CLI на фасады (вне критического пути)"
+    inter_module_flows:
+      - from: "py_accountant.sdk.use_cases"
+        to: "src/application/use_cases_async/*"
+        data_type: "Вызовы фасадов use case’ов"
+        description: "SDK фасады оборачивают существующие async use case’ы без логики домена."
+      - from: "py_accountant.sdk.uow"
+        to: "src/infrastructure/persistence/sqlalchemy/uow.py"
+        data_type: "Фабрики UoW"
+        description: "SDK строит AsyncSqlAlchemyUnitOfWork по URL/settings."
+      - from: "src/presentation/cli/ledger.py"
+        to: "py_accountant.sdk.errors"
+        data_type: "Маппинг ошибок для UX"
+        description: "CLI использует map_exception() для дружелюбных сообщений."
+      - from: "src/presentation/cli/ledger.py"
+        to: "py_accountant.sdk.use_cases"
+        data_type: "Парсинг/постинг/баланс"
+        description: "CLI может использовать общий парсер и фасады SDK."
+      - from: "repositories_async (transactions)"
+        to: "models.JournalORM"
+        data_type: "Идемпотентность"
+        description: "Уникальный индекс idempotency_key и проверка перед вставкой."
+
+  acceptance_criteria:
+    - SDK импорты стабильны: `from py_accountant.sdk import bootstrap, use_cases, json, errors` доступны.
+    - CLI принимает 5-й токен Rate; поддерживает `--occurred-at`; печатает дружелюбные сообщения (exit code 2 для ожидаемых ошибок).
+    - Идемпотентность: повторный постинг с тем же ключом не создаёт дублей (юнит/интеграция зелёные).
+    - JSON сериализация детерминирована (Decimal→str, datetime→UTC ISO).
+    - Документация содержит раздел «SDK surface» и «Шпаргалка проводок».
 
   iterations:
-    - id: "SDK-I1"
-      title: "SDK каркас + JSON presenter"
-      scope:
-        - "Создать sdk.__init__, sdk.json, sdk.errors (минимум типов)."
+    - id: "I-DX-01"
+      title: "SDK каркас: json + errors + use_cases (тонкие фасады)"
+      size: "~4k токенов"
       deliverables:
-        - "src/py_accountant/sdk/__init__.py"
-        - "src/py_accountant/sdk/json.py"
-        - "src/py_accountant/sdk/errors.py"
+        - Добавить пакет `py_accountant/sdk` с модулями: `__init__.py`, `json.py`, `errors.py`, `use_cases.py` (фасады к AsyncPostTransaction/AsyncGetAccountBalance/AsyncGetLedger).
+        - Переэкспортировать фасады в `py_accountant/__init__.py`.
+        - Реализовать SimpleTransactionParser (без файловых форматов).
       tests:
-        - "tests/unit/sdk/test_imports.py"
-        - "tests/unit/sdk/test_json_presenter.py"
-      success:
-        - "Импорты из py_accountant.sdk.* стабильны."
-        - "Decimal и datetime сериализуются как в доках."
-      est_loc: 150
+        - tests/unit/sdk/test_imports.py — импорт фасадов из корневого пакета.
+        - tests/unit/sdk/test_json_presenter.py — Decimal/datetime сериализация.
+        - tests/unit/sdk/test_error_mapping.py — маппинг ошибок домена в публичные.
+      risks:
+        - Несогласованность snake_case полей — покрыть тестами to_dict().
 
-    - id: "SDK-I2"
-      title: "Settings + Bootstrap + Dual-URL валидация"
-      depends_on: ["SDK-I1"]
-      scope:
-        - "sdk.settings.load_from_env(), validate_dual_url()"
-        - "sdk.bootstrap.init_app() -> AppContext"
+    - id: "I-UX-01"
+      title: "CLI улучшение post: occurred-at, Rate, дружелюбные ошибки"
+      size: "~3k токенов"
       deliverables:
-        - "src/py_accountant/sdk/settings.py"
-        - "src/py_accountant/sdk/bootstrap.py"
-        - "src/py_accountant/sdk/logging.py"
+        - В `ledger post` добавить опцию `--occurred-at <ISO>` (UTC нормализация).
+        - Расширить парсер `--line` до формата `SIDE:Account:Amount:Currency[:Rate]`.
+        - Использовать `sdk.errors.map_exception()` для человекочитаемых сообщений; сохранить коды выхода: 0/2/1.
       tests:
-        - "tests/unit/sdk/test_settings_dual_url.py"
-        - "tests/integration/sdk/test_bootstrap_sqlite.py"
-      success:
-        - "Неверные URL ловятся на старте; корректные — проходят."
-        - "AppContext предоставляет uow_factory/clock/logger."
-      est_loc: 180
+        - tests/integration/cli/test_cli_ledger_post_minimal.py — успешный постинг с Rate и occurred_at; негативные кейсы формата/несбалансированности.
 
-    - id: "SDK-I3"
-      title: "UoW фасады и реэкспорт протоколов"
-      depends_on: ["SDK-I2"]
-      scope:
-        - "sdk.uow: фабрики UoW и реэкспорт протоколов портов"
-        - "Обновление package __init__ для реэкспортов SDK"
+    - id: "I-DX-02"
+      title: "SDK bootstrap/settings/uow и runtime‑валидация dual‑URL"
+      size: "~4k токенов"
       deliverables:
-        - "src/py_accountant/sdk/uow.py"
-        - "patch src/py_accountant/__init__.py"
+        - `sdk.settings.load_from_env()` и `validate_dual_url()`.
+        - `sdk.uow.build_uow_factory(settings)`; `sdk.bootstrap.init_app()` возвращает AppContext.
       tests:
-        - "tests/unit/sdk/test_uow_factory.py"
-      success:
-        - "uow_factory работает с sqlite+aiosqlite и asyncpg."
-      est_loc: 120
+        - tests/unit/sdk/test_settings_dual_url.py — позитив/негатив.
+        - tests/integration/sdk/test_bootstrap_sqlite.py — init_app() + простой use case.
 
-    - id: "SDK-I4"
-      title: "UX-фасады бухгалтерии"
-      depends_on: ["SDK-I3"]
-      scope:
-        - "get_account_balance, list_accounts_state"
-        - "post_transaction_simple (парсер reusable)"
-        - "get_trading_balance"
+    - id: "I-UX-02"
+      title: "CLI загрузка строк из файла (CSV/JSON)"
+      size: "~4k токенов"
       deliverables:
-        - "src/py_accountant/sdk/use_cases.py"
+        - В `ledger post` добавить `--lines-file <path>`: поддержка CSV (side,account,amount,currency,rate?) и JSON (массив объектов).
+        - Использовать общий парсер из SDK для нормализации.
       tests:
-        - "tests/integration/sdk/test_simple_posting_and_balances.py"
-      success:
-        - "Простой постинг и чтение балансов проходят на sqlite."
-      est_loc: 200
+        - tests/integration/cli/test_cli_ledger_post_files.py — CSV/JSON успешные/ошибочные сценарии.
 
-    - id: "SDK-I5"
-      title: "Примеры и доки (SDK surface)"
-      depends_on: ["SDK-I4"]
-      scope:
-        - "Мигрировать examples/telegram_bot на bootstrap/use_cases"
-        - "README + docs/INTEGRATION_GUIDE.md + docs/SDK_SURFACE.md"
+    - id: "I-DX-03"
+      title: "Идемпотентность постинга (meta + индекс + guard)"
+      size: "~4k токенов"
       deliverables:
-        - "patch examples/telegram_bot/*"
-        - "docs/SDK_SURFACE.md"
-        - "patch README.md, docs/INTEGRATION_GUIDE.md"
+        - CLI: опция `--idempotency-key` → meta["idempotency_key"].
+        - ORM: колонка `idempotency_key` (nullable), уникальный индекс (условный), миграция Alembic.
+        - Репозиторий: при add() — проверка существования по ключу; при коллизии — возврат существующей транзакции.
       tests:
-        - "tests/docs/test_sdk_surface_present.py"
-      success:
-        - "Smoke из README/guide работает (sqlite)."
-      est_loc: 180
+        - tests/integration/test_idempotent_posting.py — повторный вызов не создаёт дубль, возвращает тот же id.
 
-    - id: "SDK-I6 (opt)"
-      title: "Совместимость Python 3.11–3.12"
-      depends_on: ["SDK-I5"]
-      scope:
-        - "CI матрица версий, корректировки pyproject/ruff при необходимости"
+    - id: "I-DOC-01"
+      title: "Документация и примеры на SDK"
+      size: "~3k токенов"
       deliverables:
-        - "patch pyproject.toml"
+        - README: раздел «SDK surface» (+ примеры FastAPI/aiogram/cron).
+        - docs/INTEGRATION_GUIDE.md: dual‑URL в одном месте; примеры SDK.
+        - «Шпаргалка проводок» в README или отдельном docs/ACCOUNTING_CHEATSHEET.md.
+        - examples/telegram_bot/*: переход на SDK bootstrap + error mapping.
       tests:
-        - "CI зелёный на 3.11/3.12/3.13"
-      success:
-        - "Официальная поддержка >=3.11,<4.0 задекларирована"
-      est_loc: 20
+        - tests/docs/test_docs_sections_present.py — обновить проверки разделов.
 
-  api_changes:
-    summary:
-      - "Добавлен стабильный слой py_accountant.sdk.*"
-      - "Корневой пакет реэкспортирует SDK фасады"
-    compatibility:
-      - "Существующие глубокие импорты сохраняются (soft-deprecate в доках)"
+    - id: "I-OPT-01 (optional)"
+      title: "Совместимость Python 3.11–3.12 и метрики"
+      size: "~3k токенов"
+      deliverables:
+        - Прогон тестов на 3.11/3.12; при успехе — обновить pyproject.toml (`>=3.11,<4.0`).
+        - feature-flag логирования метрик в SDK (use_case_time_ms, uow_time_ms).
+      tests:
+        - CI matrix + smoke‑тесты SDK.
 
-  risks:
-    - "Дублирование логики сериализации между CLI и SDK — решить через sdk.json"
-    - "Расхождение сообщений ошибок — стандартизовать в sdk.errors"
+  test_matrix:
+    unit:
+      - tests/unit/sdk/test_imports.py
+      - tests/unit/sdk/test_json_presenter.py
+      - tests/unit/sdk/test_error_mapping.py
+      - tests/unit/sdk/test_settings_dual_url.py
+    integration:
+      - tests/integration/sdk/test_bootstrap_sqlite.py
+      - tests/integration/cli/test_cli_ledger_post_minimal.py
+      - tests/integration/cli/test_cli_ledger_post_files.py
+      - tests/integration/test_idempotent_posting.py
+    docs:
+      - tests/docs/test_docs_sections_present.py
 
-  success_criteria:
-    - "Интегратор может за 30 строк кода собрать бот/воркер с SDK"
-    - "Dual-URL ошибки ловятся на старте приложений"
-    - "E2E простой постинг → баланс работает на sqlite и postgres (asyncpg)"
+  risks_and_mitigations:
+    - risk: "Разночтения сериализации JSON между CLI/SDK"
+      mitigation: "Единый presenter в sdk.json; CLI использует его напрямую."
+    - risk: "Сломать существующих интеграторов"
+      mitigation: "Переэкспорт в корневом пакете; не менять публичные пути вне SDK; фичи CLI добавлять обратносуместимо."
+    - risk: "Миграция БД для идемпотентности на проде"
+      mitigation: "Индекс условный (на non‑null); сухой прогон миграций; фича — опциональна до включения ключа."
 
+  success_metrics:
+    - "Время до первой интеграции" снижается (пример SDK из README работает без доп. кода).
+    - "Ошибки формата проводки" уменьшаются за счёт парсера/подсказок.
+    - Повторы постинга не создают дублей при использовании ключа.
+
+  notes:
+    - План следует принципу «тонкий SDK над существующими слоями» — домен/use case’ы не меняются.
+    - Итерации независимы топологически (I-DX-01 и I-UX-01 можно выполнять параллельно), но публикация SDK в README делается после I-DX-01.
