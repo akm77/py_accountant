@@ -1,6 +1,6 @@
 # Telegram Bot (lean)
 
-Короткий, самодостаточный пример интеграции Telegram-бота поверх текущих async use cases без зависимости от aiogram (пока). Пример показывает DI-подход и выполнение команд напрямую, чтобы не блокировать event loop и не дублировать доменную логику.
+Короткий, самодостаточный пример интеграции Telegram-бота поверх текущих async use cases. Переход на SDK‑bootstrap упрощает инициализацию (uow_factory/clock/settings) и делает импорты стабильными.
 
 ## Доступные команды
 - /start
@@ -42,7 +42,7 @@ poetry run alembic upgrade head
 ```
 
 ## Пробный запуск примера
-Точка входа инициализирует настройки/логирование/UoW и пишет лог `app_initialized` без реального бота:
+Точка входа инициализирует настройки/логирование/UoW через SDK и пишет лог `app_initialized` без реального бота:
 ```bash
 poetry run python -m examples.telegram_bot.app
 ```
@@ -52,15 +52,12 @@ poetry run python -m examples.telegram_bot.app
 ```bash
 PYTHONPATH=src poetry run python - <<'PY'
 import asyncio
-from examples.telegram_bot.config import load_settings
+from py_accountant.sdk import bootstrap
 from examples.telegram_bot.handlers import register_handlers, router
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 async def main():
-    settings = load_settings()
-    def uow_factory():
-        return AsyncSqlAlchemyUnitOfWork(settings.database_url_async)
-    register_handlers(uow_factory, settings)  # clock не передаём — используется SystemClock
+    app = bootstrap.init_app()
+    register_handlers(app.uow_factory, app.settings)  # clock по умолчанию UTC
     print(await router["start"]())
     print(await router["rates"]())   # ожидаемо "No currencies defined" при пустой базе
     print(await router["audit"]())   # ожидаемо "No audit events" при пустой базе
@@ -94,7 +91,6 @@ register_handlers(uow_factory, settings, clock: Clock | None = None)
 
 ## Трюки и заметки
 - Лимит для /audit задаётся через `AUDIT_LIMIT`.
-- История итераций и цели — в файле `rpg_telegram_bot.yaml`.
 - Пример не добавляет зависимость aiogram и не запускает реальный бот.
 
 ## Тестирование

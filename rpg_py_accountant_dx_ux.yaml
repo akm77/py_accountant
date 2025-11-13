@@ -1,5 +1,5 @@
 # Repository Planning Graph (RPG) — DX/UX план внедрения
-# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDИТ.md, ARCHITECTURE_DX_UX_AУДИТ_GPT5.md, ARCHITECTURE_AУДИТ.md
+# Источники: rpg_py_accountant.yaml, ACCOUNTING_AУДИТ.md, ARCHITECTURE_DX_UX_AУДИТ_GPT5.md, ARCHITECTURE_AУДИТ.md
 
 rpg:
   metadata:
@@ -46,7 +46,7 @@ rpg:
         description: "Публичные ошибки (UserInputError/DomainViolation/NotFound/UnexpectedError) и map_exception()."
       - name: "py_accountant.sdk.json"
         path: "src/py_accountant/sdk/json.py"
-        description: "JSON presenter: Decimal→str, datetime→UTC ISO, snake_case."
+        description: "JSON presenter: Decimal→str, datetime→ISO8601 UTC (Z/+00:00), snake_case."
       - name: "py_accountant.sdk.use_cases"
         path: "src/py_accountant/sdk/use_cases.py"
         description: "Тонкие фасады: постинг, баланс счёта, выписка, trading balance, FX TTL."
@@ -55,7 +55,7 @@ rpg:
       - name: "src/py_accountant/__init__.py"
         description: "Переэкспорт SDK фасадов (не ломая совместимость)."
       - name: "src/presentation/cli/ledger.py"
-        description: "CLI улучшения: --occurred-at, пятый токен Rate, дружелюбные ошибки, --idempotency-key, (позже) --lines-file."
+        description: "CLI улучшения: --occurred-at, пятый токен Rate, дружелюбные ошибки, --idempotency-key, --lines-file."
       - name: "src/presentation/cli/infra.py"
         description: "Опционально: использование SDK bootstrap/uow helper'ов."
       - name: "src/infrastructure/persistence/sqlalchemy/models.py"
@@ -100,9 +100,9 @@ rpg:
 
   acceptance_criteria:
     - SDK импорты стабильны: `from py_accountant.sdk import bootstrap, use_cases, json, errors` доступны.
-    - CLI принимает 5-й токен Rate; поддерживает `--occurred-at`; печатает дружелюбные сообщения (exit code 2 для ожидаемых ошибок).
+    - CLI принимает 5-й токен Rate; поддерживает `--occurred-at`; печатает дружелюбные сообщения (exit code 2 для ожидаемых ошибок); поддерживает `--lines-file` и `--idempotency-key`.
     - Идемпотентность: повторный постинг с тем же ключом не создаёт дублей (юнит/интеграция зелёные).
-    - JSON сериализация детерминирована (Decimal→str, datetime→UTC ISO).
+    - JSON сериализация детерминирована (Decimal→str, datetime→ISO8601 UTC).
     - Документация содержит раздел «SDK surface» и «Шпаргалка проводок».
 
   iterations:
@@ -174,17 +174,20 @@ rpg:
     - id: "I-DOC-01"
       title: "Документация и примеры на SDK"
       size: "~3k токенов"
+      status: "done"
       deliverables:
-        - README: раздел «SDK surface» (+ примеры FastAPI/aiogram/cron).
-        - docs/INTEGRATION_GUIDE.md: dual‑URL в одном месте; примеры SDK.
-        - «Шпаргалка проводок» в README или отдельном docs/ACCOUNTING_CHEATSHEET.md.
-        - examples/telegram_bot/*: переход на SDK bootstrap + error mapping.
+        - README: раздел «SDK surface» (+ примеры FastAPI/aiogram/cron). [done]
+        - docs/INTEGRATION_GUIDE.md: dual‑URL в одном месте; примеры SDK. [done]
+        - «Шпаргалка проводок» в README или отдельном docs/ACCOUNTING_CHEATSHEET.md. [done]
+        - examples/telegram_bot/*: переход на SDK bootstrap + error mapping. [done]
       tests:
-        - tests/docs/test_docs_sections_present.py
+        - tests/docs/test_docs_sections_present.py [added]
 
     - id: "I-OPT-01 (optional)"
       title: "Совместимость Python 3.11–3.12 и метрики"
       size: "~3k токенов"
+      status: "deferred"
+      notes: "Отложено на будущее после завершения документирования (I-DOC-01) и стабилизации SDK."
       deliverables:
         - Прогон тестов на 3.11/3.12; при успехе — обновить pyproject.toml (`>=3.11,<4.0`).
         - feature-flag логирования метрик в SDK (use_case_time_ms, uow_time_ms).

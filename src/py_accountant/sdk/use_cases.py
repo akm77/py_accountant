@@ -120,7 +120,7 @@ async def post_transaction(
         use_case = AsyncPostTransaction(uow=uow, clock=clock)
         return await use_case(parsed_lines, memo=memo, meta=meta)
     except Exception as exc:  # map to public errors
-        raise map_exception(exc)
+        raise map_exception(exc) from exc
 
 
 async def get_account_balance(
@@ -137,7 +137,7 @@ async def get_account_balance(
         use_case = AsyncGetAccountBalance(uow=uow, clock=clock)
         return await use_case(account_full_name, as_of)
     except Exception as exc:  # map to public errors
-        raise map_exception(exc)
+        raise map_exception(exc) from exc
 
 
 async def get_ledger(
@@ -154,4 +154,4 @@ async def get_ledger(
         use_case = AsyncGetLedger(uow=uow, clock=clock)
         return await use_case(account_full_name, **kwargs)
     except Exception as exc:  # map to public errors
-        raise map_exception(exc)
+        raise map_exception(exc) from exc

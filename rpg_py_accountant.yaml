@@ -207,7 +207,7 @@ rpg:
         description: "Typer sub-app 'account': list/add (and get). Thin controllers over async use cases, per-command ephemeral UoW via infra.run_ephemeral_async_uow, JSON (--json) or human output, exit codes (0 ok, 2 validation/domain/value, 1 unexpected)."
       - name: "AsyncCLILedger"
         path: "src/presentation/cli/ledger.py"
-        description: "Typer sub-app 'ledger': post/list/balance using async use cases (AsyncPostTransaction/AsyncGetLedger/AsyncGetAccountBalance). Thin controllers parse/normalize lines/dates/meta, ephemeral async UoW per command (infra.run_ephemeral_async_uow), JSON (--json) or human output. Exit codes: 0 success, 2 validation/domain/value errors, 1 unexpected. I-UX-01: добавлены --occurred-at (ISO, naive→UTC), пятый токен Rate в --line с поддержкой вложенных ':' в Account, и маппинг ошибок через sdk.errors.map_exception с повторным выбросом ValidationError/ValueError для стабильного exit code=2. I-UX-02: добавлена опция --lines-file (CSV/JSON); строки из файла нормализуются к формату парсера и объединяются с --line (порядок сохраняется), ошибки формата/файла → exit code 2."
+        description: "Typer sub-app 'ledger': post/list/balance using async use cases (AsyncPostTransaction/AsyncGetLedger/AsyncGetAccountBalance). Thin controllers parse/normalize lines/dates/meta, ephemeral async UoW per command (infra.run_ephemeral_async_uow), JSON (--json) or human output. Exit codes: 0 success, 2 validation/domain/value errors, 1 unexpected. I-UX-01: добавлены --occurred-at (ISO, naive→UTC), пятый токен Rate в --line с поддержкой вложенных ':' в Account, и маппинг ошибок через sdk.errors.map_exception с повторным выбросом ValidationError/ValueError для стабильного exit code=2. I-UX-02: добавлена опция --lines-file (CSV/JSON); строки из файла нормализуются к формату парсера и объединяются с --line (порядок сохраняется), ошибки формата/файла → exit code 2. I-DX-03: добавлен флаг --idempotency-key (приоритет над meta idempotency_key) для идемпотентного постинга; при повторе возвращается исходный tx.id без дублей."
       - name: "AsyncCLITradingBalance"
         path: "src/presentation/cli/trading_balance.py"
         description: "Typer sub-app 'trading': raw/detailed trading balance reports. Async-only path with per-command ephemeral UoW via infra.run_ephemeral_async_uow. Thin controllers: parse ISO start/end (naive->UTC), meta k=v, optional base (upper/trim). Use cases: AsyncGetTradingBalanceRaw/Detailed. JSON snake_case with Decimal as strings; human output single-line per currency; deterministic ordering by currency_code. Exit codes: 0 success, 2 expected validation/value errors, 1 unexpected."
@@ -227,6 +227,24 @@ rpg:
       - name: "docker-compose.yml"
         parent_module: "infrastructure"
         description: "Поднимает Postgres и pgAdmin, доступные снаружи."
+      - name: ".env.example"
+        parent_module: "infrastructure"
+        description: "Пример переменных окружения (DATABASE_URL, DATABASE_URL_ASYNC, LOG_LEVEL, JSON_LOGS, ENV)."
+      - name: ".env"
+        parent_module: "infrastructure"
+        description: "Локальные переменные окружения (dev)."
+      - name: "README.md"
+        parent_module: "py_accountant"
+        description: "Входная точка документации; добавлен раздел ‘SDK surface’ с примерами init_app/post/balance/ledger и ссылками на Integration Guide и Cheatsheet (I-DOC-01)."
+      - name: "docs/INTEGRATION_GUIDE.md"
+        parent_module: "infrastructure"
+        description: "Гайд для интеграторов; консолидирован раздел dual-URL (runtime vs migrations) и добавлена большая секция по SDK (init_app/UoW/операции/TTL) (I-DOC-01)."
+      - name: "docs/ACCOUNTING_CHEATSHEET.md"
+        parent_module: "presentation"
+        description: "Новая ‘Шпаргалка проводок’: формат строки/файлов, правила, типовые ошибки, идемпотентность постинга (I-DOC-01)."
+      - name: "docs/RUNNING_MIGRATIONS.md"
+        parent_module: "infrastructure"
+        description: "Helper для CI: запуск Alembic миграций, примеры GitHub Actions/GitLab, checklist."
       - name: ".env.example"
         parent_module: "infrastructure"
         description: "Пример переменных окружения (DATABASE_URL, DATABASE_URL_ASYNC, LOG_LEVEL, JSON_LOGS, ENV)."
@@ -310,13 +328,19 @@ rpg:
         description: "Экспорт модулей SDK: json, errors, use_cases."
       - name: "src/py_accountant/sdk/json.py"
         parent_module: "py_accountant.sdk"
-        description: "JSON presenter: Decimal→str, datetime→UTC ISO (Z), детерминированный dumps."
+        description: "JSON presenter: Decimal→str, datetime→ISO8601 UTC (Z/+00:00), детерминированный dumps."
       - name: "src/py_accountant/sdk/errors.py"
         parent_module: "py_accountant.sdk"
         description: "Публичные ошибки SDK и map_exception() для маппинга внутренних исключений."
       - name: "src/py_accountant/sdk/use_cases.py"
         parent_module: "py_accountant.sdk"
         description: "SimpleTransactionParser и тонкие async фасады post_transaction/get_account_balance/get_ledger."
+      - name: "examples/telegram_bot/app.py"
+        parent_module: "presentation"
+        description: "Пример Telegram-бота обновлён на SDK bootstrap (init_app → uow_factory), единый подход к ошибкам/форматам (I-DOC-01)."
+      - name: "examples/telegram_bot/README.md"
+        parent_module: "presentation"
+        description: "README примера обновлён: запуск через SDK bootstrap, smoke-вызовы, локальный SQLite (I-DOC-01)."
 
   tests:
     unit_tests:
@@ -425,6 +449,15 @@ rpg:
             "test_missing_both_urls_raises_in_init_app_when_use_env_true",
           ]
         coverage_status: "added"
+      - target_component: "DocsPresence"
+        test_file: "tests/docs/test_docs_sections_present.py"
+        test_functions:
+          [
+            "test_readme_has_sdk_surface_section",
+            "test_integration_guide_has_dual_url_and_sdk",
+            "test_cheatsheet_exists_and_has_sections",
+          ]
+        coverage_status: "added"
 
   edges:
     inter_module_flows:
@@ -496,3 +529,14 @@ rpg:
       notes:
         - "Поведение без ключа не изменилось; повторные постинги с одним ключом возвращают первый tx.id (tx:<uuid>)."
         - "Конкурентные вставки защищены уникальным индексом; при конфликте выполняется повторное чтение."
+    - id: "I-DOC-01"
+      title: "Документация и примеры на SDK"
+      status: "done"
+      notes: |
+        Добавлен раздел "SDK surface" в README с краткими примерами init_app/post/balance/ledger и ссылками.
+        В docs/INTEGRATION_GUIDE.md консолидирован dual-URL и добавлена подробная секция по SDK (init_app/UоW/операции/TTL/errors/форматы).
+        Создан новый файл docs/ACCOUNTING_CHEATSHEET.md с форматами, файлами, ошибками и идемпотентностью.
+        Пример Telegram-бота обновлён на SDK bootstrap; README примера переписан.
+        Добавлен docs-тест tests/docs/test_docs_sections_present.py на наличие ключевых разделов.
+      tests:
+        - "tests/docs/test_docs_sections_present.py"

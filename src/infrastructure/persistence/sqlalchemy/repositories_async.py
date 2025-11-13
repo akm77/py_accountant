@@ -19,8 +19,8 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.dto.models import (
     AccountDTO,

@@ -15,34 +15,9 @@ poetry run python -m presentation.cli.main trading detailed --base USD --json
 poetry run python -m presentation.cli.main fx ttl-plan --retention-days 90 --batch-size 100 --mode delete --json
 ```
 
-## 8. Форматы и сериализация
+## Runtime vs Migration Database URLs (dual‑URL)
 
-- Decimal → строки.
-- datetime → ISO8601 с UTC (`Z`/aware); внутри домена — UTC.
-- Квантизация: деньги — 2 знака, курсы — 6 знаков, округление ROUND_HALF_EVEN (см. `src/domain/quantize.py`).
-
-## 9. FAQ / Траблшутинг (коротко)
-
-| Проблема | Причина | Решение |
-|----------|---------|---------|
-| Alembic падает | async URL в `alembic.ini` | Храните async URL только в `DATABASE_URL_ASYNC` |
-| SQLite locked | Параллельный доступ | Используйте Postgres или сериализуйте операции |
-| Неверный баланс | Нарушен шаблон UoW | «Одна операция — один Async UoW», не шарьте сессии |
-| Ошибка формата `--line` | Неверное количество полей | SIDE:Account:Amount:Currency[:Rate], суммы > 0 |
-
-## 10. Пулы/таймауты/ретраи (async)
-
-Для PostgreSQL (`postgresql+asyncpg`) доступны переменные окружения пула и таймаутов (детали в инфраструктуре). Для SQLite игнорируются.
-
----
-Документ согласован с: `presentation/cli/*.py`, `application/use_cases_async/*`, `src/domain/quantize.py`, `docs/ARCHITECTURE_OVERVIEW.md`.
-> Гайд по встраиванию py_accountant как библиотеки (SDK‑паттерн) в приложения: боты, веб‑сервисы, воркеры и периодические задачи.
->
-> Ключевое: ядро async‑only. Интеграция выполняется через асинхронный слой. На каждый запрос/задачу — новый Async UoW.
-
-## Runtime vs Migration Database URLs
-
-Для безопасного использования async SQLAlchemy есть два URL:
+Для безопасного использования SQLAlchemy в проекте применяются два URL:
 
 | Назначение | Переменная | Пример | Допустимые драйверы |
 |------------|-----------|--------|---------------------|
@@ -50,10 +25,10 @@ poetry run python -m presentation.cli.main fx ttl-plan --retention-days 90 --bat
 | Runtime (async) | `DATABASE_URL_ASYNC` | `postgresql+asyncpg://user:pass@host:5432/db` | `postgresql+asyncpg`, `sqlite+aiosqlite` |
 
 Правила:
-- Alembic читает ТОЛЬКО `DATABASE_URL` (или fallback из `alembic.ini`).
-- Если в `DATABASE_URL` указан async‑драйвер (`asyncpg`, `aiosqlite`) — миграции падают с RuntimeError.
-- Приложение при отсутствии `DATABASE_URL_ASYNC` может нормализовать sync URL в async (см. инфраструктурный helper, если есть).
-- CI: шаг миграций использует только sync URL.
+- Alembic читает только `DATABASE_URL` (или fallback из `alembic.ini`); async‑драйверы там запрещены.
+- Приложение, CLI и SDK используют `DATABASE_URL_ASYNC`. При его отсутствии допускается нормализация sync URL в async.
+- В CI шаг миграций использует sync URL; рантайм — async.
+- См. также `docs/RUNNING_MIGRATIONS.md`.
 
 Пример `.env`:
 ```
@@ -64,185 +39,115 @@ LOG_LEVEL=INFO
 
 Workflow:
 ```bash
-poetry run alembic upgrade head   # использует DATABASE_URL (sync)
-poetry run python -m presentation.cli.main trading detailed --base USD  # актуальная форма без двоеточий
+poetry run alembic upgrade head   # sync URL
+poetry run python -m presentation.cli.main trading detailed --base USD  # runtime async URL
 ```
 
 WARNING: Не прописывайте async URL в `alembic.ini` — потеряется защита.
 
-## 1. Быстрый старт (как библиотека, async‑only)
+## Использование как библиотеки (SDK)
 
-Минимальный рабочий пример на asyncio и async use cases. Один бизнес‑шаг — одна транзакция (один Async UoW).
+SDK предоставляет стабильные импорты для интеграторов: `from py_accountant.sdk import bootstrap, use_cases, json, errors`.
 
+### Инициализация
 ```python
-import asyncio
-from datetime import datetime, UTC
-from decimal import Decimal
+from py_accountant.sdk import bootstrap
+app = bootstrap.init_app()  # читает env, валидирует dual‑URL, создаёт uow_factory и UTC clock
+# app.uow_factory(): Callable возвращающий AsyncSqlAlchemyUnitOfWork
+# app.clock.now(): datetime в UTC
+# app.settings: доступ к URL/параметрам
+```
 
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
-from application.use_cases_async import (
-    AsyncCreateCurrency,
-    AsyncSetBaseCurrency,
-    AsyncCreateAccount,
-    AsyncPostTransaction,
-    AsyncGetAccountBalance,
+### Постинг транзакции (idempotency_key)
+```python
+from py_accountant.sdk import use_cases
+
+async with app.uow_factory() as uow:
+    tx = await use_cases.post_transaction(
+        uow,
+        app.clock,
+        [
+            "DEBIT:Assets:Cash:100:USD",
+            "CREDIT:Income:Sales:100:USD",
+        ],
+        memo="Sale",
+        meta={"idempotency_key": "order-42"},
+    )
+```
+
+- Формат строки: `SIDE:Account:Amount:Currency[:Rate]` (Rate > 0 при небазовой валюте).
+- Можно передавать готовые EntryLineDTO вместо строк.
+
+### Баланс и выписка
+```python
+async with app.uow_factory() as uow:
+    bal = await use_cases.get_account_balance(uow, app.clock, "Assets:Cash")
+async with app.uow_factory() as uow:
+    txs = await use_cases.get_ledger(
+        uow,
+        app.clock,
+        "Assets:Cash",
+        start=None,
+        end=None,
+        meta={},
+        limit=50,
+        order="DESC",
+    )
+```
+
+### Trading raw/detailed
+```python
+from application.use_cases_async.trading_balance import (
     AsyncGetTradingBalanceRaw,
     AsyncGetTradingBalanceDetailed,
 )
-from application.dto.models import EntryLineDTO
-
-class SystemClock:
-    """UTC‑часы для домена (junior‑friendly)."""
-    def now(self) -> datetime:
-        return datetime.now(UTC)
-
-async def main() -> None:
-    uow = AsyncSqlAlchemyUnitOfWork("sqlite+aiosqlite:///./example_async.db")
-
-    # 1) Валюта и база
-    async with uow:
-        await AsyncCreateCurrency(uow)("USD")
-        await AsyncSetBaseCurrency(uow)("USD")
-        # commit произойдёт автоматически в __aexit__ при отсутствии ошибок
-
-    # 2) Счёт
-    async with uow:
-        await AsyncCreateAccount(uow)("Assets:Cash", "USD")
-
-    # 3) Транзакция
-    async with uow:
-        lines = [
-            EntryLineDTO("DEBIT", "Assets:Cash", Decimal("100"), "USD"),
-            EntryLineDTO("CREDIT", "Assets:Cash", Decimal("100"), "USD"),
-        ]
-        await AsyncPostTransaction(uow, SystemClock())(lines, memo="Init balance")
-
-    # 4) Баланс
-    async with uow:
-        bal = await AsyncGetAccountBalance(uow, SystemClock())("Assets:Cash")
-        print("Balance=", bal)
-
-    # 5) Trading raw/detailed (опционально)
-    async with uow:
-        raw = await AsyncGetTradingBalanceRaw(uow, SystemClock())()
-        det = await AsyncGetTradingBalanceDetailed(uow, SystemClock())(base_currency="USD")
-        print("RAW count=", len(raw), "; DETAILED count=", len(det))
-
-asyncio.run(main())
+async with app.uow_factory() as uow:
+    raw = await AsyncGetTradingBalanceRaw(uow, app.clock)()
+async with app.uow_factory() as uow:
+    det = await AsyncGetTradingBalanceDetailed(uow, app.clock)(base_currency="USD")
 ```
 
-Принципы:
-- «Одна операция — один Async UoW»: `async with uow: await use_case(...)`.
-- При исключении — implicit rollback; иначе commit выполнится в `__aexit__`.
-- Не хранить UoW/Session между запросами и корутинами.
-
-## 2. CLI примеры (Typer‑группы, без двоеточий)
-
-Точки входа: модуль `presentation.cli.main`. Проверить доступные команды: `diagnostics ping`, `currency`, `account`, `ledger`, `trading`, `fx`.
-
-- Валюты:
-  - Добавить валюту: `currency add USD`
-  - Сделать базовой: `currency set-base USD`
-  - Список: `currency list --json`
-- Счета:
-  - Создать: `account add Assets:Cash USD`
-  - Получить: `account get Assets:Cash --json`
-- Проводка и баланс:
-  - Постинг: `ledger post --line "DEBIT:Assets:Cash:50:USD" --line "CREDIT:Assets:Cash:50:USD" --json`
-  - Баланс: `ledger balance Assets:Cash --json`
-- Trading:
-  - Без конвертации: `trading raw --json`
-  - С конвертацией: `trading detailed --base USD --json`
-- FX Audit:
-  - Добавить событие: `fx add-event USD 1.000000 --json`
-  - Список событий: `fx list --json`
-  - TTL план: `fx ttl-plan --retention-days 90 --batch-size 100 --mode delete --json`
-
-Флаг `--line` принимает строки формата `SIDE:Account:Amount:Currency[:Rate]`.
-
-## 3. Жизненный цикл и транзакции (async)
-
-Шаблон:
+### TTL plan/execute (FX Audit)
 ```python
-async with uow:
-    await use_case(...)
-    # при необходимости: await uow.commit() вручную; иначе commit произойдёт на выходе
-```
-- Исключение внутри блока → rollback и повторный выброс.
-- Создавайте новый Async UoW на каждый запрос/задачу.
+from application.use_cases_async.fx_audit_ttl import AsyncPlanFxAuditTTL, AsyncExecuteFxAuditTTL
 
-## 4. TTL (план в CLI, исполнение в SDK)
-
-- В CLI есть ТОЛЬКО план: `fx ttl-plan ...` (источник: `src/presentation/cli/fx_audit.py`).
-- Исполнение выполняйте в коде приложения через use cases.
-
-```python
-import asyncio
-from datetime import datetime, UTC
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
-from application.use_cases_async import AsyncPlanFxAuditTTL, AsyncExecuteFxAuditTTL
-
-class SystemClock:
-    def now(self):
-        return datetime.now(UTC)
-
-async def ttl_job():
-    uow = AsyncSqlAlchemyUnitOfWork("postgresql+asyncpg://acc:pass@db:5432/ledger")
-    async with uow:
-        plan = await AsyncPlanFxAuditTTL(uow, SystemClock())(
-            retention_days=90,
-            batch_size=1000,
-            mode="archive",  # none|delete|archive
-            limit=None,
-            dry_run=False,
-        )
-    # Выполнение плана — отдельной транзакцией
-    async with uow:
-        result = await AsyncExecuteFxAuditTTL(uow, SystemClock())(plan)
-        print("TTL executed:", result.total_processed)
-
-asyncio.run(ttl_job())
+async with app.uow_factory() as uow:
+    plan = await AsyncPlanFxAuditTTL(uow, app.clock)(
+        retention_days=90,
+        batch_size=1000,
+        mode="archive",  # none|delete|archive
+        limit=None,
+        dry_run=False,
+    )
+async with app.uow_factory() as uow:
+    result = await AsyncExecuteFxAuditTTL(uow, app.clock)(plan)
 ```
 
-Параметры: `retention_days`, `batch_size`, `mode (none|delete|archive)`, `limit`, `dry_run`. Даты — ISO8601 UTC, Decimal сериализуются строкой (см. «Форматы» ниже).
+### Единые форматы и сериализация
+- Decimal → строка; datetime → ISO8601 UTC (допуск `Z` или `+00:00`).
+- Квантизация: деньги — 2 знака, курсы — 6 знаков, ROUND_HALF_EVEN (см. `src/domain/quantize.py`).
+- Презентер: `py_accountant.sdk.json.to_dict/to_json`.
 
-## 5. Telegram Bot (асинхронный)
+### Ошибки и маппинг
+- Используйте `py_accountant.sdk.errors.map_exception(exc)` для приведения внутренних ошибок к:
+  - `UserInputError` (ValidationError/ValueError)
+  - `DomainViolation` (DomainError)
+  - `UnexpectedError` (иное)
 
-Пример в `examples/telegram_bot/*`. Принципы:
-- На каждый хендлер — новый `AsyncSqlAlchemyUnitOfWork` (фабрика).
-- Используемые async use cases: `AsyncListCurrencies`, `AsyncListExchangeRateEvents`, `AsyncGetAccountBalance`, `AsyncPostTransaction`.
-- Строка транзакции для `/tx`: `SIDE:Account:Amount:Currency[:Rate]` (две строки обязаны балансировать).
+### CLI vs SDK
+- CLI покрывает большинство операций, включая TTL планирование.
+- Выполнение TTL (execute) доступно через SDK/use case’ы в ваших воркерах/cron.
 
-Псевдокод регистрации:
-```python
-from examples.telegram_bot.handlers import register_handlers, router
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+## Форматы ввода/файлов (CLI/SDK)
 
-def uow_factory():
-    return AsyncSqlAlchemyUnitOfWork("sqlite+aiosqlite:///./bot.db")
+- Строка проводки: `SIDE:Account:Amount:Currency[:Rate]` (поддерживаются вложенные `:` в Account в CLI-парсере).
+- Файлы для `--lines-file`:
+  - CSV: заголовки `side,account,amount,currency[,rate]`.
+  - JSON: массив строк в формате выше или объектов `{side,account,amount,currency[,rate]}`.
 
-register_handlers(uow_factory, settings=None)
-```
+## Ссылки
+- См. «Шпаргалка проводок» — `docs/ACCOUNTING_CHEATSHEET.md`.
+- См. «TRADING_WINDOWS.md» и «FX_AUDIT.md» для отчётов и TTL.
 
-## 6. Настройка окружения
-
-`.env`:
-```
-DATABASE_URL=postgresql+psycopg://user:pass@host:5432/dbname  # для Alembic
-DATABASE_URL_ASYNC=postgresql+asyncpg://user:pass@host:5432/dbname  # для рантайма
-LOG_LEVEL=INFO
-JSON_LOGS=false
-```
-Миграции:
-```bash
-poetry run alembic upgrade head
-```
-Логирование (кратко):
-```python
-from infrastructure.logging.config import configure_logging
-configure_logging()
-```
-
-## 7. Smoke сценарии
-
-- Если ретраи исчерпаны — выбрасывается исходное исключение.
+---
+Документ согласован с кодом: `py_accountant/sdk/*`, `presentation/cli/*`, `application/use_cases_async/*`, `domain/quantize.py`.

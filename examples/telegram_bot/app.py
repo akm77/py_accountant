@@ -11,7 +11,7 @@ import asyncio
 import logging
 
 from examples.telegram_bot.config import Settings, load_settings
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.sdk import bootstrap  # use SDK bootstrap for UoW/clock/settings
 
 __all__ = [
     "configure_logging",
@@ -60,32 +60,27 @@ def configure_logging(level: str) -> logging.Logger:
     return logger
 
 
-def create_uow(settings: Settings) -> AsyncSqlAlchemyUnitOfWork:
-    """Create and return AsyncSqlAlchemyUnitOfWork bound to async DB URL.
+def create_uow(settings: Settings):  # noqa: D401 - kept for backward compat
+    """Create an Async UnitOfWork via SDK bootstrap AppContext.
 
-    The Unit of Work is initialized only with the asynchronous database URL
-    from settings. No connections are opened at this point; resources are
-    managed when the UoW is used as an async context manager.
-
-    Args:
-        settings: Loaded Settings containing database_url_async.
-
-    Returns:
-        AsyncSqlAlchemyUnitOfWork: Configured UoW instance.
+    Returns a callable (factory) that produces AsyncSqlAlchemyUnitOfWork on
+    each call. Kept for backward compatibility with older examples.
     """
-    return AsyncSqlAlchemyUnitOfWork(settings.database_url_async)
+    app = bootstrap.init_app()  # reads env and validates dual-URL
+    return app.uow_factory
 
 
 async def main() -> None:
     """Minimal app bootstrap for iteration 2.
 
     Loads settings from environment, configures logging, instantiates the
-    async Unit of Work, logs an initialization message, and exits. Does not
-    start the bot, open DB connections, or run migrations.
+    async Unit of Work via SDK bootstrap, logs an initialization message,
+    and exits. Does not start the bot, open DB connections, or run migrations.
     """
     settings = load_settings()
     logger = configure_logging(settings.log_level)
-    _ = create_uow(settings)
+    app = bootstrap.init_app()
+    _ = app.uow_factory  # lazy factory; no DB connection yet
     logger.info("app_initialized")
 
 

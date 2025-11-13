@@ -9,10 +9,9 @@ Only PostgreSQL and SQLite backends are supported in this SDK layer.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
-
 import os
+from dataclasses import dataclass
+
 from sqlalchemy.engine import make_url
 
 __all__ = [

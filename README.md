@@ -37,6 +37,52 @@ poetry run python -m presentation.cli.main fx ttl-plan --retention-days 0 --batc
 poetry run python -m presentation.cli.main diagnostics ping
 ```
 
+## SDK surface
+
+Над существующими async use cases добавлен тонкий стабильный SDK-слой: `py_accountant.sdk`.
+Ключевые модул��: `bootstrap`, `use_cases`, `json`, `errors`, `settings`, `uow`.
+
+Минимальный рабочий пример (инициализация + постинг с idempotency_key + баланс/ledger):
+
+```python
+import asyncio
+from py_accountant.sdk import bootstrap, use_cases, json as sdk_json
+
+async def main():
+    app = bootstrap.init_app()  # читает .env, валидирует dual-URL
+    # 1) Постинг транзакции (две строки)
+    async with app.uow_factory() as uow:
+        tx = await use_cases.post_transaction(
+            uow,
+            app.clock,
+            [
+                "DEBIT:Assets:Cash:100:USD",
+                "CREDIT:Income:Sales:100:USD",
+            ],
+            memo="Init",
+            meta={"idempotency_key": "demo-001"},
+        )
+    print("TX:", sdk_json.to_json(tx))
+
+    # 2) Баланс счёта
+    async with app.uow_factory() as uow:
+        bal = await use_cases.get_account_balance(uow, app.clock, "Assets:Cash")
+    print("BAL:", sdk_json.to_json({"account": "Assets:Cash", "balance": bal}))
+
+    # 3) Выписка по счёту (короткая форма)
+    async with app.uow_factory() as uow:
+        items = await use_cases.get_ledger(uow, app.clock, "Assets:Cash", limit=5, order="DESC")
+    print("LEDGER items:", len(items))
+
+asyncio.run(main())
+```
+
+- Trading Detailed и TTL (plan/execute): выполняются через существующие use case’ы внутри `async with app.uow_factory(): ...` (см. подробности в docs/INTEGRATION_GUIDE.md).
+- Согласованные форматы: Decimal → строка; datetime → ISO8601 UTC (`Z`/`+00:00`).
+- Маппинг ошибок: используйте `py_accountant.sdk.errors.map_exception()` для дружелюбных сообщений.
+
+Подробнее: см. `docs/INTEGRATION_GUIDE.md` (раздел «Использование как библиотеки (SDK)») и «Шпаргалку проводок» `docs/ACCOUNTING_CHEATSHEET.md`.
+
 ## Архитектура слоёв
 
 ![Architecture Overview](docs/ARCHITECTURE_OVERVIEW.svg)
@@ -88,7 +134,8 @@ poetry run python -m presentation.cli.main diagnostics ping
 - docs/PERFORMANCE.md
 - docs/RUNNING_MIGRATIONS.md
 - docs/MIGRATION_HISTORY.md
-- docs/INTEGRATION_GUIDE.md ← новый гайд по встраиванию
+- docs/INTEGRATION_GUIDE.md ← новый гид по встраиванию
+- docs/ACCOUNTING_CHEATSHEET.md ← шпаргалка по проводкам
 - examples/telegram_bot/README.md ← пример Telegram Bot
 
 ## Полностью асинхронное ядро

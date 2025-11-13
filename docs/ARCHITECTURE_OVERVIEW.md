@@ -9,7 +9,7 @@
 
 - Presentation (CLI)
   - Typer-команды — тонкие контроллеры: парсят флаги/аргументы, валидируют примитивы, вызывают async use cases, печатают JSON или «человеческие» строки.
-  - Конвенции вывода: JSON в snake_case; Decimal → строка; datetime → ISO8601 UTC (Z).
+  - Конвенции вывода: JSON в snake_case; Decimal → строка; datetime → ISO8601 UTC (Z или +00:00).
 - Application (Use Cases)
   - Только async use cases: currencies/accounts/ledger/trading/fx audit/ttl plan/ttl execute.
   - Работают через порты (AsyncUnitOfWork, репозитории, Clock); I/O выполняется только адаптерами инфраструктуры.
@@ -136,7 +136,7 @@
 ## Ключевые тезисы (TL;DR)
 
 - Async-only: все публичные пути — асинхронные. Sync UoW/репозитории удалены.
-- Domain чистый, без I/O и кэшей. Квантизация: money=2dp, rate=6dp, ROUND_HALF_EVEN.
+- Domain чистый, без I/O и кешей. Квантизация: money=2dp, rate=6dp, ROUND_HALF_EVEN.
 - Trading Detailed: base обязателен; `used_rate=1` только для базовой; для небазовой без положительного курса — ValidationError.
 - FX TTL: CLI — только план (`ttl-plan`); исполнение — через use case/SDK воркер (`AsyncExecuteFxAuditTTL`).
 - Alembic использует только sync‑драйверы и применяется лишь для миграций.
