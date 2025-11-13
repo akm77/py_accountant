@@ -1,5 +1,5 @@
 # Repository Planning Graph (RPG) — DX/UX план внедрения
-# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDIT_GPT5.md, ARCHITECTURE_AУДИТ.md
+# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDИТ_GPT5.md, ARCHITECTURE_AУДИТ.md
 
 rpg:
   metadata:
@@ -101,7 +101,7 @@ rpg:
   acceptance_criteria:
     - SDK импорты стабильны: `from py_accountant.sdk import bootstrap, use_cases, json, errors` доступны.
     - CLI принимает 5-й токен Rate; поддерживает `--occurred-at`; печатает дружелюбные сообщения (exit code 2 для ожидаемых ошибок).
-    - Идемпотентность: повторный постинг с тем же ключом не создаёт дублей (юнит/интеграция зелёные).
+    - Идемпотентность: повторный постинг с тем же ��лючом не создаёт дублей (юнит/интеграция зелёные).
     - JSON сериализация детерминирована (Decimal→str, datetime→UTC ISO).
     - Документация содержит раздел «SDK surface» и «Шпаргалка проводок».
 
@@ -149,11 +149,12 @@ rpg:
     - id: "I-UX-02"
       title: "CLI загрузка строк из файла (CSV/JSON)"
       size: "~4k токенов"
+      status: "done"
       deliverables:
-        - В `ledger post` добавить `--lines-file <path>`: поддержка CSV (side,account,amount,currency,rate?) и JSON (массив объектов).
-        - Использовать общий парсер из SDK для нормализации.
+        - В `ledger post` добавить `--lines-file <path>`: поддержка CSV (side,account,amount,currency,rate?) и JSON (массив объектов/строк). [done]
+        - Объекты из файлов нормализуются в строковый формат и валидируются существующим CLI-парсером. [done]
       tests:
-        - tests/integration/cli/test_cli_ledger_post_files.py — CSV/JSON успешные/ошибочные сценарии.
+        - tests/integration/cli/test_cli_ledger_post_files.py — CSV/JSON успешные/ошибочные сценарии. [added]
 
     - id: "I-DX-03"
       title: "Идемпотентность постинга (meta + индекс + guard)"

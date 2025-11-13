@@ -9,10 +9,12 @@ unexpected=1. JSON keys use snake_case; Decimal values serialized as strings.
 """
 from __future__ import annotations
 
+import csv
 import json
 import re
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from typer import Argument, Option, Typer
@@ -206,6 +208,127 @@ def _rich_tx_to_dict(tx: RichTransactionDTO) -> dict[str, Any]:
     }
 
 
+def _load_lines_from_file(path: Path) -> list[str]:
+    """Load transaction lines from a CSV or JSON file into parser string format.
+
+    Supports:
+      - CSV with headers: side,account,amount,currency[,rate]
+      - JSON array of strings (already in parser format)
+      - JSON array of objects with keys side, account, amount, currency[, rate]
+
+    Returns list of strings in format "SIDE:Account:Amount:Currency[:Rate]".
+    Errors:
+      - File not found/empty/unsupported extension -> ValueError
+      - Malformed CSV/JSON or missing required fields -> ValueError
+    """
+    if not path.exists():
+        raise ValueError(f"File not found: {path}")
+    if not path.is_file():
+        raise ValueError(f"Not a file: {path}")
+
+    suffix = path.suffix.lower()
+    if suffix not in {".csv", ".json"}:
+        raise ValueError("Unsupported file extension. Supported: .csv, .json")
+
+    if suffix == ".csv":
+        lines: list[str] = []
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as fh:
+                reader = csv.DictReader(fh)
+                if reader.fieldnames is None:
+                    raise ValueError("No lines in file")
+                required = {"side", "account", "amount", "currency"}
+                headers = {h.strip().lower() for h in reader.fieldnames if h is not None}
+                missing = sorted(required - headers)
+                if missing:
+                    raise ValueError(f"CSV missing required fields: {', '.join(missing)}")
+                for idx, row in enumerate(reader, start=2):  # data rows start at line 2
+                    if row is None:
+                        continue
+                    # Build lower-cased, trimmed mapping
+                    row_l = {
+                        (k.strip().lower() if k is not None else ""): (str(v).strip() if v is not None else "")
+                        for k, v in row.items()
+                    }
+                    side = row_l.get("side", "")
+                    account = row_l.get("account", "")
+                    amount = row_l.get("amount", "")
+                    currency = row_l.get("currency", "")
+                    rate = row_l.get("rate", "")
+
+                    # Skip empty rows (all values empty)
+                    if not any([side, account, amount, currency, rate]):
+                        continue
+
+                    # Validate presence of required
+                    if not side:
+                        raise ValueError(f"CSV row {idx}: missing 'side'")
+                    if not account:
+                        raise ValueError(f"CSV row {idx}: missing 'account'")
+                    if not amount:
+                        raise ValueError(f"CSV row {idx}: missing 'amount'")
+                    if not currency:
+                        raise ValueError(f"CSV row {idx}: missing 'currency'")
+
+                    # Build parser string; keep amount/rate as strings; normalize side/currency to upper
+                    side_up = side.strip().upper()
+                    currency_up = currency.strip().upper()
+                    spec = f"{side_up}:{account}:{amount}:{currency_up}"
+                    if rate:
+                        spec = f"{spec}:{rate}"
+                    lines.append(spec)
+        except ValueError:
+            raise
+        except Exception as exc:  # noqa: PERF203
+            raise ValueError(f"Invalid CSV: {exc}") from exc
+        if not lines:
+            raise ValueError("No lines in file")
+        return lines
+
+    # JSON path
+    try:
+        with path.open("r", encoding="utf-8-sig") as fh:
+            data = json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON: {exc.msg}") from exc
+    except Exception as exc:  # noqa: PERF203
+        raise ValueError(f"Invalid JSON: {exc}") from exc
+
+    if not isinstance(data, list):
+        raise ValueError("JSON must be an array of strings or objects")
+    if not data:
+        raise ValueError("No lines in file")
+
+    out: list[str] = []
+    for idx, it in enumerate(data, start=1):
+        if isinstance(it, str):
+            spec = it.strip()
+            if spec:
+                out.append(spec)
+            continue
+        if isinstance(it, dict):
+            side = (str(it.get("side") or "")).strip()
+            account = (str(it.get("account") or "")).strip()
+            amount = (str(it.get("amount") or "")).strip()
+            currency = (str(it.get("currency") or "")).strip()
+            rate = (str(it.get("rate") or "")).strip()
+
+            if not side or not account or not amount or not currency:
+                raise ValueError(
+                    f"JSON item {idx}: missing required keys (need side, account, amount, currency)"
+                )
+            spec = f"{side.upper()}:{account}:{amount}:{currency.upper()}"
+            if rate:
+                spec = f"{spec}:{rate}"
+            out.append(spec)
+            continue
+        raise ValueError(f"JSON item {idx}: unsupported type {type(it).__name__}")
+
+    if not out:
+        raise ValueError("No lines in file")
+    return out
+
+
 # --- Commands ---
 
 @ledger.command("post")
@@ -215,11 +338,13 @@ def ledger_post(
     meta_items: list[str] = Option([], "--meta", help="Meta key=value pairs", show_default=False),  # noqa: B008
     occurred_at: str | None = Option(None, "--occurred-at", help="Override occurred_at (ISO8601, naive→UTC)", show_default=False),  # noqa: B008
     json_output: bool = Option(False, "--json", help="Output JSON"),  # noqa: B008
+    lines_file: Path | None = Option(None, "--lines-file", help="Load lines from CSV or JSON file", show_default=False),  # noqa: B008
 ) -> None:
     """Post a balanced transaction to the ledger.
 
     Parameters:
         line: One or more --line entries formatted as SIDE:Account:Amount:Currency[:Rate].
+        lines_file: Optional path to CSV/JSON file with lines; merged after --line values.
         memo: Optional memo text; stored as-is or null.
         meta_items: Optional k=v pairs; parsed into dict.
         occurred_at: Optional ISO timestamp to override clock.now() (treated as UTC when naive).
@@ -227,9 +352,17 @@ def ledger_post(
     Errors/exit codes:
         ValidationError/DomainError/ValueError -> exit 2; unexpected -> 1 (handled by main.cli).
     """
-    if not line:
+    # Build raw line specs: first CLI lines in provided order, then file lines (if any)
+    raw_specs: list[str] = []
+    raw_specs.extend(line or [])
+    if lines_file is not None:
+        file_specs = _load_lines_from_file(lines_file)
+        raw_specs.extend(file_specs)
+
+    if not raw_specs:
         raise ValidationError("No lines provided")
-    lines = [_parse_line(spec) for spec in line]
+
+    lines = [_parse_line(spec) for spec in raw_specs]
     meta = _parse_meta(meta_items)
     occurred_dt = _parse_iso_dt(occurred_at)
 
