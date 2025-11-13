@@ -28,7 +28,7 @@ poetry run python -m presentation.cli.main fx ttl-plan --retention-days 90 --bat
 | Alembic падает | async URL в `alembic.ini` | Храните async URL только в `DATABASE_URL_ASYNC` |
 | SQLite locked | Параллельный доступ | Используйте Postgres или сериализуйте операции |
 | Неверный баланс | Нарушен шаблон UoW | «Одна операция — один Async UoW», не шарьте сессии |
-| Ошибка формата `--line` | Неверное количество полей | SIDE:Account:Amount:Currency, суммы > 0 |
+| Ошибка формата `--line` | Неверное количество полей | SIDE:Account:Amount:Currency[:Rate], суммы > 0 |
 
 ## 10. Пулы/таймауты/ретраи (async)
 
@@ -158,7 +158,7 @@ asyncio.run(main())
   - Список событий: `fx list --json`
   - TTL план: `fx ttl-plan --retention-days 90 --batch-size 100 --mode delete --json`
 
-Флаг `--line` принимает строки формата `SIDE:Account:Amount:Currency`.
+Флаг `--line` принимает строки формата `SIDE:Account:Amount:Currency[:Rate]`.
 
 ## 3. Жизненный цикл и транзакции (async)
 
@@ -211,7 +211,7 @@ asyncio.run(ttl_job())
 Пример в `examples/telegram_bot/*`. Принципы:
 - На каждый хендлер — новый `AsyncSqlAlchemyUnitOfWork` (фабрика).
 - Используемые async use cases: `AsyncListCurrencies`, `AsyncListExchangeRateEvents`, `AsyncGetAccountBalance`, `AsyncPostTransaction`.
-- Строка транзакции для `/tx`: `SIDE:Account:Amount:Currency` (две строки обязаны балансировать).
+- Строка транзакции для `/tx`: `SIDE:Account:Amount:Currency[:Rate]` (две строки обязаны балансировать).
 
 Псевдокод регистрации:
 ```python

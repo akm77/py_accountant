@@ -24,13 +24,41 @@ poetry run python -m presentation.cli.main diagnostics ping
 Каждую команду можно запускать повторно; ошибки валидации вернут exit code 2.
 
 ## Формат --line
-`SIDE:ACCOUNT_FULL_NAME:AMOUNT:CURRENCY`
+`SIDE:ACCOUNT_FULL_NAME:AMOUNT:CURRENCY[:RATE]`
 - SIDE: DEBIT | CREDIT
 - ACCOUNT_FULL_NAME: полное имя (сегменты через `:`), например `Assets:Cash`
 - AMOUNT: положительный Decimal (>0)
 - CURRENCY: код валюты (например USD, EUR)
+- RATE (опционально): положительный Decimal (>0), явный курс для строки; если не указан, используется справочник валют/политика домена
 
-(Поле `rate` больше не используется в CLI для `ledger post` — курс берётся из справочника валют при необходимости.)
+Примеры:
+- `DEBIT:Assets:Cash:100:USD`
+- `CREDIT:Income:Sales:100:USD`
+- `DEBIT:Assets:Cash:100:USD:1.000000` (c явным курсом)
+
+## Параметры ledger post
+- `--occurred-at <ISO>` — дата/время операции; naive интерпретируется как UTC (будет нормализовано к `...Z`).
+- `--lines-file <path.{csv|json}>` — загрузка строк из файла:
+  - CSV c заголовками: `side,account,amount,currency[,rate]`
+  - JSON-массив строк в формате парсера или объектов `{side,account,amount,currency[,rate]}`
+- `--idempotency-key <key>` — идемпотентный постинг: повтор с тем же ключом возвращает исходный `tx.id` без дублей (также можно задать через `--meta idempotency_key=...`) 
+- `--meta k=v` — дополнительные поля метаданных; последний дубль побеждает
+- `--json` — структурированный вывод
+
+Быстрые примеры:
+```bash
+# С явной датой и idempotency key
+poetry run python -m presentation.cli.main ledger post \
+  --line DEBIT:Assets:Cash:100:USD \
+  --line CREDIT:Income:Sales:100:USD \
+  --occurred-at 2025-01-01T10:00:00 \
+  --idempotency-key init-100-usd \
+  --json
+
+# Загрузка строк из CSV/JSON
+poetry run python -m presentation.cli.main ledger post --lines-file ./tx.csv --json
+poetry run python -m presentation.cli.main ledger post --lines-file ./tx.json --json
+```
 
 ## JSON вывод
 Почти во всех командах есть флаг `--json` для структурированного вывода:

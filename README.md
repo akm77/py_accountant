@@ -47,7 +47,16 @@ poetry run python -m presentation.cli.main diagnostics ping
 - Infrastructure — адаптеры (SQLAlchemy, in-memory, Alembic, logging, settings).
 - Presentation — CLI (API отложено).
 
-Данные в JSON: Decimal → строка, datetime → ISO8601 с Z.
+Данные в JSON: Decimal → строка, datetime → ISO8601 UTC.
+
+## Новое в CLI (итерации I-DX-01..I-DX-03, I-UX-01..02)
+- `ledger post` поддерживает пятый токен `:Rate` в формате строки `SIDE:Account:Amount:Currency[:Rate]`.
+- Опция `--occurred-at <ISO>` задаёт дату/время операции; naive → UTC.
+- Загрузка строк из файла: `--lines-file <path.csv|json>` (CSV: `side,account,amount,currency[,rate]`; JSON: массив строк или объектов).
+- Идемпотентный постинг: `--idempotency-key <key>` или `--meta idempotency_key=...` — повтор с тем же ключом возвращает прежний `tx.id` без дублей.
+- Единый маппинг ошибок → дружелюбные сообщения; ожидаемые ошибки возвращают exit code 2.
+
+Подробности и примеры см. `docs/CLI_QUICKSTART.md` и `docs/INTEGRATION_GUIDE.md`.
 
 ## FX Audit
 
