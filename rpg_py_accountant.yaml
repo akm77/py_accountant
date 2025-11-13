@@ -198,7 +198,7 @@ rpg:
         description: "Typer sub-app 'account': list/add (and get). Thin controllers over async use cases, per-command ephemeral UoW via infra.run_ephemeral_async_uow, JSON (--json) or human output, exit codes (0 ok, 2 validation/domain/value, 1 unexpected)."
       - name: "AsyncCLILedger"
         path: "src/presentation/cli/ledger.py"
-        description: "Typer sub-app 'ledger': post/list/balance using async use cases (AsyncPostTransaction/AsyncGetLedger/AsyncGetAccountBalance). Thin controllers parse/normalize lines/dates/meta, ephemeral async UoW per command (infra.run_ephemeral_async_uow), JSON (--json) or human output. Exit codes: 0 success, 2 validation/domain/value errors, 1 unexpected."
+        description: "Typer sub-app 'ledger': post/list/balance using async use cases (AsyncPostTransaction/AsyncGetLedger/AsyncGetAccountBalance). Thin controllers parse/normalize lines/dates/meta, ephemeral async UoW per command (infra.run_ephemeral_async_uow), JSON (--json) or human output. Exit codes: 0 success, 2 validation/domain/value errors, 1 unexpected. I-UX-01: добавлены --occurred-at (ISO, naive→UTC), пятый токен Rate в --line с поддержкой вложенных ':' в Account, и маппинг ошибок через sdk.errors.map_exception с повторным выбросом ValidationError/ValueError для стабильного exit code=2."
       - name: "AsyncCLITradingBalance"
         path: "src/presentation/cli/trading_balance.py"
         description: "Typer sub-app 'trading': raw/detailed trading balance reports. Async-only path with per-command ephemeral UoW via infra.run_ephemeral_async_uow. Thin controllers: parse ISO start/end (naive->UTC), meta k=v, optional base (upper/trim). Use cases: AsyncGetTradingBalanceRaw/Detailed. JSON snake_case with Decimal as strings; human output single-line per currency; deterministic ordering by currency_code. Exit codes: 0 success, 2 expected validation/value errors, 1 unexpected."
@@ -448,3 +448,8 @@ rpg:
       title: "Удаление legacy sync UoW и репозиториев"
       status: "done"
       notes: "Удалены классы SqlAlchemyUnitOfWork, SyncUnitOfworkWrapper и репозитории из repositories.py; осталась только асинхронная реализация."
+    - id: "I-UX-01"
+      title: "CLI улучшение post: occurred-at, Rate, дружелюбные ошибки"
+      status: "done"
+      notes: |
+        Внедрены улучшения CLI леджера: опция --occurred-at (UTC), парсер --line с опциональным :Rate и поддержкой вложенных ':' в Account, дружелюбный маппинг ошибок через SDK; совместимость флагов/формата сохранена; добавлены интеграционные тесты tests/integration/cli/test_cli_ledger_post_minimal.py."

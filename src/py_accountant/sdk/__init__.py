@@ -7,9 +7,25 @@ Exports:
 - json: JSON presenter helpers (to_dict, to_json)
 - errors: public exceptions and map_exception()
 - use_cases: thin async facades and SimpleTransactionParser
+- settings: Settings loader and dual-URL validation
+- uow: Async UoW factory builder
+- bootstrap: init_app/AppContext for one-import startup
 """
 
-from . import errors, json, use_cases  # re-export modules for convenient access
+from . import (  # re-export modules for convenient access
+    bootstrap,
+    errors,
+    json,
+    settings,
+    uow,
+    use_cases,
+)
 
-__all__ = ["json", "errors", "use_cases"]
-
+__all__ = [
+    "json",
+    "errors",
+    "use_cases",
+    "settings",
+    "uow",
+    "bootstrap",
+]

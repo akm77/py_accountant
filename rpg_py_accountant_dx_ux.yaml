@@ -1,5 +1,5 @@
 # Repository Planning Graph (RPG) — DX/UX план внедрения
-# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDIT_GPT5.md, ARCHITECTURE_AUDIT.md
+# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDIT_GPT5.md, ARCHITECTURE_AUDИТ.md
 
 rpg:
   metadata:
@@ -124,12 +124,15 @@ rpg:
     - id: "I-UX-01"
       title: "CLI улучшение post: occurred-at, Rate, дружелюбные ошибки"
       size: "~3k токенов"
+      status: "done"
       deliverables:
-        - В `ledger post` добавить опцию `--occurred-at <ISO>` (UTC нормализация).
-        - Расширить парсер `--line` до формата `SIDE:Account:Amount:Currency[:Rate]`.
-        - Использовать `sdk.errors.map_exception()` для человекочитаемых сообщений; сохранить коды выхода: 0/2/1.
+        - В `ledger post` добавить опцию `--occurred-at <ISO>` (UTC нормализация). [done]
+        - Расширить парсер `--line` до формата `SIDE:Account:Amount:Currency[:Rate]` с поддержкой вложенных `:` в Account. [done]
+        - Использовать `sdk.errors.map_exception()` для человекочитаемых сообщений; сохранить коды выхода: 0/2/1. [done]
       tests:
-        - tests/integration/cli/test_cli_ledger_post_minimal.py — успешный постинг с Rate и occurred_at; негативные кейсы формата/несбалансированности.
+        - tests/integration/cli/test_cli_ledger_post_minimal.py — успешный постинг с Rate и occurred_at; негативные кейсы формата/несбалансированности. [added]
+      notes: |
+        Внутренне: локальный парсер CLI оставлен вместо SDK-парсера для корректной поддержки иерархических счетов с двоеточиями. Ошибки формата/валидности имеют дружелюбные подсказки; при маппинге исключений повторно выбрасываются ValidationError/ValueError для сохранения exit code=2.
 
     - id: "I-DX-02"
       title: "SDK bootstrap/settings/uow и runtime‑валидация dual‑URL"

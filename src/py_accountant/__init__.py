@@ -12,9 +12,20 @@ except _metadata.PackageNotFoundError:  # Fallback when running from source with
 
 # Re-export SDK namespace for stable imports
 from . import sdk  # noqa: E402
-from .sdk import errors, json, use_cases  # noqa: E402
+from .sdk import bootstrap, errors, json, settings, uow, use_cases  # noqa: E402
 
-__all__ = ["__version__", "get_version", "add", "sdk", "json", "errors", "use_cases"]
+__all__ = [
+    "__version__",
+    "get_version",
+    "add",
+    "sdk",
+    "json",
+    "errors",
+    "use_cases",
+    "bootstrap",
+    "settings",
+    "uow",
+]
 
 
 def get_version() -> str:
