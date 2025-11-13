@@ -1,0 +1,179 @@
+rpg_plan:
+  metadata:
+    project_name: "py_accountant"
+    plan_name: "DX+UX SDK rollout (concise)"
+    date: "2025-11-13"
+    authors: ["architect", "python-engineer", "accountant"]
+    rationale: |
+      Ввести стабильный SDK-слой и UX-фасады для интеграторов (боты/веб/воркеры),
+      не затрагивая домен и минимально изменяя существующие слои.
+    constraints:
+      - "Итерации маленькие (<= ~200 LOC/PR), чтобы не переполнять контекст LLM."
+      - "Без изменения доменного слоя и ORM-схемы в этой дорожной карте."
+      - "Сохранить обратную совместимость CLI и текущих импортов."
+
+  nodes:
+    # Новые SDK-артефакты
+    - name: "sdk.__init__"
+      path: "src/py_accountant/sdk/__init__.py"
+      purpose: "Единая точка импорта SDK-поверхности (bootstrap, use_cases, json, errors)"
+    - name: "sdk.bootstrap"
+      path: "src/py_accountant/sdk/bootstrap.py"
+      purpose: "init_app() -> AppContext(uow_factory, clock, logger, settings)"
+    - name: "sdk.settings"
+      path: "src/py_accountant/sdk/settings.py"
+      purpose: "load_from_env(), validate_dual_url(sync, async)"
+    - name: "sdk.logging"
+      path: "src/py_accountant/sdk/logging.py"
+      purpose: "Конфигурация логгера для приложений (structlog/stdlib)"
+    - name: "sdk.uow"
+      path: "src/py_accountant/sdk/uow.py"
+      purpose: "Фабрики UoW, реэкспорт протоколов портов"
+    - name: "sdk.errors"
+      path: "src/py_accountant/sdk/errors.py"
+      purpose: "Публичные исключения и map_exception() для HTTP/ботов"
+    - name: "sdk.json"
+      path: "src/py_accountant/sdk/json.py"
+      purpose: "Сериализация Decimal/datetime и snake_case presenter"
+    - name: "sdk.use_cases"
+      path: "src/py_accountant/sdk/use_cases.py"
+      purpose: "Фасады: get_account_balance, list_accounts_state, post_transaction_simple, get_trading_balance, fx_ttl_*"
+
+    # Обновления существующих
+    - name: "package.__init__ (re-export)"
+      path: "src/py_accountant/__init__.py"
+      purpose: "Переэкспорт sdk.* фасадов, сохраняя текущие __all__"
+
+  edges:
+    - from: "sdk.uow"
+      to: "src/infrastructure/persistence/sqlalchemy/uow.py"
+      why: "Использует AsyncSqlAlchemyUnitOfWork"
+    - from: "sdk.uow"
+      to: "src/application/ports.py"
+      why: "Реэкспорт протоколов"
+    - from: "sdk.use_cases"
+      to: "src/application/use_cases_async"
+      why: "Делегирует бизнес-операции"
+    - from: "sdk.use_cases"
+      to: "src/application/dto/models.py"
+      why: "Возвращает/принимает DTO"
+    - from: "sdk.bootstrap"
+      to: ["sdk.settings", "sdk.logging", "sdk.uow"]
+      why: "Конструирует AppContext"
+    - from: "examples/telegram_bot/*"
+      to: ["sdk.bootstrap", "sdk.use_cases", "sdk.json"]
+      why: "Миграция примера на SDK (в поздней итерации)"
+    - from: "presentation/cli/*"
+      to: ["sdk.bootstrap", "sdk.use_cases"]
+      why: "Опциональная миграция CLI на фасады (вне критического пути)"
+
+  iterations:
+    - id: "SDK-I1"
+      title: "SDK каркас + JSON presenter"
+      scope:
+        - "Создать sdk.__init__, sdk.json, sdk.errors (минимум типов)."
+      deliverables:
+        - "src/py_accountant/sdk/__init__.py"
+        - "src/py_accountant/sdk/json.py"
+        - "src/py_accountant/sdk/errors.py"
+      tests:
+        - "tests/unit/sdk/test_imports.py"
+        - "tests/unit/sdk/test_json_presenter.py"
+      success:
+        - "Импорты из py_accountant.sdk.* стабильны."
+        - "Decimal и datetime сериализуются как в доках."
+      est_loc: 150
+
+    - id: "SDK-I2"
+      title: "Settings + Bootstrap + Dual-URL валидация"
+      depends_on: ["SDK-I1"]
+      scope:
+        - "sdk.settings.load_from_env(), validate_dual_url()"
+        - "sdk.bootstrap.init_app() -> AppContext"
+      deliverables:
+        - "src/py_accountant/sdk/settings.py"
+        - "src/py_accountant/sdk/bootstrap.py"
+        - "src/py_accountant/sdk/logging.py"
+      tests:
+        - "tests/unit/sdk/test_settings_dual_url.py"
+        - "tests/integration/sdk/test_bootstrap_sqlite.py"
+      success:
+        - "Неверные URL ловятся на старте; корректные — проходят."
+        - "AppContext предоставляет uow_factory/clock/logger."
+      est_loc: 180
+
+    - id: "SDK-I3"
+      title: "UoW фасады и реэкспорт протоколов"
+      depends_on: ["SDK-I2"]
+      scope:
+        - "sdk.uow: фабрики UoW и реэкспорт протоколов портов"
+        - "Обновление package __init__ для реэкспортов SDK"
+      deliverables:
+        - "src/py_accountant/sdk/uow.py"
+        - "patch src/py_accountant/__init__.py"
+      tests:
+        - "tests/unit/sdk/test_uow_factory.py"
+      success:
+        - "uow_factory работает с sqlite+aiosqlite и asyncpg."
+      est_loc: 120
+
+    - id: "SDK-I4"
+      title: "UX-фасады бухгалтерии"
+      depends_on: ["SDK-I3"]
+      scope:
+        - "get_account_balance, list_accounts_state"
+        - "post_transaction_simple (парсер reusable)"
+        - "get_trading_balance"
+      deliverables:
+        - "src/py_accountant/sdk/use_cases.py"
+      tests:
+        - "tests/integration/sdk/test_simple_posting_and_balances.py"
+      success:
+        - "Простой постинг и чтение балансов проходят на sqlite."
+      est_loc: 200
+
+    - id: "SDK-I5"
+      title: "Примеры и доки (SDK surface)"
+      depends_on: ["SDK-I4"]
+      scope:
+        - "Мигрировать examples/telegram_bot на bootstrap/use_cases"
+        - "README + docs/INTEGRATION_GUIDE.md + docs/SDK_SURFACE.md"
+      deliverables:
+        - "patch examples/telegram_bot/*"
+        - "docs/SDK_SURFACE.md"
+        - "patch README.md, docs/INTEGRATION_GUIDE.md"
+      tests:
+        - "tests/docs/test_sdk_surface_present.py"
+      success:
+        - "Smoke из README/guide работает (sqlite)."
+      est_loc: 180
+
+    - id: "SDK-I6 (opt)"
+      title: "Совместимость Python 3.11–3.12"
+      depends_on: ["SDK-I5"]
+      scope:
+        - "CI матрица версий, корректировки pyproject/ruff при необходимости"
+      deliverables:
+        - "patch pyproject.toml"
+      tests:
+        - "CI зелёный на 3.11/3.12/3.13"
+      success:
+        - "Официальная поддержка >=3.11,<4.0 задекларирована"
+      est_loc: 20
+
+  api_changes:
+    summary:
+      - "Добавлен стабильный слой py_accountant.sdk.*"
+      - "Корневой пакет реэкспортирует SDK фасады"
+    compatibility:
+      - "Существующие глубокие импорты сохраняются (soft-deprecate в доках)"
+
+  risks:
+    - "Дублирование логики сериализации между CLI и SDK — решить через sdk.json"
+    - "Расхождение сообщений ошибок — стандартизовать в sdk.errors"
+
+  success_criteria:
+    - "Интегратор может за 30 строк кода собрать бот/воркер с SDK"
+    - "Dual-URL ошибки ловятся на старте приложений"
+    - "E2E простой постинг → баланс работает на sqlite и postgres (asyncpg)"
+

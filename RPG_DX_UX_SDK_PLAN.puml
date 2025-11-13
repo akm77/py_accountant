@@ -1,0 +1,79 @@
+@startuml
+' Repository Planning Graph for SDK/DX/UX implementation
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultTextAlignment left
+
+package "py_accountant.sdk" {
+  [sdk.__init__] as SDKInit
+  [sdk.bootstrap] as SDBoot
+  [sdk.settings] as SDSettings
+  [sdk.logging] as SDLogging
+  [sdk.uow] as SDUow
+  [sdk.errors] as SDErr
+  [sdk.json] as SDJson
+  [sdk.use_cases] as SDUse
+}
+
+component "py_accountant.__init__" as RootInit
+component "application.use_cases_async" as AppUC
+component "application.dto.models" as AppDTO
+component "application.ports" as Ports
+component "infrastructure.sqlalchemy.uow" as InfraUow
+component "examples.telegram_bot.*" as TGBot
+component "presentation.cli.*" as CLI
+
+' Edges (desired)
+RootInit --> SDKInit
+SDKInit --> SDBoot
+SDKInit --> SDUse
+SDKInit --> SDJson
+SDKInit --> SDSettings
+SDKInit --> SDErr
+
+SDBoot --> SDSettings
+SDBoot --> SDLogging
+SDBoot --> SDUow
+
+SDUow --> Ports
+SDUow --> InfraUow
+
+SDUse --> Ports
+SDUse --> AppUC
+SDUse --> AppDTO
+
+TGBot --> SDBoot
+TGBot --> SDUse
+TGBot --> SDJson
+
+CLI --> SDBoot
+CLI --> SDUse
+
+note right of SDSettings
+- load_from_env()
+- validate_dual_url()
+- Settings dataclass
+end note
+
+note right of SDBoot
+- init_app(env|settings) -> AppContext
+- uow_factory/clock/logger
+end note
+
+note right of SDUse
+- get_account_balance()
+- list_accounts_state()
+- post_transaction_simple()
+- get_trading_balance()
+- fx_ttl_plan/execute()
+end note
+
+legend right
+  |= Artifact |= Purpose |
+  | sdk.* | Stable integration surface |
+  | Root __init__ | Re-export SDK |
+  | Ports/DTO | Contracts |
+endlegend
+
+@enduml
+
