@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import logging.handlers
 import sys
-from typing import Any, IO
+from typing import IO, Any
 
 import structlog
 
