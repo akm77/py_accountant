@@ -23,9 +23,7 @@ def test_tables_present_minimal_set():
         "transaction_lines",
         "exchange_rate_events",
         "exchange_rate_events_archive",
-        "balances",  # DEPRECATED: present until removal migration
     }
 
     missing = required - actual
     assert not missing, f"Missing expected tables: {sorted(missing)}; actual: {sorted(actual)}"
-

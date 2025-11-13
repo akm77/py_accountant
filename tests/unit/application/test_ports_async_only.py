@@ -27,7 +27,6 @@ EXPECTED_ASYNC = {
     "AsyncCurrencyRepository",
     "AsyncAccountRepository",
     "AsyncTransactionRepository",
-    "AsyncBalanceRepository",
     "AsyncExchangeRateEventsRepository",
     "AsyncUnitOfWork",
 }
@@ -49,6 +48,8 @@ def test_deprecated_proxy_reexports_identity():
         new_obj = getattr(ports, name)
         old_obj = getattr(deprecated_ports, name)
         assert new_obj is old_obj, f"Proxy did not re-export same object for {name}"
+    # Ensure removed async balance is not present
+    assert not hasattr(ports, "AsyncBalanceRepository")
 
 
 def test_no_legacy_sync_protocols_present():

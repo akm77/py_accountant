@@ -12,7 +12,6 @@ from infrastructure.persistence.sqlalchemy.async_engine import (
 )
 from infrastructure.persistence.sqlalchemy.repositories_async import (
     AsyncSqlAlchemyAccountRepository,
-    AsyncSqlAlchemyBalanceRepository,
     AsyncSqlAlchemyCurrencyRepository,
     AsyncSqlAlchemyExchangeRateEventsRepository,
     AsyncSqlAlchemyTransactionRepository,
@@ -46,7 +45,6 @@ class AsyncSqlAlchemyUnitOfWork:
         self._a_accounts: AsyncSqlAlchemyAccountRepository | None = None
         self._a_currencies: AsyncSqlAlchemyCurrencyRepository | None = None
         self._a_transactions: AsyncSqlAlchemyTransactionRepository | None = None
-        self._a_balances: AsyncSqlAlchemyBalanceRepository | None = None
         self._a_rate_events: AsyncSqlAlchemyExchangeRateEventsRepository | None = None
 
     @property
@@ -88,7 +86,6 @@ class AsyncSqlAlchemyUnitOfWork:
         self._a_accounts = None
         self._a_currencies = None
         self._a_transactions = None
-        self._a_balances = None
         self._a_rate_events = None
         return self
 
@@ -132,7 +129,6 @@ class AsyncSqlAlchemyUnitOfWork:
                     self._a_accounts = None
                     self._a_currencies = None
                     self._a_transactions = None
-                    self._a_balances = None
                     self._a_rate_events = None
 
     async def commit(self) -> None:
@@ -172,7 +168,6 @@ class AsyncSqlAlchemyUnitOfWork:
             self._a_accounts = None
             self._a_currencies = None
             self._a_transactions = None
-            self._a_balances = None
             self._a_rate_events = None
 
     # Async repositories (lazy properties)
@@ -203,14 +198,6 @@ class AsyncSqlAlchemyUnitOfWork:
             self._a_transactions = AsyncSqlAlchemyTransactionRepository(self._session)
         return self._a_transactions
 
-    @property
-    def balances(self) -> AsyncSqlAlchemyBalanceRepository:
-        """Return async Balance repository bound to the current session."""
-        if not self._session:
-            raise RuntimeError("AsyncSqlAlchemyUnitOfWork.balances requires an active session")
-        if not self._a_balances:
-            self._a_balances = AsyncSqlAlchemyBalanceRepository(self._session)
-        return self._a_balances
 
     @property
     def exchange_rate_events(self) -> AsyncSqlAlchemyExchangeRateEventsRepository:  # type: ignore[override]

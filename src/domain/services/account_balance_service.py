@@ -5,7 +5,6 @@ from datetime import datetime
 from decimal import Decimal
 
 from application.dto.models import TransactionDTO
-from application.interfaces.ports import BalanceRepository, TransactionRepository
 
 
 class AccountBalanceServiceProtocol:
@@ -70,74 +69,4 @@ class InMemoryAccountBalanceService(AccountBalanceServiceProtocol):
                     total -= line.amount
         # Update cache
         self._cache[account_full_name] = {"balance": total, "last_ts": as_of}
-        return total
-
-
-@dataclass
-class SqlAccountBalanceService(AccountBalanceServiceProtocol):
-    """SQL-backed balance caching using BalanceRepository + TransactionRepository.
-
-    Strategy:
-    - process_transaction(tx): update cached balances for involved accounts by applying line deltas.
-    - get_balance(account, as_of, recompute):
-        * If cache exists and last_ts >= as_of and not recompute: return cached amount.
-        * Else if cache exists and last_ts < as_of: incrementally aggregate lines with occurred_at in (last_ts, as_of].
-        * Else (no cache) or recompute: full recompute of lines up to as_of.
-    """
-
-    transactions: TransactionRepository
-    balances: BalanceRepository
-
-    def process_transaction(self, tx: TransactionDTO) -> None:  # noqa: D401
-        # Collect per account delta
-        deltas: dict[str, Decimal] = {}
-        for line in tx.lines:
-            amt = line.amount if line.side.upper() == "DEBIT" else -line.amount
-            deltas[line.account_full_name] = deltas.get(line.account_full_name, Decimal("0")) + amt
-        for acc, delta in deltas.items():
-            cached = self.balances.get_cache(acc)
-            if cached:
-                new_amount = cached[0] + delta
-                self.balances.upsert_cache(acc, new_amount, tx.occurred_at)
-            else:
-                self.balances.upsert_cache(acc, delta, tx.occurred_at)
-
-    def get_balance(self, account_full_name: str, as_of: datetime, recompute: bool = False) -> Decimal:  # noqa: D401
-        cached = self.balances.get_cache(account_full_name)
-        if cached:
-            last_ts = cached[1]
-            if last_ts.tzinfo is None and as_of.tzinfo is not None:
-                last_ts = last_ts.replace(tzinfo=as_of.tzinfo)
-            if not recompute and last_ts >= as_of:
-                return cached[0]
-        if cached and not recompute:
-            # Incremental range aggregation of new lines
-            last_ts = cached[1]
-            if last_ts.tzinfo is None and as_of.tzinfo is not None:
-                last_ts = last_ts.replace(tzinfo=as_of.tzinfo)
-            new_txs = self.transactions.list_between(last_ts, as_of)
-            delta = Decimal("0")
-            for tx in new_txs:
-                for line in tx.lines:
-                    if line.account_full_name != account_full_name:
-                        continue
-                    if line.side.upper() == "DEBIT":
-                        delta += line.amount
-                    else:
-                        delta -= line.amount
-            updated = (cached[0] if cached else Decimal("0")) + delta
-            self.balances.upsert_cache(account_full_name, updated, as_of)
-            return updated
-        # Full recompute path
-        all_txs = self.transactions.list_between(datetime.fromtimestamp(0, tz=as_of.tzinfo), as_of)
-        total = Decimal("0")
-        for tx in all_txs:
-            for line in tx.lines:
-                if line.account_full_name != account_full_name:
-                    continue
-                if line.side.upper() == "DEBIT":
-                    total += line.amount
-                else:
-                    total -= line.amount
-        self.balances.upsert_cache(account_full_name, total, as_of)
         return total

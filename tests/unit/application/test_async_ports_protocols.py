@@ -22,7 +22,7 @@ pytestmark = pytest.mark.asyncio
 async def test_async_uow_structural(async_uow: AsyncSqlAlchemyUnitOfWork):
     """Async UoW exposes required repositories and transaction methods."""
     uow = async_uow
-    for attr in ["accounts", "currencies", "transactions", "balances", "exchange_rate_events", "commit", "rollback"]:
+    for attr in ["accounts", "currencies", "transactions", "exchange_rate_events", "commit", "rollback"]:
         assert hasattr(uow, attr), f"Missing attribute/method on Async UoW: {attr}"
     assert hasattr(uow, "session")
     assert uow.session is not None
@@ -62,14 +62,6 @@ async def test_async_repositories_structural_and_smoke(async_uow: AsyncSqlAlchem
     await t_repo.add(tx)
     rows = await t_repo.list_between(now - (now - now), now)
     assert isinstance(rows, list)
-
-    b_repo = async_uow.balances
-    for m in ["upsert_cache", "get_cache", "clear"]:
-        assert hasattr(b_repo, m), f"Balance repo missing method {m}"
-    await b_repo.upsert_cache("Assets:Cash", Decimal("10"), now)
-    cached = await b_repo.get_cache("Assets:Cash")
-    assert cached is not None and isinstance(cached, tuple)
-    await b_repo.clear("Assets:Cash")
 
     fx_repo = async_uow.exchange_rate_events
     for m in [

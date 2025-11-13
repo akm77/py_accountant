@@ -33,7 +33,6 @@ from application.dto.models import (
 )
 from infrastructure.persistence.sqlalchemy.models import (
     AccountORM,
-    BalanceORM,
     CurrencyORM,
     ExchangeRateEventArchiveORM,
     ExchangeRateEventORM,
@@ -62,7 +61,7 @@ class AsyncSqlAlchemyCurrencyRepository:
         cur = res.scalar_one_or_none()
         if not cur:
             return None
-        ex = Decimal(cur.exchange_rate) if cur.exchange_rate is not None else None
+        ex = cur.exchange_rate if cur.exchange_rate is not None else None
         return CurrencyDTO(code=cur.code, exchange_rate=ex, is_base=bool(cur.is_base))
 
     async def upsert(self, dto: CurrencyDTO) -> CurrencyDTO:
@@ -84,7 +83,7 @@ class AsyncSqlAlchemyCurrencyRepository:
             cur.is_base = True
             cur.exchange_rate = None
         await self.session.flush()
-        ex = Decimal(cur.exchange_rate) if cur.exchange_rate is not None else None
+        ex = cur.exchange_rate if cur.exchange_rate is not None else None
         return CurrencyDTO(code=cur.code, exchange_rate=ex, is_base=bool(cur.is_base))
 
     async def list_all(self) -> list[CurrencyDTO]:
@@ -93,7 +92,7 @@ class AsyncSqlAlchemyCurrencyRepository:
         rows = res.scalars().all()
         result: list[CurrencyDTO] = []
         for r in rows:
-            ex = Decimal(r.exchange_rate) if r.exchange_rate is not None else None
+            ex = r.exchange_rate if r.exchange_rate is not None else None
             result.append(CurrencyDTO(code=r.code, exchange_rate=ex, is_base=bool(r.is_base)))
         return result
 
@@ -103,7 +102,7 @@ class AsyncSqlAlchemyCurrencyRepository:
         row = res.scalar_one_or_none()
         if not row:
             return None
-        ex = Decimal(row.exchange_rate) if row.exchange_rate is not None else None
+        ex = row.exchange_rate if row.exchange_rate is not None else None
         return CurrencyDTO(code=row.code, exchange_rate=ex, is_base=True)
 
     async def set_base(self, code: str) -> None:
@@ -232,47 +231,6 @@ class AsyncSqlAlchemyAccountRepository:
         await self.session.flush()
         return True
 
-
-class AsyncSqlAlchemyBalanceRepository:
-    """DEPRECATED: Async repository managing balance cache rows (CRUD only)."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        """Bind to ``AsyncSession`` within an active UoW transaction."""
-        self.session = session
-
-    async def upsert_cache(self, account_full_name: str, amount: Decimal, last_ts: datetime) -> None:
-        """Insert or update balance cache for the given account (simple upsert)."""
-        res = await self.session.execute(
-            select(BalanceORM).where(BalanceORM.account_full_name == account_full_name)
-        )
-        row = res.scalar_one_or_none()
-        if not row:
-            row = BalanceORM(account_full_name=account_full_name, amount=amount, last_ts=last_ts)
-            self.session.add(row)
-        else:
-            row.amount = amount
-            row.last_ts = last_ts
-        await self.session.flush()
-
-    async def get_cache(self, account_full_name: str) -> tuple[Decimal, datetime] | None:
-        """Return ``(amount, last_ts)`` for the given account or ``None`` if missing."""
-        res = await self.session.execute(
-            select(BalanceORM).where(BalanceORM.account_full_name == account_full_name)
-        )
-        row = res.scalar_one_or_none()
-        if not row:
-            return None
-        return (row.amount, row.last_ts)
-
-    async def clear(self, account_full_name: str) -> None:
-        """Delete balance cache row for the given account if it exists."""
-        res = await self.session.execute(
-            select(BalanceORM).where(BalanceORM.account_full_name == account_full_name)
-        )
-        row = res.scalar_one_or_none()
-        if row:
-            await self.session.delete(row)  # type: ignore[arg-type]
-            await self.session.flush()
 
 
 class AsyncSqlAlchemyTransactionRepository:

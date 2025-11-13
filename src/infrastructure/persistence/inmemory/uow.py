@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 from application.interfaces.ports import (
     AccountRepository,
-    BalanceRepository,
     CurrencyRepository,
     ExchangeRateEventsRepository,
     TransactionRepository,
@@ -40,10 +39,6 @@ class InMemoryUnitOfWork(UnitOfWork):  # type: ignore[misc]
     @property
     def exchange_rate_events(self) -> ExchangeRateEventsRepository:  # type: ignore[override]
         return self.rate_events_repo
-
-    @property
-    def balances(self) -> BalanceRepository:  # type: ignore[override]
-        raise NotImplementedError("In-memory UoW has no BalanceRepository")
 
     def commit(self) -> None:  # noqa: D401
         return None

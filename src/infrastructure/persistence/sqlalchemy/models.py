@@ -1,9 +1,6 @@
 """
 SQLAlchemy ORM schema declarations only (tables, columns, indexes, optional enums).
 No business logic, helpers, or factory functions should live here.
-
-Deprecated: BalanceORM (balances) — kept for backward compatibility; slated for removal
-in a future migration after repository simplification (I13+).
 """
 
 from __future__ import annotations
@@ -78,25 +75,6 @@ class TransactionLineORM(Base):
         Index("ix_tx_lines_account_full_name", "account_full_name"),
         Index("ix_tx_lines_currency_code", "currency_code"),
         Index("ix_tx_lines_account_journal", "account_full_name", "journal_id"),
-    )
-
-
-class BalanceORM(Base):
-    """DEPRECATED: balance cache table.
-
-    Kept temporarily for backward compatibility; removal planned in a later
-    iteration with a dedicated migration, after repository simplification (I13+).
-    """
-
-    __tablename__ = "balances"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    account_full_name: Mapped[str] = mapped_column(String(1024), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
-    last_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
-
-    __table_args__ = (
-        UniqueConstraint("account_full_name", name="uq_balances_account"),
     )
 
 

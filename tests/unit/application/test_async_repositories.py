@@ -117,28 +117,6 @@ async def test_ledger_pagination_order_and_edges(async_uow: AsyncSqlAlchemyUnitO
     assert empty1 == [] and empty2 == []
 
 
-async def test_balances_cache_upsert_get_clear(async_uow: AsyncSqlAlchemyUnitOfWork):
-    """Balance cache upsert/get/clear with Decimal scale and tz handling."""
-    uow = async_uow
-    acc = "Assets:Cash"
-    ts1 = datetime.now(UTC)
-    await uow.balances.upsert_cache(acc, Decimal("123.45"), ts1)
-    cached = await uow.balances.get_cache(acc)
-    assert cached is not None
-    assert cached[0] == Decimal("123.45") or cached[0].quantize(Decimal("0.01")) == Decimal("123.45")
-    assert cached[1].replace(tzinfo=UTC) == ts1
-    # update
-    ts2 = ts1 + timedelta(seconds=1)
-    await uow.balances.upsert_cache(acc, Decimal("200"), ts2)
-    cached2 = await uow.balances.get_cache(acc)
-    assert cached2 is not None
-    assert cached2[0] == Decimal("200") or cached2[0].quantize(Decimal("0.01")) == Decimal("200")
-    assert cached2[1].replace(tzinfo=UTC) == ts2
-    # clear
-    await uow.balances.clear(acc)
-    assert await uow.balances.get_cache(acc) is None
-
-
 async def test_fx_events_list_filters_and_limits(async_uow: AsyncSqlAlchemyUnitOfWork):
     """FX events: negative limit handling, code filter, newest-first ordering."""
     uow = async_uow

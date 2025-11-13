@@ -21,7 +21,6 @@ __all__ = [
     "AsyncCurrencyRepository",
     "AsyncAccountRepository",
     "AsyncTransactionRepository",
-    "AsyncBalanceRepository",
     "AsyncExchangeRateEventsRepository",
     "AsyncUnitOfWork",
 ]
@@ -69,15 +68,6 @@ class AsyncAccountRepository(Protocol):
     async def get_by_full_name(self, full_name: str) -> AccountDTO | None: ...
     async def create(self, dto: AccountDTO) -> AccountDTO: ...
     async def list(self, parent_id: str | None = None) -> list[AccountDTO]: ...
-
-
-@runtime_checkable
-class AsyncBalanceRepository(Protocol):
-    """Async balance cache operations per account."""
-
-    async def upsert_cache(self, account_full_name: str, amount: Decimal, last_ts: datetime) -> None: ...
-    async def get_cache(self, account_full_name: str) -> tuple[Decimal, datetime] | None: ...
-    async def clear(self, account_full_name: str) -> None: ...
 
 
 @runtime_checkable
@@ -142,9 +132,6 @@ class AsyncUnitOfWork(Protocol):
 
     @property
     def transactions(self) -> AsyncTransactionRepository: ...
-
-    @property
-    def balances(self) -> AsyncBalanceRepository: ...
 
     @property
     def exchange_rate_events(self) -> AsyncExchangeRateEventsRepository: ...

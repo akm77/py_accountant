@@ -310,7 +310,7 @@ rpg:
         description: "AsyncPlanFxAuditTTL (план: cutoff, ids, batches) и AsyncExecuteFxAuditTTL (выполнение: delete/archive с dry_run). Ошибки: ValidationError для параметров и несогласованностей плана."
       - name: "src/infrastructure/persistence/sqlalchemy/models.py"
         parent_module: "infrastructure"
-        description: "ORM schema only: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, BalanceORM (DEPRECATED balance cache), ExchangeRateEventORM, ExchangeRateEventArchiveORM. No helpers or business logic (I12)."
+        description: "ORM schema only: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, ExchangeRateEventORM, ExchangeRateEventArchiveORM. No helpers or business logic (I12)."
       - name: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
         parent_module: "infrastructure"
         description: "Async реализации портов репозиториев на SQLAlchemy."

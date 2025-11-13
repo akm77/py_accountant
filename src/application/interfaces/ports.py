@@ -31,15 +31,6 @@ from application.dto.models import (
 
 
 @runtime_checkable
-class BalanceRepository(Protocol):
-    """Кэш балансов по счетам (sync)."""
-
-    def upsert_cache(self, account_full_name: str, amount: Decimal, last_ts: datetime) -> None: ...
-    def get_cache(self, account_full_name: str) -> tuple[Decimal, datetime] | None: ...
-    def clear(self, account_full_name: str) -> None: ...
-
-
-@runtime_checkable
 class ExchangeRateEventsRepository(Protocol):
     """События изменения курсов (sync) + TTL/архив."""
 
@@ -64,9 +55,7 @@ class UnitOfWork(Protocol):
     @property
     def transactions(self) -> TransactionRepository: ...
 
-    # Optional repositories
-    @property
-    def balances(self) -> BalanceRepository: ...  # type: ignore[override]
+    # Removed: balances repository
 
     @property
     def exchange_rate_events(self) -> ExchangeRateEventsRepository: ...  # type: ignore[override]
@@ -116,7 +105,6 @@ class TransactionRepository(Protocol):
 
 from application.ports import (  # noqa: E402,F401
     AsyncAccountRepository,
-    AsyncBalanceRepository,
     AsyncCurrencyRepository,
     AsyncExchangeRateEventsRepository,
     AsyncTransactionRepository,
@@ -132,14 +120,12 @@ __all__ = [
     "CurrencyRepository",
     "AccountRepository",
     "TransactionRepository",
-    "BalanceRepository",
     "ExchangeRateEventsRepository",
     # async preferred
     "SupportsCommitRollback",
     "AsyncCurrencyRepository",
     "AsyncAccountRepository",
     "AsyncTransactionRepository",
-    "AsyncBalanceRepository",
     "AsyncExchangeRateEventsRepository",
     "AsyncUnitOfWork",
 ]
