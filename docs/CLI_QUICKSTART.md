@@ -63,7 +63,7 @@ poetry run python -m presentation.cli.main ledger post --lines-file ./tx.json --
 ## JSON вывод
 Почти во всех командах есть флаг `--json` для структурированного вывода:
 - Decimal значения сериализуются как строки
-- datetime значения (если есть) в ISO8601 UTC (`...Z`)
+- datetime значения (если есть) — ISO8601 UTC (окончание на `Z` или `+00:00`)
 
 ## Дополнительно
 - FX Audit: смотрите `docs/FX_AUDIT.md` (команды: `fx add-event`, `fx list`, `fx ttl-plan` — только план архивации, без выполнения)
