@@ -154,6 +154,15 @@ rpg:
       - name: "py_accountant.sdk"
         path: "src/py_accountant/sdk"
         description: "Публичный SDK-слой: json/errors/use_cases; тонкие фасады над async use cases."
+      - name: "py_accountant.sdk.bootstrap"
+        path: "src/py_accountant/sdk/bootstrap.py"
+        description: "init_app(settings|env) -> AppContext{uow_factory, clock, logger, settings}; runtime-валидация dual-URL."
+      - name: "py_accountant.sdk.settings"
+        path: "src/py_accountant/sdk/settings.py"
+        description: "Загрузка из ENV (DATABASE_URL/DATABASE_URL_ASYNC), validate_dual_url(sync/async)."
+      - name: "py_accountant.sdk.uow"
+        path: "src/py_accountant/sdk/uow.py"
+        description: "build_uow_factory(settings) -> Callable[AsyncSqlAlchemyUnitOfWork]."
       - name: "async_engine"
         path: "src/infrastructure/persistence/sqlalchemy/async_engine.py"
         description: "Async фабрики: normalize_async_url, get_async_engine, get_async_session_factory"
@@ -404,6 +413,18 @@ rpg:
             "test_map_other_to_unexpected",
           ]
         coverage_status: "added"
+      - target_component: "py_accountant.sdk.settings"
+        test_file: "tests/unit/sdk/test_settings_dual_url.py"
+        test_functions:
+          [
+            "test_only_async_url_ok",
+            "test_sync_and_async_pair_sqlite_ok",
+            "test_sync_is_async_driver_raises",
+            "test_async_is_sync_driver_raises",
+            "test_mismatched_hosts_pg_raises",
+            "test_missing_both_urls_raises_in_init_app_when_use_env_true",
+          ]
+        coverage_status: "added"
 
   edges:
     inter_module_flows:
@@ -453,3 +474,7 @@ rpg:
       status: "done"
       notes: |
         Внедрены улучшения CLI леджера: опция --occurred-at (UTC), парсер --line с опциональным :Rate и поддержкой вложенных ':' в Account, дружелюбный маппинг ошибок через SDK; совместимость флагов/формата сохранена; добавлены интеграционные тесты tests/integration/cli/test_cli_ledger_post_minimal.py."
+    - id: "I-DX-02"
+      title: "SDK bootstrap/settings/uow и runtime‑валидация dual‑URL"
+      status: "done"
+      notes: "Добавлены модули sdk.settings/uow/bootstrap, обновлены реэкспорты в sdk и корне, добавлены тесты (unit/integration); pytest зелёный."

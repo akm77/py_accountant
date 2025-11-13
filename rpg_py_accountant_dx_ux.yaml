@@ -1,5 +1,5 @@
 # Repository Planning Graph (RPG) — DX/UX план внедрения
-# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDIT_GPT5.md, ARCHITECTURE_AUDИТ.md
+# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDIT_GPT5.md, ARCHITECTURE_AУДИТ.md
 
 rpg:
   metadata:
@@ -137,12 +137,14 @@ rpg:
     - id: "I-DX-02"
       title: "SDK bootstrap/settings/uow и runtime‑валидация dual‑URL"
       size: "~4k токенов"
+      status: "done"
       deliverables:
-        - `sdk.settings.load_from_env()` и `validate_dual_url()`.
-        - `sdk.uow.build_uow_factory(settings)`; `sdk.bootstrap.init_app()` возвращает AppContext.
+        - `sdk.settings.load_from_env()` и `validate_dual_url()`. [done]
+        - `sdk.uow.build_uow_factory(settings)`; `sdk.bootstrap.init_app()` возвращает AppContext. [done]
       tests:
-        - tests/unit/sdk/test_settings_dual_url.py — позитив/негатив.
-        - tests/integration/sdk/test_bootstrap_sqlite.py — init_app() + простой use case.
+        - tests/unit/sdk/test_settings_dual_url.py — позитив/негатив. [added]
+        - tests/integration/sdk/test_bootstrap_sqlite.py — init_app() + простой use case. [added]
+      notes: "Рефактор завершён: добавлены модули settings/uow/bootstrap, реэкспортированы в SDK/корень; pytest зелёный (вкл. новые тесты)."
 
     - id: "I-UX-02"
       title: "CLI загрузка строк из файла (CSV/JSON)"
@@ -172,7 +174,7 @@ rpg:
         - «Шпаргалка проводок» в README или отдельном docs/ACCOUNTING_CHEATSHEET.md.
         - examples/telegram_bot/*: переход на SDK bootstrap + error mapping.
       tests:
-        - tests/docs/test_docs_sections_present.py — обновить проверки разделов.
+        - tests/docs/test_docs_sections_present.py
 
     - id: "I-OPT-01 (optional)"
       title: "Совместимость Python 3.11–3.12 и метрики"
