@@ -482,4 +482,17 @@ rpg:
       title: "CLI загрузка строк из файла (CSV/JSON)"
       status: "done"
       notes: |
-        В 'ledger post' добавлена опция --lines-file <path> с поддержкой CSV (заголовки side,account,amount,currency[,rate]) и JSON (массив строк или объектов). Строки из файла нормализуются к формату парсера и объединяются с --line; порядок сохраняется. Ошибки формата/файла приводят к exit code 2 (через sdk.errors.map_exception). Добавлены интеграционные тесты tests/integration/cli/test_cli_ledger_post_files.py.
+        В 'ledger post' добавлена опция --lines-file <path> с поддержкой CSV (заголовки side,account,amount,currency[,rate]) и JSON (массив строк или объектов). Строки из файла нормализуются к формату парсера и объединяются с --line; порядок сохраняется. Ошибки формата/файла приводят к exit code 2 (через sdk.errors.map_exception). Добавлены интеграционные тесты tests/integration/cli/test_cli_ledger_post_files.py."
+    - id: "I-DX-03"
+      title: "Идемпотентность постинга транзакций"
+      status: "done"
+      changes:
+        - "CLI: добавлен флаг --idempotency-key; приоритет над --meta idempotency_key; пустые строки игнорируются."
+        - "ORM: JournalORM получил nullable колонку idempotency_key (String(255)); добавлен уникальный индекс."
+        - "Repo: AsyncSqlAlchemyTransactionRepository — метод get_by_idempotency_key(); add() теперь проверяет ключ и сохраняет tx_id в journal.meta для стабильного возврата id; обработка IntegrityError для гонок."
+        - "Alembic: миграция 0006_add_journal_idempotency_key (batch + unique index для SQLite совместимости)."
+      tests:
+        - "tests/integration/test_idempotent_posting.py"
+      notes:
+        - "Поведение без ключа не изменилось; повторные постинги с одним ключом возвращают первый tx.id (tx:<uuid>)."
+        - "Конкурентные вставки защищены уникальным индексом; при конфликте выполняется повторное чтение."

@@ -20,6 +20,7 @@ from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from application.dto.models import (
     AccountDTO,
@@ -284,11 +285,79 @@ class AsyncSqlAlchemyTransactionRepository:
         """Bind to ``AsyncSession`` within an active UoW transaction."""
         self.session = session
 
+    async def get_by_idempotency_key(self, key: str) -> TransactionDTO | None:
+        """Return existing TransactionDTO by idempotency key or None.
+
+        Uses JournalORM.idempotency_key; reconstructs TransactionDTO with stable
+        id derived from journal.meta['tx_id'] when present, falling back to
+        f"journal:{journal.id}" for legacy rows.
+        """
+        if not key:
+            return None
+        res = await self.session.execute(select(JournalORM).where(JournalORM.idempotency_key == key))
+        j = res.scalar_one_or_none()
+        if not j:
+            return None
+        lines_stmt = select(TransactionLineORM).where(TransactionLineORM.journal_id == j.id)
+        r2 = await self.session.execute(lines_stmt)
+        line_rows = r2.scalars().all()
+        lines = [
+            EntryLineDTO(
+                side=r.side,
+                account_full_name=r.account_full_name,
+                amount=r.amount,
+                currency_code=r.currency_code,
+                exchange_rate=r.exchange_rate,
+            )
+            for r in line_rows
+        ]
+        meta = j.meta or {}
+        tx_id = None
+        if isinstance(meta, dict):
+            tx_id = meta.get("tx_id")
+        stable_id = tx_id if isinstance(tx_id, str) and tx_id else f"journal:{j.id}"
+        return TransactionDTO(
+            id=stable_id,
+            occurred_at=j.occurred_at,
+            lines=lines,
+            memo=j.memo,
+            meta=meta or {},
+        )
+
     async def add(self, dto: TransactionDTO) -> TransactionDTO:
-        """Insert a Journal with its TransactionLine rows and return the input DTO."""
-        journal = JournalORM(memo=dto.memo, meta=dto.meta, occurred_at=dto.occurred_at)
+        """Insert a Journal with its TransactionLine rows, with idempotency guard.
+
+        If dto.meta contains a non-empty 'idempotency_key', the repository will
+        first attempt to find an existing journal by that key and return it. If
+        none exists, it will insert a new journal with the key and persist
+        dto.id into journal.meta['tx_id'] to ensure stable id on subsequent
+        lookups. In case of a concurrent insert, UNIQUE violation is handled by
+        reading the existing row and returning it.
+        """
+        # Normalize idempotency key
+        key_raw = str((dto.meta or {}).get("idempotency_key", "")).strip()
+        key: str | None = key_raw or None
+        if key:
+            existing = await self.get_by_idempotency_key(key)
+            if existing:
+                return existing
+        # Prepare meta ensuring tx_id is stored for stable reuse
+        journal_meta: dict[str, Any] | None = dict(dto.meta or {})
+        if journal_meta is None:
+            journal_meta = {}
+        if "tx_id" not in journal_meta and dto.id:
+            journal_meta["tx_id"] = dto.id
+        journal = JournalORM(memo=dto.memo, meta=journal_meta, occurred_at=dto.occurred_at)
+        if key:
+            journal.idempotency_key = key
         self.session.add(journal)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            # Another transaction inserted the same key concurrently
+            if not key:
+                raise
+            return await self.get_by_idempotency_key(key)  # type: ignore[arg-type]
         for line in dto.lines:
             orm_line = TransactionLineORM(
                 journal_id=journal.id,

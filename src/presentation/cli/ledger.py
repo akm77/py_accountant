@@ -339,6 +339,7 @@ def ledger_post(
     occurred_at: str | None = Option(None, "--occurred-at", help="Override occurred_at (ISO8601, naive→UTC)", show_default=False),  # noqa: B008
     json_output: bool = Option(False, "--json", help="Output JSON"),  # noqa: B008
     lines_file: Path | None = Option(None, "--lines-file", help="Load lines from CSV or JSON file", show_default=False),  # noqa: B008
+    idempotency_key: str | None = Option(None, "--idempotency-key", help="Idempotency key to make posting idempotent; overrides meta idempotency_key if both provided", show_default=False),  # noqa: B008
 ) -> None:
     """Post a balanced transaction to the ledger.
 
@@ -348,6 +349,7 @@ def ledger_post(
         memo: Optional memo text; stored as-is or null.
         meta_items: Optional k=v pairs; parsed into dict.
         occurred_at: Optional ISO timestamp to override clock.now() (treated as UTC when naive).
+        idempotency_key: Optional key to ensure the same transaction id is returned on retry; empty/whitespace ignored.
         json_output: When True prints a JSON object; else a short human line.
     Errors/exit codes:
         ValidationError/DomainError/ValueError -> exit 2; unexpected -> 1 (handled by main.cli).
@@ -364,6 +366,11 @@ def ledger_post(
 
     lines = [_parse_line(spec) for spec in raw_specs]
     meta = _parse_meta(meta_items)
+    # Apply idempotency_key with priority over meta
+    if idempotency_key is not None:
+        key_norm = idempotency_key.strip()
+        if key_norm:
+            meta["idempotency_key"] = key_norm
     occurred_dt = _parse_iso_dt(occurred_at)
 
     async def _logic(uow):

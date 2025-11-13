@@ -1,5 +1,5 @@
 # Repository Planning Graph (RPG) — DX/UX план внедрения
-# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDIT.md, ARCHITECTURE_DX_UX_AUDИТ_GPT5.md, ARCHITECTURE_AУДИТ.md
+# Источники: rpg_py_accountant.yaml, ACCOUNTING_AUDИТ.md, ARCHITECTURE_DX_UX_AУДИТ_GPT5.md, ARCHITECTURE_AУДИТ.md
 
 rpg:
   metadata:
@@ -101,7 +101,7 @@ rpg:
   acceptance_criteria:
     - SDK импорты стабильны: `from py_accountant.sdk import bootstrap, use_cases, json, errors` доступны.
     - CLI принимает 5-й токен Rate; поддерживает `--occurred-at`; печатает дружелюбные сообщения (exit code 2 для ожидаемых ошибок).
-    - Идемпотентность: повторный постинг с тем же ��лючом не создаёт дублей (юнит/интеграция зелёные).
+    - Идемпотентность: повторный постинг с тем же ключом не создаёт дублей (юнит/интеграция зелёные).
     - JSON сериализация детерминирована (Decimal→str, datetime→UTC ISO).
     - Документация содержит раздел «SDK surface» и «Шпаргалка проводок».
 
@@ -159,12 +159,17 @@ rpg:
     - id: "I-DX-03"
       title: "Идемпотентность постинга (meta + индекс + guard)"
       size: "~4k токенов"
+      status: "done"
       deliverables:
         - CLI: опция `--idempotency-key` → meta["idempotency_key"].
         - ORM: колонка `idempotency_key` (nullable), уникальный индекс (условный), миграция Alembic.
-        - Репозиторий: при add() — проверка существования по ключу; при коллизии — возврат существующей транзакции.
+        - Репозиторий: при add() — проверка существования по ключу; при коллизии — возврат существующей транзакции; сохранение `tx_id` в journal.meta для стабильного ID.
       tests:
         - tests/integration/test_idempotent_posting.py — повторный вызов не создаёт дубль, возвращает тот же id.
+      notes:
+        - Миграция для SQLite выполняется через batch_alter_table + уникальный индекс (вместо ALTER CONSTRAINT); на Postgres поведение эквивалентно.
+        - Без ключа поведение прежнее; при повторе с ключом возвращается первый tx.id (tx:<uuid>), конфликт payload не детектируется в этой итерации.
+        - Гонки вставки обрабатываются через UNIQUE и перехват IntegrityError с повторным чтением по ключу.
 
     - id: "I-DOC-01"
       title: "Документация и примеры на SDK"

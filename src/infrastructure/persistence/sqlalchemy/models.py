@@ -55,9 +55,12 @@ class JournalORM(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
     memo: Mapped[str | None] = mapped_column(String(1024))
     meta: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # New optional idempotency key for idempotent posting (I-DX-03)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     __table_args__ = (
         Index("ix_journals_occurred_at", "occurred_at"),
+        UniqueConstraint("idempotency_key", name="uq_journals_idempotency_key"),
     )
 
 
