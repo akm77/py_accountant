@@ -10,6 +10,7 @@ unexpected=1. JSON keys use snake_case; Decimal values serialized as strings.
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -24,6 +25,7 @@ from application.use_cases_async.ledger import (
 )
 from domain.errors import ValidationError
 from domain.quantize import money_quantize
+from py_accountant.sdk import errors as sdk_errors
 
 from .infra import run_ephemeral_async_uow
 
@@ -32,38 +34,101 @@ ledger = Typer(help="Ledger operations")
 
 # --- Local helpers (parsing/formatting) ---
 
-def _parse_amount(val: str) -> Decimal:
-    """Parse amount as Decimal via str(x); enforce > 0.
+def _parse_amount(val: str, *, kind: str = "Amount") -> Decimal:
+    """Parse Decimal via str(x); enforce > 0.
 
-    Raises ValidationError("Invalid amount") on parse error or non-positive value.
+    kind controls error prefix: "Amount" or "Rate"; raises ValidationError with
+    friendly hint like "Amount must be > 0" / "Rate must be > 0" or "Invalid Amount".
     """
     try:
-        amt = Decimal(str(val))
+        amt = Decimal(str(val).strip())
     except Exception as exc:  # noqa: PERF203
-        raise ValidationError("Invalid amount") from exc
+        raise ValidationError(f"Invalid {kind}") from exc
     if amt <= 0:
-        raise ValidationError("Invalid amount")
+        raise ValidationError(f"{kind} must be > 0")
     return amt
 
 
 def _parse_line(spec: str) -> EntryLineDTO:
-    """Parse a --line spec: SIDE:ACCOUNT_FULL_NAME:AMOUNT:CURRENCY_CODE.
+    """Parse a --line spec: SIDE:Account:Amount:Currency[:Rate].
 
     Supports account names with nested ':' by taking the first field as side,
-    the last two as amount and currency, and the middle joined by ':' as the
-    account_full_name. Normalizes side and currency to upper; trims strings.
+    the last fields as amount/currency[/rate], and the middle joined by ':' as
+    account_full_name. Normalizes side/currency to upper; trims strings.
+
+    Errors:
+      - Format -> ValidationError("Invalid line format. Expected 'SIDE:Account:Amount:Currency[:Rate]'")
+      - Amount/rate non-positive -> ValidationError("Amount must be > 0" / "Rate must be > 0")
+      - SIDE not in {DEBIT,CREDIT} -> ValidationError("Invalid side; expected DEBIT or CREDIT")
+      - Currency pattern mismatch -> ValidationError("Invalid currency; expected A-Z, len 3..10")
     """
     parts = (spec or "").split(":")
     if len(parts) < 4:
-        raise ValidationError("Invalid line format")
-    side_raw = parts[0].strip().upper()
-    currency = parts[-1].strip().upper()
-    amount_raw = parts[-2]
-    account = ":".join(parts[1:-2]).strip()
+        raise ValidationError("Invalid line format. Expected 'SIDE:Account:Amount:Currency[:Rate]'")
+    side_raw = (parts[0] or "").strip().upper()
+
+    # Try to detect optional rate by validating trailing tokens
+    rate_raw: str | None = None
+    currency_raw: str
+    amount_raw: str
+    account: str
+
+    # Candidate path with rate (at least 5 tokens needed)
+    has_rate_layout = len(parts) >= 5
+    if has_rate_layout:
+        cur_candidate = parts[-2]
+        rate_candidate = parts[-1]
+        # Validate currency pattern first
+        cur_ok = bool(re.fullmatch(r"[A-Z]{3,10}", (cur_candidate or "").strip().upper()))
+        rate_ok = False
+        if cur_ok:
+            try:
+                # Positive decimal
+                rate_ok = Decimal(str(rate_candidate).strip()) > 0
+            except Exception:  # noqa: PERF203 - falling back to no-rate layout
+                rate_ok = False
+        if cur_ok and rate_ok:
+            currency_raw = cur_candidate
+            rate_raw = rate_candidate
+            amount_raw = parts[-3]
+            account = ":".join(parts[1:-3]).strip()
+        else:
+            # Fallback to no-rate layout
+            currency_raw = parts[-1]
+            amount_raw = parts[-2]
+            account = ":".join(parts[1:-2]).strip()
+    else:
+        currency_raw = parts[-1]
+        amount_raw = parts[-2]
+        account = ":".join(parts[1:-2]).strip()
+
     if not account:
-        raise ValidationError("Invalid line format")
-    amount = _parse_amount(amount_raw)
-    return EntryLineDTO(side=side_raw, account_full_name=account, amount=amount, currency_code=currency)
+        raise ValidationError("Invalid line format. Expected 'SIDE:Account:Amount:Currency[:Rate]'")
+
+    # Validate side
+    if side_raw not in {"DEBIT", "CREDIT"}:
+        raise ValidationError("Invalid side; expected DEBIT or CREDIT")
+
+    # Amount
+    amount = _parse_amount(amount_raw, kind="Amount")
+
+    # Currency validation
+    currency = (currency_raw or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3,10}", currency or ""):
+        raise ValidationError("Invalid currency; expected A-Z, len 3..10")
+
+    # Optional rate
+    exch_rate: Decimal | None = None
+    if rate_raw is not None:
+        exch_rate = _parse_amount(rate_raw or "", kind="Rate")
+
+    return EntryLineDTO(
+        side=side_raw,
+        account_full_name=account,
+        amount=amount,
+        currency_code=currency,
+        exchange_rate=exch_rate,
+    )
 
 
 def _parse_meta(items: list[str]) -> dict[str, str]:
@@ -113,7 +178,7 @@ def _tx_to_dict(tx: TransactionDTO) -> dict[str, Any]:
         "meta": tx.meta or {},
         "lines": [
             {
-                "side": line.side if isinstance(line.side, str) else str(line.side.value),
+                "side": str(line.side),
                 "account_full_name": line.account_full_name,
                 "amount": str(line.amount),
                 "currency_code": line.currency_code,
@@ -131,7 +196,7 @@ def _rich_tx_to_dict(tx: RichTransactionDTO) -> dict[str, Any]:
         "meta": tx.meta or {},
         "lines": [
             {
-                "side": line.side if isinstance(line.side, str) else str(line.side.value),
+                "side": str(line.side),
                 "account_full_name": line.account_full_name,
                 "amount": str(line.amount),
                 "currency_code": line.currency_code,
@@ -145,32 +210,48 @@ def _rich_tx_to_dict(tx: RichTransactionDTO) -> dict[str, Any]:
 
 @ledger.command("post")
 def ledger_post(
-    line: list[str] = Option([], "--line", help="Transaction line: SIDE:ACCOUNT:AMOUNT:CURRENCY_CODE", show_default=False),
-    memo: str | None = Option(None, "--memo", help="Optional memo text"),
-    meta_items: list[str] = Option([], "--meta", help="Meta key=value pairs", show_default=False),
-    json_output: bool = Option(False, "--json", help="Output JSON"),
+    line: list[str] = Option([], "--line", help="Transaction line: SIDE:ACCOUNT:AMOUNT:CURRENCY_CODE[:Rate]", show_default=False),  # noqa: B008
+    memo: str | None = Option(None, "--memo", help="Optional memo text"),  # noqa: B008
+    meta_items: list[str] = Option([], "--meta", help="Meta key=value pairs", show_default=False),  # noqa: B008
+    occurred_at: str | None = Option(None, "--occurred-at", help="Override occurred_at (ISO8601, naive→UTC)", show_default=False),  # noqa: B008
+    json_output: bool = Option(False, "--json", help="Output JSON"),  # noqa: B008
 ) -> None:
     """Post a balanced transaction to the ledger.
 
     Parameters:
-        line: One or more --line entries formatted as SIDE:ACCOUNT:AMOUNT:CURRENCY.
+        line: One or more --line entries formatted as SIDE:Account:Amount:Currency[:Rate].
         memo: Optional memo text; stored as-is or null.
         meta_items: Optional k=v pairs; parsed into dict.
+        occurred_at: Optional ISO timestamp to override clock.now() (treated as UTC when naive).
         json_output: When True prints a JSON object; else a short human line.
     Errors/exit codes:
         ValidationError/DomainError/ValueError -> exit 2; unexpected -> 1 (handled by main.cli).
     """
     if not line:
         raise ValidationError("No lines provided")
-    lines = [_parse_line(l) for l in line]
+    lines = [_parse_line(spec) for spec in line]
     meta = _parse_meta(meta_items)
+    occurred_dt = _parse_iso_dt(occurred_at)
 
     async def _logic(uow):
-        clock = type("_Clock", (), {"now": staticmethod(_clock_now_utc)})()
+        # Override clock.now() when occurred_at provided
+        if occurred_dt is not None:
+            clock = type("_Clock", (), {"now": staticmethod(lambda: occurred_dt)})()
+        else:
+            clock = type("_Clock", (), {"now": staticmethod(_clock_now_utc)})()
         use = AsyncPostTransaction(uow, clock)
         return await use(lines, memo, meta)
 
-    tx = run_ephemeral_async_uow(_logic)
+    try:
+        tx = run_ephemeral_async_uow(_logic)
+    except Exception as exc:  # map to friendly text then re-raise for exit code 2
+        mapped = sdk_errors.map_exception(exc)
+        text = str(mapped)
+        # Preserve ValueError classification to keep main exit code logic
+        if isinstance(exc, ValueError):
+            raise ValueError(text) from exc
+        raise ValidationError(text) from exc
+
     if json_output:
         print(json.dumps(_tx_to_dict(tx)))
         return
@@ -180,13 +261,13 @@ def ledger_post(
 @ledger.command("list")
 def ledger_list(
     account_full_name: str = Argument(..., help="Target account full name (A:B[:C...])"),
-    start: str | None = Option(None, "--start", help="Start datetime (ISO8601)"),
-    end: str | None = Option(None, "--end", help="End datetime (ISO8601)"),
-    meta_items: list[str] = Option([], "--meta", help="Meta key=value filters", show_default=False),
-    offset: int = Option(0, "--offset", help="Pagination offset (>=0)"),
-    limit: int | None = Option(None, "--limit", help="Optional limit (<=0 -> empty)"),
-    order: str = Option("ASC", "--order", help="ASC or DESC"),
-    json_output: bool = Option(False, "--json", help="Output JSON list"),
+    start: str | None = Option(None, "--start", help="Start datetime (ISO8601)"),  # noqa: B008
+    end: str | None = Option(None, "--end", help="End datetime (ISO8601)"),  # noqa: B008
+    meta_items: list[str] = Option([], "--meta", help="Meta key=value filters", show_default=False),  # noqa: B008
+    offset: int = Option(0, "--offset", help="Pagination offset (>=0)"),  # noqa: B008
+    limit: int | None = Option(None, "--limit", help="Optional limit (<=0 -> empty)"),  # noqa: B008
+    order: str = Option("ASC", "--order", help="ASC or DESC"),  # noqa: B008
+    json_output: bool = Option(False, "--json", help="Output JSON list"),  # noqa: B008
 ) -> None:
     """List ledger transactions for an account with window/pagination.
 
@@ -234,8 +315,8 @@ def ledger_list(
 @ledger.command("balance")
 def ledger_balance(
     account_full_name: str = Argument(..., help="Target account full name (A:B[:C...])"),
-    as_of: str | None = Option(None, "--as-of", help="Balance 'as of' timestamp (ISO8601)"),
-    json_output: bool = Option(False, "--json", help="Output JSON"),
+    as_of: str | None = Option(None, "--as-of", help="Balance 'as of' timestamp (ISO8601)"),  # noqa: B008
+    json_output: bool = Option(False, "--json", help="Output JSON"),  # noqa: B008
 ) -> None:
     """Get account balance at a moment in time.
 
@@ -261,4 +342,3 @@ def ledger_balance(
         print(json.dumps({"account_full_name": norm_account, "balance": str(money_quantize(bal))}))
         return
     print(f"Balance {norm_account} = {money_quantize(bal)}")
-

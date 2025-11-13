@@ -10,7 +10,11 @@ try:  # Attempt to read the installed package version
 except _metadata.PackageNotFoundError:  # Fallback when running from source without install
     __version__ = "0.0.0.dev"
 
-__all__ = ["__version__", "get_version", "add"]
+# Re-export SDK namespace for stable imports
+from . import sdk  # noqa: E402
+from .sdk import errors, json, use_cases  # noqa: E402
+
+__all__ = ["__version__", "get_version", "add", "sdk", "json", "errors", "use_cases"]
 
 
 def get_version() -> str:

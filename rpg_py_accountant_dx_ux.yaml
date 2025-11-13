@@ -109,14 +109,15 @@ rpg:
     - id: "I-DX-01"
       title: "SDK каркас: json + errors + use_cases (тонкие фасады)"
       size: "~4k токенов"
+      status: "done"
       deliverables:
-        - Добавить пакет `py_accountant/sdk` с модулями: `__init__.py`, `json.py`, `errors.py`, `use_cases.py` (фасады к AsyncPostTransaction/AsyncGetAccountBalance/AsyncGetLedger).
-        - Переэкспортировать фасады в `py_accountant/__init__.py`.
-        - Реализовать SimpleTransactionParser (без файловых форматов).
+        - Добавить пакет `py_accountant/sdk` с модулями: `__init__.py`, `json.py`, `errors.py`, `use_cases.py` (фасады к AsyncPostTransaction/AsyncGetAccountBalance/AsyncGetLedger). [done]
+        - Переэкспортировать фасады в `py_accountant/__init__.py`. [done]
+        - Реализовать SimpleTransactionParser (без файловых форматов). [done]
       tests:
-        - tests/unit/sdk/test_imports.py — импорт фасадов из корневого пакета.
-        - tests/unit/sdk/test_json_presenter.py — Decimal/datetime сериализация.
-        - tests/unit/sdk/test_error_mapping.py — маппинг ошибок домена в публичные.
+        - tests/unit/sdk/test_imports.py — импорт фасадов из корневого пакета. [added]
+        - tests/unit/sdk/test_json_presenter.py — Decimal/datetime сериализация. [added]
+        - tests/unit/sdk/test_error_mapping.py — маппинг ошибок домена в публичные. [added]
       risks:
         - Несогласованность snake_case полей — покрыть тестами to_dict().
 

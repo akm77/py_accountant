@@ -2,7 +2,7 @@ rpg:
   metadata:
     project_name: "py_accountant"
     description: "Монорепозиторий: домен/приложение/инфраструктура/презентация. Цель — Clean Architecture."
-    last_updated: "2025-11-12"
+    last_updated: "2025-11-13"
     environments:
       - name: "test"
         description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
@@ -105,7 +105,7 @@ rpg:
     modules:
       - name: "application"
         path: "src/application"
-        description: "Сценарии (use cases), DTO и интерфейсы портов (репозитории, UoW, Clock)."
+        description: "Сценарии (use cases), DTO и интерфейсы портов (репозитории, UоW, Clock)."
       - name: "use_cases_async"
         path: "src/application/use_cases_async"
         description: "Async use cases: currencies/accounts/ledger/trading/fx audit (параллельно sync)."
@@ -151,6 +151,9 @@ rpg:
       - name: "py_accountant"
         path: "src/py_accountant"
         description: "Публичный пакет-оболочка корневого проекта (версия, утилиты)."
+      - name: "py_accountant.sdk"
+        path: "src/py_accountant/sdk"
+        description: "Публичный SDK-слой: json/errors/use_cases; тонкие фасады над async use cases."
       - name: "async_engine"
         path: "src/infrastructure/persistence/sqlalchemy/async_engine.py"
         description: "Async фабрики: normalize_async_url, get_async_engine, get_async_session_factory"
@@ -293,87 +296,18 @@ rpg:
       - name: "src/infrastructure/utils/asyncio_utils.py"
         parent_module: "infrastructure"
         description: "run_sync(coro): запрет nested loop, корректное закрытие корутины при ошибке."
-      - name: "tests/unit/domain/test_errors.py"
-        parent_module: "domain.errors"
-        description: "Тест проверяет иерархию DomainError/ValidationError и текст сообщений."
-      - name: "tests/unit/domain/test_quantize.py"
-        parent_module: "domain.quantize"
-        description: "Тесты для функций квантования денег и курсов: money_quantize, rate_quantize."
-      - name: "tests/unit/domain/test_currency_base_rule.py"
-        parent_module: "domain.currencies"
-        description: "Тесты правила единственной базовой валюты: смена базы без изменения курсов и очистка базы."
-      - name: "tests/unit/domain/test_accounts.py"
-        parent_module: "domain.accounts"
-        description: "Тесты Account: валидация full_name, derive name/parent_path, опциональный parent_id."
-      - name: "tests/unit/domain/test_ledger_balance.py"
-        parent_module: "domain.ledger"
-        description: "Тесты валидатора баланса: одно- и мультивалютные кейсы, несбалансированность, негативные сценарии, проверка контекста Decimal и округления."
-      - name: "tests/unit/domain/test_trading_balance_raw.py"
-        parent_module: "domain.trading_balance"
-        description: "Тесты RawAggregator: пустой вход, одиночная валюта, мульти-валюта, округление HALF_EVEN, неизменность Decimal контекста, защита от неверного типа."
-      - name: "tests/unit/domain/test_trading_balance_converted.py"
-        parent_module: "domain.trading_balance"
-        description: "Тесты ConvertedAggregator/ConvertedBalanceLine: пустой вход, passthrough базовой валюты, небаза с курсом, смешанные валюты и сортировка, HALF_EVEN в базе, отсутствие/неположительный курс — ValidationError, неизвестная валюта — ValidationError, определение базы через get_base_currency, сохранение Decimal контекста, guard на не-LedgerEntry."
-      - name: "tests/unit/domain/test_fx_audit_ttl.py"
-        parent_module: "domain.fx_audit"
-        description: "Юнит‑тесты TTL: identify_old (naive/aware/strictly older), batch_plan (offset/limit покрытие), make_cutoff нормализация UTC, валидации аргументов."
-
-    components:
-      - name: "DomainErrors"
-        parent_file: "src/domain/errors.py"
-        type: "module"
-        description: "Исключения домена: базовый класс DomainError и ValidationError для валидации."
-        testable: true
-        test_priority: "high"
-      - name: "QuantizeUtilities"
-        parent_file: "src/domain/quantize.py"
-        type: "module"
-        description: "Функции money_quantize и rate_quantize: банковское округление (2 и 6 знаков) с ROUND_HALF_EVEN, без изменения глобального Decimal контекста."
-        testable: true
-        test_priority: "high"
-      - name: "CurrencyValueObject"
-        parent_file: "src/domain/currencies.py"
-        type: "module"
-        description: "Currency, BaseCurrencyRule, get_base_currency: единая базовая валюта, нормализация курсов, без пересчёта остальных."
-        testable: true
-        test_priority: "high"
-      - name: "AccountValueObject"
-        parent_file: "src/domain/accounts.py"
-        type: "module"
-        description: "Account: валидация full_name, derive name/parent_path, нормализация currency_code, parent_id опционален."
-        testable: true
-        test_priority: "high"
-      - name: "LedgerBalanceValidation"
-        parent_file: "src/domain/ledger.py"
-        type: "module"
-        description: "EntrySide, LedgerEntry, LedgerValidator.validate: мультивалютная проверка баланса в базовой валюте; конверсия по rate_to_base (>0), сравнение после money_quantize; ошибки ValidationError/DomainError; без инфраструктурных зависимостей."
-        testable: true
-        test_priority: "high"
-      - name: "RawTradingBalanceAggregation"
-        parent_file: "src/domain/trading_balance.py"
-        type: "module"
-        description: "RawAggregator.aggregate: группировка LedgerEntry по currency_code, накопление debit/credit, квантование (2dp HALF_EVEN), вычисление net, сортировка по коду."
-        testable: true
-        test_priority: "high"
-      - name: "ConvertedTradingBalanceAggregation"
-        parent_file: "src/domain/trading_balance.py"
-        type: "module"
-        description: "ConvertedAggregator.aggregate: группировка LedgerEntry по currency_code, определение базовой валюты по base_code или get_base_currency, проверка наличия положительного rate_to_base для небазовых валют, умножение необрезанных итогов на курс, округление на выходе (money_quantize), возврат DTO ConvertedBalanceLine с used_rate (rate_quantize)."
-        testable: true
-        test_priority: "high"
-      - name: "FxAuditTTLService"
-        parent_file: "src/domain/fx_audit.py"
-        type: "class"
-        description: "Сервис домена: make_cutoff(now, retention_days) -> UTC datetime; identify_old(events, cutoff) -> list[ExchangeRateEventRef] (stable order); batch_plan(total, batch_size) -> list[Batch]. Валидация аргументов через ValidationError."
-        testable: true
-        test_priority: "high"
-
-      - name: "AsyncSqlAlchemyUnitOfWork"
-        parent_file: "src/infrastructure/persistence/sqlalchemy/uow.py"
-        type: "class"
-        description: "AsyncSqlAlchemyUnitOfWork: async context manager, один AsyncSession, ленивые async репозитории; legacy sync слой удалён (I29)."
-        testable: true
-        test_priority: "high"
+      - name: "src/py_accountant/sdk/__init__.py"
+        parent_module: "py_accountant.sdk"
+        description: "Экспорт модулей SDK: json, errors, use_cases."
+      - name: "src/py_accountant/sdk/json.py"
+        parent_module: "py_accountant.sdk"
+        description: "JSON presenter: Decimal→str, datetime→UTC ISO (Z), детерминированный dumps."
+      - name: "src/py_accountant/sdk/errors.py"
+        parent_module: "py_accountant.sdk"
+        description: "Публичные ошибки SDK и map_exception() для маппинга внутренних исключений."
+      - name: "src/py_accountant/sdk/use_cases.py"
+        parent_module: "py_accountant.sdk"
+        description: "SimpleTransactionParser и тонкие async фасады post_transaction/get_account_balance/get_ledger."
 
   tests:
     unit_tests:
@@ -445,81 +379,31 @@ rpg:
             "test_validation_errors",
           ]
         coverage_status: "added"
-      - target_component: "Async repositories"
-        test_file: "tests/unit/application/test_async_repositories.py"
+      - target_component: "py_accountant.sdk"
+        test_file: "tests/unit/sdk/test_imports.py"
+        test_functions: ["test_sdk_imports_available_from_root"]
+        coverage_status: "added"
+      - target_component: "py_accountant.sdk"
+        test_file: "tests/unit/sdk/test_json_presenter.py"
         test_functions:
           [
-            "test_currency_upsert_and_base",
-            "test_currency_set_base_missing_raises",
-            "test_account_create_and_unique",
-            "test_transactions_add_and_list_between_with_meta",
-            "test_ledger_pagination_order_and_edges",
-            "test_balances_cache_upsert_get_clear",
-            "test_fx_events_list_filters_and_limits",
+            "test_decimal_to_str",
+            "test_datetime_aware_to_z",
+            "test_datetime_naive_treated_as_utc",
+            "test_list_of_dicts_serializes",
+            "test_to_json_deterministic_keys",
           ]
         coverage_status: "added"
-      - target_component: "Async use cases smoke (negative only)"
-        test_file: "tests/unit/application/test_async_use_cases_smoke.py"
+      - target_component: "py_accountant.sdk"
+        test_file: "tests/unit/sdk/test_error_mapping.py"
         test_functions:
           [
-            "test_async_set_base_missing_currency_raises",
-            "test_async_create_account_missing_currency",
-            "test_async_post_transaction_missing_account",
-          ]
-        coverage_status: "updated"
-      - target_component: "Docs sections presence"
-        test_file: "tests/docs/test_docs_sections_present.py"
-        test_functions: ["test_required_doc_sections_present"]
-        coverage_status: "added"
-      - target_component: "NoXfailStructural"
-        test_file: "tests/unit/test_no_xfail_left.py"
-        test_functions: ["test_no_xfail_markers_left"]
-        coverage_status: "added"
-      - target_component: "DTO trading balance refactor I09"
-        test_file: "tests/unit/domain/test_dto_trading_balance_refactor.py"
-        test_functions:
-          [
-            "test_simple_line_without_converted_fields",
-            "test_detailed_line_contains_conversion",
-            "test_docstrings_present_public_classes",
-            "test_frozen_slots_behavior",
+            "test_map_validation_error_to_user_input",
+            "test_map_domain_error_to_domain_violation",
+            "test_map_value_error_to_user_input",
+            "test_map_other_to_unexpected",
           ]
         coverage_status: "added"
-      - target_component: "Application DTO mapping use cases"
-        test_file: "tests/unit/application/test_trading_balance_use_cases_dto_mapping.py"
-        test_functions:
-          [
-            "test_raw_use_case_returns_simple_dto",
-            "test_detailed_use_case_returns_detailed_dto",
-            "test_legacy_alias_points_to_detailed_class",
-            "test_no_converted_fields_in_simple_output",
-          ]
-        coverage_status: "added"
-    integration_tests:
-      - integration_point: "FX TTL async repository"
-        test_description: "Удаление и архивирование событий по порогу давности (async repos)"
-        test_file: "tests/integration/test_async_fx_ttl.py"
-        coverage_status: "updated"
-      - integration_point: "CLI FX audit"
-        test_description: "E2E проверки команд fx add-event/list/ttl-plan: JSON сериализация, фильтры, TTL план"
-        test_file: "tests/integration/cli/test_cli_fx_audit.py"
-        coverage_status: "added"
-      - integration_point: "CLI trading balance"
-        test_description: "E2E проверки команд trading raw/detailed: пустая БД, простые USD/EUR сценарии, ошибки параметров"
-        test_file: "tests/integration/cli/test_cli_trading_balance.py"
-        coverage_status: "added"
-      - integration_point: "Alembic sync migrations"
-        test_description: "Upgrade head и downgrade base на синхронном URL; отказ на async URL"
-        test_file: "tests/integration/alembic/test_sync_migrations_still_work.py"
-        coverage_status: "added"
-      - integration_point: "Config dual URLs"
-        test_description: "Проверка различий драйверов runtime async и migrations sync"
-        test_file: "tests/integration/config/test_dual_url_consistency.py"
-        coverage_status: "added"
-    fixtures:
-      - name: "async_uow"
-        file: "tests/conftest.py"
-        description: "pytest-asyncio фикстура: создаёт файл-базу SQLite, поднимает схему, открывает Async UoW и закрывает по окончании теста."
 
   edges:
     inter_module_flows:
@@ -563,4 +447,4 @@ rpg:
     - id: "I29"
       title: "Удаление legacy sync UoW и репозиториев"
       status: "done"
-      notes: "Удалены классы SqlAlchemyUnitOfWork, SyncUnitOfWorkWrapper и репозитории из repositories.py; осталась только асинхронная реализация."
+      notes: "Удалены классы SqlAlchemyUnitOfWork, SyncUnitOfworkWrapper и репозитории из repositories.py; осталась только асинхронная реализация."
