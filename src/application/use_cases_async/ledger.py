@@ -212,7 +212,7 @@ class AsyncGetLedger:
 @dataclass(slots=True)
 class AsyncGetAccountBalance:
     """Purpose:
-    Compute balance for an account at a point in time via ledger scan only.
+    Compute balance for an account at a point in time. Fast path uses aggregates.
 
     Parameters:
     - uow: AsyncUnitOfWork.
@@ -223,17 +223,21 @@ class AsyncGetAccountBalance:
     - Decimal balance.
 
     Notes:
-    - Repository method `account_balance` removed (I13); computation is performed
-      here by scanning ledger entries from epoch through `as_of`.
-    - Formula: sum(DEBIT amounts) - sum(CREDIT amounts) for matching account lines.
+    - If as_of is None (current balance), use aggregated account_balances fast path.
+    - Otherwise, fallback to ledger scan for historical moments (until snapshots appear).
     """
     uow: AsyncUnitOfWork
     clock: Clock
 
     async def __call__(self, account_full_name: str, as_of: datetime | None = None) -> Decimal:
-        """Return computed account balance at ``as_of`` (or now) using ledger scan."""
+        """Return computed account balance at ``as_of`` (or now)."""
+        # Fast path for current balance
+        if as_of is None:
+            cached = await self.uow.accounts.get_balance(account_full_name)
+            if cached is not None:
+                return Decimal(cached)
+        # Fallback scan
         ts = as_of or self.clock.now()
-        from decimal import Decimal
         start = datetime.fromtimestamp(0, tz=ts.tzinfo)
         entries = await self.uow.transactions.ledger(
             account_full_name,
@@ -249,10 +253,9 @@ class AsyncGetAccountBalance:
             for line in tx.lines:
                 if line.account_full_name != account_full_name:
                     continue
-                side = line.side if isinstance(line.side, str) else str(line.side.value)
-                if side.upper() == "DEBIT":
+                side = (line.side or "").upper()
+                if side == "DEBIT":
                     total += line.amount
-                elif side.upper() == "CREDIT":
+                elif side == "CREDIT":
                     total -= line.amount
         return total
-

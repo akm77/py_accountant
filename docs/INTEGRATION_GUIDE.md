@@ -117,6 +117,24 @@ for l in lines:
     print(l.currency_code, l.net_base)
 ```
 
+### TTL конфигурация (FX Audit)
+
+Переменные окружения управляют политикой TTL:
+- `FX_TTL_MODE` — `none|delete|archive` (по умолчанию `none`). Определяет, будут ли события удалены или архивированы.
+- `FX_TTL_RETENTION_DAYS` — период хранения (>=0). Cutoff = `now() - retention_days` в UTC.
+- `FX_TTL_BATCH_SIZE` — максимальный размер батча (`>0`, по умолчанию `1000`). Используется при построении плана.
+- `FX_TTL_DRY_RUN` — логический флаг (`true|false`). При `true` исполнение пропускает мутации (без вызова `archive_events` и `delete_events_by_ids`).
+
+Workflow (безопасный старт):
+1. Установите `FX_TTL_MODE=archive`, `FX_TTL_DRY_RUN=true`, задайте `FX_TTL_RETENTION_DAYS=90`.
+2. Выполните CLI `fx ttl-plan` и изучите `total_old`, `batches`, `old_event_ids`.
+3. Запустите исполнение через воркер (SDK) с `FX_TTL_DRY_RUN=false`.
+4. Мониторьте размеры архивной таблицы и длительность батчей.
+
+Dry-run семантика: план возвращается полностью, но `AsyncExecuteFxAuditTTL` не вызывает примитивы мутации.
+
+Dual-URL и TTL: миграции (sync URL) должны быть выполнены до запуска TTL-воркеров; runtime async URL используется планом и ис��олнением.
+
 ### TTL plan/execute (FX Audit)
 ```python
 from application.use_cases_async.fx_audit_ttl import AsyncPlanFxAuditTTL, AsyncExecuteFxAuditTTL
@@ -146,7 +164,7 @@ async with app.uow_factory() as uow:
 
 ### CLI vs SDK
 - CLI покрывает большинство операций, включая TTL планирование.
-- Выполнение TTL (execute) доступно через SDK/use case’ы в ваших воркерах/cron.
+- Исполнение TTL (execute) только через SDK/use cases — репозитории остаются CRUD + TTL примитивы, оркестрация вне репозитория.
 
 ## Форматы ввода/файлов (CLI/SDK)
 

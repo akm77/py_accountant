@@ -106,3 +106,29 @@ class ExchangeRateEventArchiveORM(Base):
     __table_args__ = (
         Index("ix_fx_events_archive_code_occurred_at", "code", "occurred_at"),
     )
+
+
+# --- Denormalized aggregates for fast balance/turnover reporting (I31) ---
+class AccountBalanceORM(Base):
+    __tablename__ = "account_balances"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_full_name: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True, index=True)
+    currency_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    balance: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False, default=Decimal("0"), server_default="0")
+    last_journal_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False)
+
+
+class AccountDailyTurnoverORM(Base):
+    __tablename__ = "account_daily_turnovers"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_full_name: Mapped[str] = mapped_column(String(1024), nullable=False, index=True)
+    currency_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    date_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    debit_total: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False, default=Decimal("0"), server_default="0")
+    credit_total: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False, default=Decimal("0"), server_default="0")
+
+    __table_args__ = (
+        UniqueConstraint("account_full_name", "date_utc", name="uq_turnover_account_date"),
+        Index("ix_turnover_account_date", "account_full_name", "date_utc"),
+    )

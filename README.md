@@ -40,7 +40,7 @@ poetry run python -m presentation.cli.main diagnostics ping
 ## SDK surface
 
 Над существующими async use cases добавлен тонкий стабильный SDK-слой: `py_accountant.sdk`.
-Ключевые модул��: `bootstrap`, `use_cases`, `json`, `errors`, `settings`, `uow`.
+Ключевые модули: `bootstrap`, `use_cases`, `json`, `errors`, `settings`, `uow`.
 
 Минимальный рабочий пример (инициализация + постинг с idempotency_key + баланс/ledger):
 
@@ -80,8 +80,10 @@ asyncio.run(main())
 - Trading Detailed и TTL (plan/execute): выполняются через существующие use case’ы внутри `async with app.uow_factory(): ...` (см. подробности в docs/INTEGRATION_GUIDE.md).
 - Согласованные форматы: Decimal → строка; datetime → ISO8601 UTC (`Z`/`+00:00`).
 - Маппинг ошибок: используйте `py_accountant.sdk.errors.map_exception()` для дружелюбных сообщений.
+- Fast-path баланса: `use_cases.get_account_balance()` делегирует в AsyncGetAccountBalance, который при `as_of=None` читает денормализованный остаток из `account_balances` (O(1)); для исторических дат выполняется безопасный fallback к сканированию леджера.
+- Периодные обороты (SDK): `py_accountant.sdk.reports.turnover.get_account_daily_turnovers()` читает агрегаты `account_daily_turnovers` и возвращает списки дневных дебет/кредит/нетто по счёту/всем счетам без сканирования журнала.
 
-Подробнее: см. `docs/INTEGRATION_GUIDE.md` (раздел «Использование как библиотеки (SDK)») и «Шпаргалку проводок» `docs/ACCOUNTING_CHEATSHEET.md`.
+Подробн��е: см. `docs/INTEGRATION_GUIDE.md` (раздел «Использование как библиотеки (SDK)») и «Шпаргалку проводок» `docs/ACCOUNTING_CHEATSHEET.md`.
 
 ## Архитектура слоёв
 
@@ -103,6 +105,10 @@ asyncio.run(main())
 - Единый маппинг ошибок → дружелюбные сообщения; ожидаемые ошибки возвращают exit code 2.
 
 Подробности и примеры см. `docs/CLI_QUICKSTART.md` и `docs/INTEGRATION_GUIDE.md`.
+
+## FX Audit TTL (кратко)
+
+Репозитории FX Audit теперь строго CRUD + примитивы TTL (`list_old_events`, `archive_events`, `delete_events_by_ids`). Оркестрация TTL вынесена в домен (`FxAuditTTLService`) и async use cases (`AsyncPlanFxAuditTTL`, `AsyncExecuteFxAuditTTL`). CLI предоставляет только план (`fx ttl-plan`); исполнение выполняется воркером/SDK. Подробнее: `docs/FX_AUDIT.md` и раздел TTL в `docs/INTEGRATION_GUIDE.md`.
 
 ## FX Audit
 
@@ -141,3 +147,30 @@ asyncio.run(main())
 ## Полностью асинхронное ядро
 
 Синхронные репозитории и legacy sync UoW удалены в I29 (async-only завершён). Единственный поддерживаемый путь выполнения — async (CLI также async). Alembic по-прежнему использует sync драйверы только для миграций.
+
+## Fast balance & turnover (denormalized aggregates)
+
+Для ускорения получения текущего баланса и отчётов по оборотам введены две денормализованные таблицы (initiative I31):
+- account_balances: O(1) чтение текущего остатка счёта (balance += Δ для каждой проводки).
+- account_daily_turnovers: агрегированные дневные суммы debit_total / credit_total для быстрого построения оборотно-сальдовой ведомости.
+
+Механика:
+1. Постинг транзакции вставляет journal + строки.
+2. В той же транзакции вычисляется Δ (DEBIT=+, CREDIT=-) per account и выполняется UPSERT в account_balances.
+3. Группировка по (account_full_name, day UTC) агрегирует дебет/кредит и делает UPSERT в account_daily_turnovers.
+4. Commit фиксирует и журнал, и агрегаты атомарно.
+
+Fast-path AsyncGetAccountBalance:
+- Если as_of отсутствует (текущий момент) → читает из account_balances, при отсутствии строки возвращает Decimal('0').
+- Если требуется исторический момент (as_of < now) и snapshots ещё не реализованы → fallback к сканированию строк (DEBIT-CREDIT).
+
+Concurrency & Idempotency:
+- Одновременные постинги безопасны (один txn scope + пошаговые SELECT+INSERT/UPDATE).
+- Idempotency key в journals гарантирует, что повторный постинг не изменит агрегаты.
+
+Edge cases:
+- Новый счёт без строк → отсутствует запись в account_balances → баланс = 0.
+- Проводки с нулевыми суммами можно оптимизационно пропускать (в текущей версии просто дадут Δ=0).
+
+Future:
+- account_balance_snapshots (EOD) для быстрого исторического баланса без полного скана.

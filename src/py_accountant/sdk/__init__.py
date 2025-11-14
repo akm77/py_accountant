@@ -16,6 +16,7 @@ from . import (  # re-export modules for convenient access
     bootstrap,
     errors,
     json,
+    reports,  # type: ignore[attr-defined]
     settings,
     uow,
     use_cases,
@@ -28,4 +29,5 @@ __all__ = [
     "settings",
     "uow",
     "bootstrap",
+    "reports",
 ]

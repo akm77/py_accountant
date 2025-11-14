@@ -42,10 +42,14 @@ class SimpleTransactionParser:
 
     Rules:
     - SIDE: one of {DEBIT, CREDIT} (case-insensitive), normalized to upper
-    - Account: trimmed string; no further validation here
+    - Account: trimmed string; may contain nested ':' segments (e.g. Assets:Cash:Wallet)
     - Amount: Decimal string > 0
     - Currency: trimmed A-Z, length 3..10, normalized to upper
-    - Rate: optional Decimal > 0
+    - Rate: optional Decimal > 0 (if present, it is the LAST token)
+
+    Parsing strategy: right-to-left tail detection so Account may contain ':'
+    segments. If the last token parses as Decimal (>0), it is treated as Rate;
+    otherwise the last token is Currency and Rate is omitted.
 
     Returns EntryLineDTO with parsed values.
     Raises UserInputError on any format/validation issue.
@@ -56,40 +60,55 @@ class SimpleTransactionParser:
             raise UserInputError("Line must be a string in format SIDE:Account:Amount:Currency[:Rate]")
         raw = line.strip()
         parts = raw.split(":")
-        if len(parts) not in (4, 5) or any(p == "" for p in parts):
+        if len(parts) < 4 or any(p == "" for p in parts):
             raise UserInputError(
                 "Invalid line format. Expected 'SIDE:Account:Amount:Currency[:Rate]'"
             )
-        side_raw, account_raw, amount_raw, currency_raw, *rate_rest = parts
+        side_raw = parts[0]
         side = side_raw.strip().upper()
         if side not in {"DEBIT", "CREDIT"}:
             raise UserInputError("SIDE must be DEBIT or CREDIT")
-        account = account_raw.strip()
+
+        # Right-to-left parse: [SIDE][...ACCOUNT...][AMOUNT][CURRENCY][RATE?]
+        tail = parts[1:]
+        # Try to detect optional rate at the very end
+        rate: Decimal | None = None
+        maybe_rate_token = tail[-1].strip()
+        try:
+            candidate = Decimal(maybe_rate_token)
+            if candidate > Decimal("0"):
+                rate = candidate
+                tail = tail[:-1]
+            else:
+                # Non-positive numbers are not valid rates; treat as currency token
+                rate = None
+        except (InvalidOperation, ValueError):
+            rate = None
+        if len(tail) < 2:
+            raise UserInputError(
+                "Invalid line format. Expected 'SIDE:Account:Amount:Currency[:Rate]'"
+            )
+        currency_raw = tail[-1].strip().upper()
+        amount_raw = tail[-2].strip()
+        account_tokens = tail[:-2]
+        account = ":".join(t.strip() for t in account_tokens).strip()
+
         if not account:
             raise UserInputError("Account must be non-empty")
         try:
-            amount = Decimal(amount_raw.strip())
-        except (InvalidOperation, ValueError):
-            raise UserInputError("Amount must be a Decimal number")
+            amount = Decimal(amount_raw)
+        except (InvalidOperation, ValueError) as err:
+            raise UserInputError("Amount must be a Decimal number") from err
         if amount <= Decimal("0"):
             raise UserInputError("Amount must be greater than 0")
-        currency = currency_raw.strip().upper()
-        if not (3 <= len(currency) <= 10) or not currency.isalpha():
+        if not (3 <= len(currency_raw) <= 10) or not currency_raw.isalpha():
             raise UserInputError("Currency must be A-Z with length 3..10")
-        rate: Decimal | None = None
-        if rate_rest:
-            rate_str = rate_rest[0].strip()
-            try:
-                rate = Decimal(rate_str)
-            except (InvalidOperation, ValueError):
-                raise UserInputError("Rate must be a Decimal number if provided")
-            if rate <= Decimal("0"):
-                raise UserInputError("Rate must be greater than 0 if provided")
+
         return EntryLineDTO(
             side=side,
             account_full_name=account,
             amount=amount,
-            currency_code=currency,
+            currency_code=currency_raw,
             exchange_rate=rate,
         )
 
@@ -131,7 +150,10 @@ async def get_account_balance(
 ) -> Decimal:
     """Return account balance via AsyncGetAccountBalance use case.
 
-    Re-raises errors mapped to public SDK exceptions.
+    This facade delegates to AsyncGetAccountBalance which implements a fast-path
+    for current balance (as_of=None) by reading from the denormalized
+    account_balances aggregate and falls back to a ledger scan for historical
+    timestamps. Errors are mapped to public SDK exceptions.
     """
     try:
         use_case = AsyncGetAccountBalance(uow=uow, clock=clock)

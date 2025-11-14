@@ -204,11 +204,13 @@ CLI и use cases проверяют входные данные. Частые о
 - Архивация переносит запись в архив без изменения `rate`; затем из основной таблицы запись удаляется (для `archive`).
 - При вводе `rate` с лишними знаками хранится исходная точность; на выводе — форматирование до 6 знаков.
 - Даты без tz интерпретируются как UTC; все ответы возвращают время в ISO8601 UTC (`+00:00`).
-- Режим `none` + `--dry-run` в плане TTL даёт нулевую побочную активность.
+- Режим `none` + dry-run даёт инертный план (нулевые мутации).
 
 ## Ссылки
 - Архитектура: `docs/ARCHITECTURE_OVERVIEW.md` (async-only, TTL план vs execute)
 - Квантизация: `src/domain/quantize.py` (rate=6dp, ROUND_HALF_EVEN)
+- Переменные окружения: README (ENV переменные) и INTEGRATION_GUIDE (dual-URL + TTL)
+- TTL Архитектура: см. также `docs/INTEGRATION_GUIDE.md` (секция TTL конфигурация).
 
 ---
 Мини-чеклист (внутренний):
@@ -216,3 +218,58 @@ CLI и use cases проверяют входные данные. Частые о
 - [x] Раздел TTL: план в CLI, исполнение — вне CLI.
 - [x] Примеры JSON содержат нужные поля и форматы (6dp, ISO8601 UTC).
 - [x] Зафиксированы режимы TTL: none, delete, archive, и правила ошибок.
+
+## TTL Архитектура
+TTL реализуется в два шага: планирование (CLI `fx ttl-plan`) и исполнение (воркер/SDK). Репозиторий предоставляет только примитивы TTL; оркестрация находится в домене и use cases.
+
+Слои:
+- Примитивы TTL репозитория: `list_old_events(cutoff)`, `archive_events(rows)`, `delete_events_by_ids(ids)`.
+- Доменный сервис: `FxAuditTTLService` (`make_cutoff`, `identify_old`, `batch_plan`).
+- Use cases: `AsyncPlanFxAuditTTL` (формирует план) и `AsyncExecuteFxAuditTTL` (валидирует и исполняет план, вызывает примитивы).
+
+Таблица режимов (`FX_TTL_MODE`):
+| Режим | Действия | Мутации | Требуются old_event_ids | Архивация |
+|-------|----------|---------|-------------------------|-----------|
+| none  | Нет      | Нет     | Нет                     | Нет       |
+| delete| Удаление | Да      | Да                      | Нет       |
+| archive| Архив + удаление | Да | Да                  | Да        |
+
+Целостность плана контролируется в `AsyncExecuteFxAuditTTL`:
+- Сумма `limit` по батчам покрывает `total_old` (или `total_old=0`).
+- Для `delete|archive` список `old_event_ids` не пуст.
+- `batch_size > 0`, `retention_days >= 0`.
+
+Псевдокод (оркестрация TTL):
+```
+cutoff = now() - retention_days
+plan = AsyncPlanFxAuditTTL(uow, clock)(retention_days, batch_size, mode, limit, dry_run)
+for batch in plan.batches:
+    if plan.mode == "archive" and not plan.dry_run:
+        archived += archive_events(batch.rows, archived_at=now())
+    if plan.mode in ("delete", "archive") and not plan.dry_run:
+        deleted += delete_events_by_ids(batch.ids)
+```
+
+## Переменные окружения (FX TTL)
+- `FX_TTL_MODE` — `none|delete|archive` (по умолчанию `none`).
+- `FX_TTL_RETENTION_DAYS` — окно хранения в днях (например `90`).
+- `FX_TTL_BATCH_SIZE` — размер батча (`>0`, по умолчанию `1000`).
+- `FX_TTL_DRY_RUN` — `true|false`; при `true` мутации пропускаются.
+
+Рекомендуемый безопасный запуск:
+1. `FX_TTL_MODE=archive` и `FX_TTL_DRY_RUN=true`.
+2. CLI: `fx ttl-plan --retention-days 90 --batch-size 1000 --mode archive --json`.
+3. Проверить `total_old`, `batches`, `old_event_ids`.
+4. Запустить исполнение воркером с `FX_TTL_DRY_RUN=false`.
+
+## Глоссарий (TTL)
+- retention_cutoff — `now() - retention_days` (UTC).
+- batch — группа событий (до `FX_TTL_BATCH_SIZE`).
+- primitives — минимальные методы репозитория без бизнес-логики.
+- orchestration — последовательное применение примитивов на основе плана.
+- dry_run — режим, когда `archive_events` и `delete_events_by_ids` не вызываются.
+
+## Терминология
+Используем:
+- «примитивы TTL репозитория» для `list_old_events`, `archive_events`, `delete_events_by_ids`.
+- «оркестрация TTL» только для логики план→исполнение в домене/use cases.

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -31,6 +31,8 @@ from application.dto.models import (
     TransactionDTO,
 )
 from infrastructure.persistence.sqlalchemy.models import (
+    AccountBalanceORM,
+    AccountDailyTurnoverORM,
     AccountORM,
     CurrencyORM,
     ExchangeRateEventArchiveORM,
@@ -230,6 +232,16 @@ class AsyncSqlAlchemyAccountRepository:
         await self.session.flush()
         return True
 
+    async def get_balance(self, full_name: str) -> Decimal | None:
+        """Fast-path: read aggregated balance from account_balances or return 0 if not present."""
+        res = await self.session.execute(
+            select(AccountBalanceORM).where(AccountBalanceORM.account_full_name == full_name)
+        )
+        row = res.scalar_one_or_none()
+        if not row:
+            return Decimal("0")
+        current = Decimal(cast(Any, row.balance))
+        return current
 
 
 class AsyncSqlAlchemyTransactionRepository:
@@ -326,6 +338,10 @@ class AsyncSqlAlchemyTransactionRepository:
             )
             self.session.add(orm_line)
         await self.session.flush()
+
+        # --- I31: update aggregate tables within the same transaction ---
+        await self._apply_account_aggregates(journal_id=journal.id, occurred_at=dto.occurred_at, lines=dto.lines)
+
         return dto
 
     async def list_between(
@@ -433,6 +449,74 @@ class AsyncSqlAlchemyTransactionRepository:
                 return []
             paged = paged[:limit]
         return paged
+
+    async def _apply_account_aggregates(self, *, journal_id: int, occurred_at: datetime, lines: list[EntryLineDTO]) -> None:
+        """Compute per-account deltas and upsert into aggregate tables.
+
+        - account_balances: balance += (DEBIT - CREDIT)
+        - account_daily_turnovers: debit_total += sum(debit); credit_total += sum(credit) per account/day
+        """
+        if not lines:
+            return
+        per_account: dict[tuple[str, str], Decimal] = {}
+        per_turnover: dict[tuple[str, str], tuple[Decimal, Decimal]] = {}
+        day = occurred_at.replace(hour=0, minute=0, second=0, microsecond=0)
+        for ln in lines:
+            key = (ln.account_full_name, ln.currency_code.upper())
+            side = (ln.side or "").upper()
+            if side == "DEBIT":
+                delta = ln.amount
+                deb, cred = ln.amount, Decimal("0")
+            else:
+                delta = -ln.amount
+                deb, cred = Decimal("0"), ln.amount
+            per_account[key] = per_account.get(key, Decimal("0")) + delta
+            if key in per_turnover:
+                d0, c0 = per_turnover[key]
+                per_turnover[key] = (d0 + deb, c0 + cred)
+            else:
+                per_turnover[key] = (deb, cred)
+
+        # Upsert balances via SELECT + INSERT/UPDATE
+        for (full_name, code), delta in per_account.items():
+            res = await self.session.execute(
+                select(AccountBalanceORM).where(AccountBalanceORM.account_full_name == full_name)
+            )
+            row = res.scalar_one_or_none()
+            if not row:
+                row = AccountBalanceORM(
+                    account_full_name=full_name,
+                    currency_code=code,
+                    balance=delta,
+                    last_journal_id=journal_id,
+                )
+                self.session.add(row)
+            else:
+                current = Decimal(cast(Any, row.balance))
+                row.balance = current + delta
+                row.last_journal_id = journal_id
+        # Upsert daily turnovers
+        for (full_name, code), (d_add, c_add) in per_turnover.items():
+            res = await self.session.execute(
+                select(AccountDailyTurnoverORM).where(
+                    AccountDailyTurnoverORM.account_full_name == full_name,
+                    AccountDailyTurnoverORM.date_utc == day,
+                )
+            )
+            row = res.scalar_one_or_none()
+            if not row:
+                row = AccountDailyTurnoverORM(
+                    account_full_name=full_name,
+                    currency_code=code,
+                    date_utc=day,
+                    debit_total=d_add,
+                    credit_total=c_add,
+                )
+                self.session.add(row)
+            else:
+                row.debit_total = Decimal(cast(Any, row.debit_total)) + d_add
+                row.credit_total = Decimal(cast(Any, row.credit_total)) + c_add
+        await self.session.flush()
 
 
 class AsyncSqlAlchemyExchangeRateEventsRepository:
@@ -554,4 +638,3 @@ class AsyncSqlAlchemyExchangeRateEventsRepository:
         self.session.add_all(objs)
         await self.session.flush()
         return len(objs)
-
