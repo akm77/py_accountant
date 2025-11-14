@@ -9,7 +9,6 @@ from uuid import uuid4
 from application.dto.models import (
     EntryLineDTO,
     RichTransactionDTO,
-    TradingBalanceDTO,
     TransactionDTO,
 )
 from application.interfaces.ports import AsyncUnitOfWork, Clock
@@ -261,67 +260,3 @@ class AsyncGetAccountBalance:
                         total -= line.amount
             return total
 
-
-@dataclass(slots=True)
-class AsyncGetTradingBalance:
-    """DEPRECATED (I18): use AsyncGetTradingBalanceRaw / AsyncGetTradingBalanceDetailed
-    from application.use_cases_async.trading_balance instead of this legacy aggregator.
-
-    Purpose:
-    Aggregate trading balance (debit/credit per currency) and perform optional
-    base currency conversion.
-
-    Parameters:
-    - uow: AsyncUnitOfWork.
-    - clock: Clock.
-    - as_of: Optional timestamp for aggregation reference (defaults now).
-    - base_currency: Optional explicit base currency code; if omitted attempts
-      to infer via repository ``get_base``.
-
-    Returns:
-    - TradingBalanceDTO with optional converted fields populated.
-
-    Raises:
-    - None.
-
-    Notes:
-    - Conversion uses stored ``exchange_rate`` where available; missing or base
-      currency defaults to rate=1.
-    """
-    uow: AsyncUnitOfWork
-    clock: Clock
-
-    async def __call__(self, as_of: datetime | None = None, base_currency: str | None = None) -> TradingBalanceDTO:
-        """Return trading balance with optional base currency conversion."""
-        ref = as_of or self.clock.now()
-        tb = await self.uow.transactions.aggregate_trading_balance(as_of=ref, base_currency=base_currency)
-        inferred = base_currency
-        if inferred is None:
-            base_dto = await self.uow.currencies.get_base()
-            if base_dto:
-                inferred = base_dto.code
-        if inferred:
-            total = Decimal("0")
-            for line in tb.lines:
-                cur_obj = await self.uow.currencies.get_by_code(line.currency_code)
-                rate = Decimal("1")
-                if cur_obj and cur_obj.code != inferred and cur_obj.exchange_rate:
-                    rate = cur_obj.exchange_rate
-                zero = Decimal("0")
-                line.converted_debit = line.total_debit / rate if rate != zero else line.total_debit
-                line.converted_credit = line.total_credit / rate if rate != zero else line.total_credit
-                line.converted_balance = line.balance / rate if rate != zero else line.balance
-                # Ensure presentation-friendly rounding parity with legacy (money scale=2)
-                from application.utils.quantize import money_quantize
-                if line.converted_debit is not None:
-                    line.converted_debit = money_quantize(line.converted_debit)
-                if line.converted_credit is not None:
-                    line.converted_credit = money_quantize(line.converted_credit)
-                if line.converted_balance is not None:
-                    line.converted_balance = money_quantize(line.converted_balance)
-                total += line.converted_balance  # type: ignore[arg-type]
-            # Quantize base_total too
-            from application.utils.quantize import money_quantize as _mq
-            tb.base_currency = inferred
-            tb.base_total = _mq(total)
-        return tb

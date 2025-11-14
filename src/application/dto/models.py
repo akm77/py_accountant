@@ -11,8 +11,6 @@ __all__ = [
     "AccountDTO",
     "EntryLineDTO",
     "TransactionDTO",
-    "TradingBalanceLineDTO",
-    "TradingBalanceDTO",
     "RichTransactionDTO",
     "RateUpdateInput",
     "ExchangeRateEventDTO",
@@ -76,43 +74,6 @@ class TransactionDTO:
     lines: list[EntryLineDTO]
     memo: str | None = None
     meta: dict[str, Any] = field(default_factory=dict)
-
-
-# NOTE: Legacy mixed trading balance line kept for compatibility with existing tests.
-# I10: Mark as deprecated. Do not alias yet to avoid breaking infrastructure code paths.
-@dataclass(slots=True)
-class TradingBalanceLineDTO:
-    """DEPRECATED (I10): use TradingBalanceLineDetailed for detailed mode or
-    TradingBalanceLineSimple for raw mode. Scheduled for removal after I29.
-
-    Legacy mixed trading balance line with optional conversion fields.
-    """
-
-    currency_code: str
-    total_debit: Decimal
-    total_credit: Decimal
-    balance: Decimal
-    # New converted fields (optional; populated when base conversion applied)
-    converted_debit: Decimal | None = None
-    converted_credit: Decimal | None = None
-    converted_balance: Decimal | None = None
-    # New transparency fields for detailed conversion
-    rate_used: Decimal | None = None
-    rate_fallback: bool = False
-
-
-@dataclass(slots=True)
-class TradingBalanceDTO:
-    """Aggregated trading balance as of a timestamp with optional base totals.
-
-    Legacy container kept for compatibility of repository methods. New application
-    use cases in I10 return lists of TradingBalanceLineSimple/Detailed directly.
-    """
-
-    as_of: datetime
-    lines: list[TradingBalanceLineDTO]
-    base_currency: str | None = None
-    base_total: Decimal | None = None
 
 
 @dataclass(slots=True)

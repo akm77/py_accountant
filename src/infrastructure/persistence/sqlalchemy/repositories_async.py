@@ -28,7 +28,6 @@ from application.dto.models import (
     EntryLineDTO,
     ExchangeRateEventDTO,
     RichTransactionDTO,
-    TradingBalanceDTO,
     TransactionDTO,
 )
 from infrastructure.persistence.sqlalchemy.models import (
@@ -371,15 +370,6 @@ class AsyncSqlAlchemyTransactionRepository:
             )
         return results
 
-    async def aggregate_trading_balance(
-        self, as_of: datetime, base_currency: str | None = None
-    ) -> TradingBalanceDTO:  # noqa: D401
-        """DEPRECATED: Aggregation removed from repository in I13.
-
-        This method is intentionally not implemented. Use domain services and
-        application use cases to compute trading balances.
-        """
-        raise NotImplementedError("DEPRECATED in I13: use domain/use cases for aggregation")
 
     async def ledger(
         self,

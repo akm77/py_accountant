@@ -11,7 +11,6 @@ from application.dto.models import (
     CurrencyDTO,
     ExchangeRateEventDTO,
     RichTransactionDTO,
-    TradingBalanceDTO,
     TransactionDTO,
 )
 
@@ -76,7 +75,6 @@ class AsyncTransactionRepository(Protocol):
 
     async def add(self, dto: TransactionDTO) -> TransactionDTO: ...
     async def list_between(self, start: datetime, end: datetime, meta: dict[str, Any] | None = None) -> list[TransactionDTO]: ...
-    async def aggregate_trading_balance(self, as_of: datetime, base_currency: str | None = None) -> TradingBalanceDTO: ...
     async def ledger(
         self,
         account_full_name: str,

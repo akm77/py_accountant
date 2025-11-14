@@ -6,7 +6,6 @@ from decimal import Decimal
 from application.dto.models import (
     EntryLineDTO,
     TradingBalanceLineDetailed,
-    TradingBalanceLineDTO,
     TradingBalanceLineSimple,
 )
 from application.use_cases.ledger import (
@@ -63,14 +62,6 @@ def test_detailed_use_case_returns_detailed_dto() -> None:
         assert l.base_currency_code == "USD"
         assert l.debit_base >= Decimal("0")
         assert l.used_rate >= Decimal("1")
-
-
-def test_legacy_alias_points_to_detailed_class() -> None:
-    # Deprecated class still exists; ensure it is distinct from new detailed DTO
-    assert TradingBalanceLineDTO is not TradingBalanceLineDetailed
-    from decimal import Decimal as _D
-    legacy = TradingBalanceLineDTO(currency_code="USD", total_debit=_D("1"), total_credit=_D("0"), balance=_D("1"))
-    assert not isinstance(legacy, TradingBalanceLineDetailed)
 
 
 def test_no_converted_fields_in_simple_output() -> None:

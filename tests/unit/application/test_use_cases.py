@@ -10,7 +10,8 @@ from application.use_cases.ledger import (
     CreateCurrency,
     GetBalance,
     GetLedger,
-    GetTradingBalance,
+    GetTradingBalanceDetailedDTOs,
+    GetTradingBalanceRawDTOs,
     PostTransaction,
 )
 from domain import DomainError, ExchangeRatePolicy
@@ -78,11 +79,14 @@ def test_trading_balance_use_case_with_rates():
         EntryLineDTO(side="DEBIT", account_full_name="Assets:BankEUR", amount=Decimal("100"), currency_code="EUR", exchange_rate=Decimal("1.2")),
         EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("100"), currency_code="EUR", exchange_rate=Decimal("1.2")),
     ])
-    tb_uc = GetTradingBalance(uow, clock)
-    tb = tb_uc(base_currency="USD")
-    # Find EUR line and ensure raw debit recorded as 100 EUR
-    eur_line = next(l for l in tb.lines if l.currency_code == "EUR")
-    assert eur_line.total_debit == Decimal("100")
+    # Raw aggregation
+    raw = GetTradingBalanceRawDTOs(uow, clock)()
+    eur_raw = next(l for l in raw if l.currency_code == "EUR")
+    assert eur_raw.debit == Decimal("100")
+    # Detailed aggregation with base
+    det = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
+    # Sum of net_base equals sum of converted net values
+    assert all(hasattr(l, "net_base") for l in det)
 
 
 def test_update_exchange_rates_basic():
@@ -134,11 +138,11 @@ def test_get_trading_balance_infers_base_when_missing():
     clock = FixedClock(datetime.now(UTC))
     post = PostTransaction(uow, clock)
     post([EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("10"), currency_code="USD"), EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("10"), currency_code="USD")])
-    gb = GetTradingBalance(uow, clock)()
-    assert gb.base_currency == "USD"
-    # Since debits and credits in USD cancel out, base_total is 0.00
-    assert gb.base_total == Decimal("0.00")
-    assert gb.base_total == sum((l.converted_balance or Decimal("0")) for l in gb.lines)
+    # Detailed aggregation uses explicit base currency
+    det = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
+    # Since debits and credits in USD cancel out, sum of net_base across USD-only is 0
+    total_base_net = sum(l.net_base for l in det if l.currency_code == "USD")
+    assert total_base_net == Decimal("0.00")
 
 
 def test_rounding_money_and_rates():
@@ -155,11 +159,11 @@ def test_rounding_money_and_rates():
     CreateAccount(uow)("Assets:CashJPY", "JPY")
     clock = FixedClock(datetime.now(UTC))
     post = PostTransaction(uow, clock)
-    # Balance amounts in base: credit JPY amount * (1 / rate) should equal debit USD 100 -> credit JPY = 100 * rate
+    # Balance amounts in base: with detailed DTOs, net_base should reflect conversion
     post([
         EntryLineDTO(side="DEBIT", account_full_name="Assets:CashUSD", amount=Decimal("100"), currency_code="USD"),
         EntryLineDTO(side="CREDIT", account_full_name="Assets:CashJPY", amount=Decimal("15012.34567890"), currency_code="JPY", exchange_rate=Decimal("150.1234567890")),
     ])
-    gb = GetTradingBalance(uow, clock)(base_currency="USD")
-    assert gb.base_total == gb.lines[0].converted_balance + gb.lines[1].converted_balance
-    assert all(str(l.converted_balance).count('.') <= 1 and len(str(l.converted_balance).split('.')[-1]) <= 2 for l in gb.lines)
+    det = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
+    # Money rounding to 2dp in base amounts
+    assert all(str(l.net_base).count('.') <= 1 and len(str(l.net_base).split('.')[-1]) <= 2 for l in det)

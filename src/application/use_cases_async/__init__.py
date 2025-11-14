@@ -43,7 +43,6 @@ from .fx_audit_ttl import (
 from .ledger import (
     AsyncGetAccountBalance,
     AsyncGetLedger,
-    AsyncGetTradingBalance,
     AsyncListTransactionsBetween,
     AsyncPostTransaction,
 )
@@ -70,7 +69,6 @@ __all__ = [
     "AsyncListTransactionsBetween",
     "AsyncGetLedger",
     "AsyncGetAccountBalance",
-    "AsyncGetTradingBalance",
     # new trading balance refactored use cases (I18)
     "AsyncGetTradingBalanceRaw",
     "AsyncGetTradingBalanceDetailed",

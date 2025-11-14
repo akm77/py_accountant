@@ -7,7 +7,6 @@ from application.dto.models import (
     AccountDTO,
     CurrencyDTO,
     EntryLineDTO,
-    TradingBalanceDTO,
     TradingBalanceLineDetailed,
     TradingBalanceLineSimple,
     TransactionDTO,
@@ -27,14 +26,12 @@ def test_dto_shapes() -> None:
     tx = TransactionDTO(id="t1", occurred_at=datetime.now(UTC), lines=[line])
     tline_raw = TradingBalanceLineSimple(currency_code="USD", debit=Decimal("10"), credit=Decimal("0"), net=Decimal("10"))
     tline_det = TradingBalanceLineDetailed(currency_code="USD", base_currency_code="USD", debit=Decimal("10"), credit=Decimal("0"), net=Decimal("10"), used_rate=Decimal("1"), debit_base=Decimal("10"), credit_base=Decimal("0"), net_base=Decimal("10"))
-    bal = TradingBalanceDTO(as_of=datetime.now(UTC), lines=[], base_currency="USD")
 
     assert cur.code == "USD"
     assert acc.full_name.startswith("Assets")
     assert tx.lines[0].amount == Decimal("10.00")
     assert tline_raw.net == Decimal("10")
     assert tline_det.net_base == Decimal("10")
-    assert bal.base_currency == "USD"
 
 
 def test_ports_protocols() -> None:
@@ -60,7 +57,6 @@ def test_ports_protocols() -> None:
     class DummyTx:
         def add(self, dto: TransactionDTO): ...
         def list_between(self, start: datetime, end: datetime, meta: dict | None = None): ...
-        def aggregate_trading_balance(self, as_of: datetime, base_currency: str | None = None): ...
         def ledger(self, account_full_name: str, start: datetime, end: datetime, meta: dict | None = None, *, offset: int = 0, limit: int | None = None, order: str = "ASC"): ...
         def account_balance(self, account_full_name: str, as_of: datetime): ...
 

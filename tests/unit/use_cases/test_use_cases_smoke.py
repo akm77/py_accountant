@@ -8,7 +8,7 @@ from application.use_cases.ledger import (
     CreateAccount,
     CreateCurrency,
     GetBalance,
-    GetTradingBalanceDetailed,
+    GetTradingBalanceDetailedDTOs,
     PostTransaction,
 )
 from infrastructure.persistence.inmemory.clock import FixedClock
@@ -65,9 +65,8 @@ def test_trading_balance_detailed_use_case_with_rates():
         EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("125"), currency_code="EUR", exchange_rate=Decimal("1.25")),
     ])
 
-    tb = GetTradingBalanceDetailed(uow, clock)("USD")
-    # EUR converted balance should be close to 0 (125/1.25 == 100 base, debit 0 credit 100)
-    found_eur = next((l for l in tb.lines if l.currency_code == "EUR"), None)
+    lines = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
+    # EUR used_rate should be 1.25 (rate_quantize to 6 d.p.)
+    found_eur = next((l for l in lines if l.currency_code == "EUR"), None)
     assert found_eur is not None
-    assert str(found_eur.rate_used) == "1.25"
-
+    assert found_eur.used_rate == Decimal("1.25")

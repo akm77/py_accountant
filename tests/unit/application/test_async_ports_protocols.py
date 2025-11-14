@@ -46,7 +46,7 @@ async def test_async_repositories_structural_and_smoke(async_uow: AsyncSqlAlchem
     assert created.full_name == "Assets:Cash"
 
     t_repo = async_uow.transactions
-    for m in ["add", "list_between", "aggregate_trading_balance", "ledger", "account_balance"]:
+    for m in ["add", "list_between", "ledger", "account_balance"]:
         assert hasattr(t_repo, m), f"Transaction repo missing method {m}"
     now = datetime.now(UTC)
     tx = TransactionDTO(

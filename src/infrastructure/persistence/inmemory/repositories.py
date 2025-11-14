@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -10,8 +9,6 @@ from application.dto.models import (
     CurrencyDTO,
     ExchangeRateEventDTO,
     RichTransactionDTO,
-    TradingBalanceDTO,
-    TradingBalanceLineDTO,
     TransactionDTO,
 )
 from application.interfaces.ports import (
@@ -104,41 +101,6 @@ class InMemoryTransactionRepository(TransactionRepository):  # type: ignore[misc
                 return True
             return all(tx.meta.get(k) == v for k, v in meta.items())
         return [t for t in self._transactions.values() if start <= t.occurred_at <= end and meta_match(t)]
-
-    def _rate(self, currencies: CurrencyRepository, code: str) -> Decimal:
-        cur = currencies.get_by_code(code)
-        if not cur:
-            return Decimal("1")
-        if cur.is_base:
-            return Decimal("1")
-        return cur.exchange_rate or Decimal("1")
-
-    def aggregate_trading_balance(self, as_of: datetime, base_currency: str | None = None) -> TradingBalanceDTO:  # noqa: D401
-        debit: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-        credit: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-        for tx in self._transactions.values():
-            if tx.occurred_at > as_of:
-                continue
-            for line in tx.lines:
-                amt = line.amount
-                if line.side.upper() == "DEBIT":
-                    debit[line.currency_code] += amt
-                else:
-                    credit[line.currency_code] += amt
-        lines: list[TradingBalanceLineDTO] = []
-        for cur in sorted(set(debit.keys()) | set(credit.keys())):
-            total_debit = debit[cur]
-            total_credit = credit[cur]
-            balance = total_debit - total_credit
-            lines.append(
-                TradingBalanceLineDTO(
-                    currency_code=cur,
-                    total_debit=total_debit,
-                    total_credit=total_credit,
-                    balance=balance,
-                )
-            )
-        return TradingBalanceDTO(as_of=as_of, lines=lines, base_currency=base_currency)
 
     def ledger(
         self,
@@ -258,4 +220,3 @@ class InMemoryExchangeRateEventsRepository(ExchangeRateEventsRepository):  # typ
     # helper for tests
     def _archive_rows(self) -> list[dict[str, Any]]:
         return list(self._archive)
-
