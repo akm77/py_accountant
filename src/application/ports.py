@@ -90,7 +90,7 @@ class AsyncTransactionRepository(Protocol):
 
 @runtime_checkable
 class AsyncExchangeRateEventsRepository(Protocol):
-    """Async audit trail for exchange rate events with TTL helpers."""
+    """Async audit trail for exchange rate events (CRUD-only + TTL primitives)."""
 
     async def add_event(
         self, code: str, rate: Decimal, occurred_at: datetime, policy_applied: str, source: str | None
@@ -99,7 +99,6 @@ class AsyncExchangeRateEventsRepository(Protocol):
     async def list_old_events(self, cutoff: datetime, limit: int) -> list[ExchangeRateEventDTO]: ...
     async def delete_events_by_ids(self, ids: list[int]) -> int: ...
     async def archive_events(self, rows: list[ExchangeRateEventDTO], archived_at: datetime) -> int: ...
-    async def move_events_to_archive(self, cutoff: datetime, limit: int, archived_at: datetime) -> tuple[int, int]: ...
 
 
 @runtime_checkable

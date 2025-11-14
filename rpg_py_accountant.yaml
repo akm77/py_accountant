@@ -2,7 +2,7 @@ rpg:
   metadata:
     project_name: "py_accountant"
     description: "Монорепозиторий: домен/приложение/инфраструктура/презентация. Цель — Clean Architecture."
-    last_updated: "2025-11-13"
+    last_updated: "2025-11-14"
     environments:
       - name: "test"
         description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
@@ -168,7 +168,7 @@ rpg:
         description: "Async фабрики: normalize_async_url, get_async_engine, get_async_session_factory"
       - name: "repositories_async"
         path: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
-        description: "Async реализации портов репозиториев на SQLAlchemy (CRUD-only). Методы агрегации (включая account_balance) удалены; вычисления перешли в use cases (I13)."
+        description: "Async реализации портов репозиториев на SQLAlchemy (CRUD-only). Методы агрегации (включая account_balance) удалены; вычисления перешли в use cases (I13). Оркестрационный метод move_events_to_archive удалён (I13 cleanup); TTL compose через list_old_events + archive_events + delete_events_by_ids."
       - name: "asyncio_utils"
         path: "src/infrastructure/utils/asyncio_utils.py"
         description: "Helper run_sync(coro): безопасный запуск корутин из sync-контекста (guard на running loop, PEP695 generic)."
@@ -313,7 +313,7 @@ rpg:
         description: "ORM schema only: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, ExchangeRateEventORM, ExchangeRateEventArchiveORM. No helpers or business logic (I12)."
       - name: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
         parent_module: "infrastructure"
-        description: "Async реализации портов репозиториев на SQLAlchemy (CRUD-only). Методы агрегации (включая account_balance) удалены; вычисления перешли в use cases (I13)."
+        description: "Async реализации портов репозиториев на SQLAlchemy (CRUD-only). Методы агрегации (включая account_balance) удалены; вычисления перешли в use cases (I13). Оркестрационный метод move_events_to_archive удалён (I13 cleanup); TTL compose через list_old_events + archive_events + delete_events_by_ids."
       - name: "src/infrastructure/persistence/sqlalchemy/uow.py"
         parent_module: "infrastructure"
         description: "AsyncSqlAlchemyUnitOfWork only (legacy sync UoW и wrapper удалены в I29)."
@@ -540,3 +540,7 @@ rpg:
         Добавлен docs-тест tests/docs/test_docs_sections_present.py на наличие ключевых разделов.
       tests:
         - "tests/docs/test_docs_sections_present.py"
+    - id: "I13-cleanup-fx-orchestration"
+      title: "Удаление orchestration метода move_events_to_archive из async FX репозитория"
+      status: "done"
+      notes: "Метод удалён из AsyncSqlAlchemyExchangeRateEventsRepository и AsyncExchangeRateEventsRepository Protocol; тесты обновлены; TTL теперь только через примитивы list_old_events + archive_events + delete_events_by_ids."

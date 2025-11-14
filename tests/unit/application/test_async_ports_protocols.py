@@ -71,9 +71,9 @@ async def test_async_repositories_structural_and_smoke(async_uow: AsyncSqlAlchem
         "list_old_events",
         "delete_events_by_ids",
         "archive_events",
-        "move_events_to_archive",
     ]:
         assert hasattr(fx_repo, m), f"FX events repo missing method {m}"
+    assert not hasattr(fx_repo, "move_events_to_archive"), "Deprecated method move_events_to_archive must be removed (I13 cleanup)"
     await fx_repo.add_event("USD", Decimal("1.0"), now, policy_applied="RAW", source="test")
     evs = await fx_repo.list_events(code="USD")
     assert isinstance(evs, list)

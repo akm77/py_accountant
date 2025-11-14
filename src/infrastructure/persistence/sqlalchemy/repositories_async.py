@@ -439,11 +439,11 @@ class AsyncSqlAlchemyExchangeRateEventsRepository:
     """Async repository for FX exchange rate audit trail (CRUD + simple filters).
 
     TTL/archive orchestration belongs to domain; repository exposes primitive
-    read/write operations including the archive table.
+    read/write operations including the archive table. Orchestration helper
+    move_events_to_archive removed in I13 cleanup; compose primitives instead.
     """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Bind to ``AsyncSession`` within an active UoW transaction."""
         self.session = session
 
     async def add_event(
@@ -555,12 +555,3 @@ class AsyncSqlAlchemyExchangeRateEventsRepository:
         await self.session.flush()
         return len(objs)
 
-    async def move_events_to_archive(
-        self, cutoff: datetime, limit: int, archived_at: datetime
-    ) -> tuple[int, int]:  # noqa: D401
-        """DEPRECATED: Orchestration moved to domain in I13.
-
-        Use list_old_events + archive_events + delete_events_by_ids from a
-        domain service or use case layer.
-        """
-        raise NotImplementedError("DEPRECATED in I13: move orchestration to domain/use cases")
