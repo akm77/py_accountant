@@ -107,6 +107,16 @@ async with app.uow_factory() as uow:
     det = await AsyncGetTradingBalanceDetailed(uow, app.clock)(base_currency="USD")
 ```
 
+Пример (async):
+
+```python
+from application.use_cases_async.trading_balance import AsyncGetTradingBalanceDetailed
+
+lines = await AsyncGetTradingBalanceDetailed(uow, clock)(base_currency="USD")
+for l in lines:
+    print(l.currency_code, l.net_base)
+```
+
 ### TTL plan/execute (FX Audit)
 ```python
 from application.use_cases_async.fx_audit_ttl import AsyncPlanFxAuditTTL, AsyncExecuteFxAuditTTL

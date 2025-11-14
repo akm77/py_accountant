@@ -21,7 +21,7 @@ from application.use_cases.ledger import (
     CreateAccount,
     CreateCurrency,
     GetBalance,
-    GetTradingBalanceDetailed,
+    GetTradingBalanceRawDTOs,
     PostTransaction,
 )
 from application.utils.quantize import money_quantize
@@ -169,8 +169,17 @@ def run_parity_report(*, preset: str = "default", scenarios_path: str | None, ex
                 differences["rounding_deltas"].append({"account": acc, "expected": str(q_exp), "new": str(q_new), "delta": str(delta)})
             differences["balances"][acc] = {"expected": str(q_exp), "new": str(q_new), "delta": str(delta)}
         exp_base_total = Decimal(str(expected_entry.get("base_total", "0")))
-        tb_new = GetTradingBalanceDetailed(uow, clock)(base_cur or (cur_codes[0] if cur_codes else "USD")) if (base_cur or cur_codes) else None
-        new_base_total = money_quantize(tb_new.base_total) if tb_new and tb_new.base_total is not None else money_quantize(Decimal("0"))
+        raw_lines = GetTradingBalanceRawDTOs(uow, clock)()
+        # When comparing with expected, assume base currency is first of scenario list or USD fallback
+        base_code = base_cur or (cur_codes[0] if cur_codes else "USD")
+        # Build currency->rate map from repository (None for base treated as 1)
+        repo_curs = {c.code: c for c in uow.currencies.list_all()}
+        new_base_total = Decimal("0")
+        for l in raw_lines:
+            rate = repo_curs.get(l.currency_code).exchange_rate if repo_curs.get(l.currency_code) else Decimal("1")
+            used = Decimal("1") if l.currency_code == base_code else rate or Decimal("1")
+            new_base_total += (l.debit - l.credit) * used
+        new_base_total = money_quantize(new_base_total)
         delta_bt = (money_quantize(exp_base_total) - new_base_total).copy_abs()
         if delta_bt > tolerance:
             matched = False
