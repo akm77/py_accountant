@@ -96,7 +96,6 @@ class TransactionRepository(Protocol):
         limit: int | None = None,
         order: str = "ASC",
     ) -> list[RichTransactionDTO]: ...
-    def account_balance(self, account_full_name: str, as_of: datetime) -> Decimal: ...
 
 
 # ================ Async Protocol re-exports (preferred surface) ================

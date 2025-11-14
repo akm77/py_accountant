@@ -434,14 +434,6 @@ class AsyncSqlAlchemyTransactionRepository:
             paged = paged[:limit]
         return paged
 
-    async def account_balance(self, account_full_name: str, as_of: datetime) -> Decimal:  # noqa: D401
-        """DEPRECATED: Balance computation removed from repository in I13.
-
-        This method is intentionally not implemented. Use domain services and
-        application use cases to compute account balances.
-        """
-        raise NotImplementedError("DEPRECATED in I13: use domain/use cases for balance computation")
-
 
 class AsyncSqlAlchemyExchangeRateEventsRepository:
     """Async repository for FX exchange rate audit trail (CRUD + simple filters).

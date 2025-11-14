@@ -71,7 +71,7 @@ class AsyncAccountRepository(Protocol):
 
 @runtime_checkable
 class AsyncTransactionRepository(Protocol):
-    """Async repository for transactions and derived queries."""
+    """Async repository for transactions and derived queries (CRUD + ledger)."""
 
     async def add(self, dto: TransactionDTO) -> TransactionDTO: ...
     async def list_between(self, start: datetime, end: datetime, meta: dict[str, Any] | None = None) -> list[TransactionDTO]: ...
@@ -86,7 +86,6 @@ class AsyncTransactionRepository(Protocol):
         limit: int | None = None,
         order: str = "ASC",
     ) -> list[RichTransactionDTO]: ...
-    async def account_balance(self, account_full_name: str, as_of: datetime) -> Decimal: ...
 
 
 @runtime_checkable

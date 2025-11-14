@@ -212,7 +212,7 @@ class AsyncGetLedger:
 @dataclass(slots=True)
 class AsyncGetAccountBalance:
     """Purpose:
-    Compute balance for an account at a point in time.
+    Compute balance for an account at a point in time via ledger scan only.
 
     Parameters:
     - uow: AsyncUnitOfWork.
@@ -222,41 +222,37 @@ class AsyncGetAccountBalance:
     Returns:
     - Decimal balance.
 
-    Raises:
-    - None.
-
     Notes:
-    - Repository currently ignores ``as_of`` detail due to simplified schema.
-    - Fallback: if transactions.account_balance is DEPRECATED (NotImplementedError),
-      compute balance manually by scanning ledger entries up to ``as_of``.
+    - Repository method `account_balance` removed (I13); computation is performed
+      here by scanning ledger entries from epoch through `as_of`.
+    - Formula: sum(DEBIT amounts) - sum(CREDIT amounts) for matching account lines.
     """
     uow: AsyncUnitOfWork
     clock: Clock
 
     async def __call__(self, account_full_name: str, as_of: datetime | None = None) -> Decimal:
-        """Return computed account balance at ``as_of`` (or now).
-
-        Fallback logic handles repositories where account_balance was removed in I13
-        (CRUD-only). Manual computation sums DEBIT amounts minus CREDIT amounts
-        for matching account ledger lines.
-        """
+        """Return computed account balance at ``as_of`` (or now) using ledger scan."""
         ts = as_of or self.clock.now()
-        try:
-            return await self.uow.transactions.account_balance(account_full_name, ts)
-        except NotImplementedError:
-            from decimal import Decimal
-            # Manual ledger scan from epoch to ts
-            start = datetime.fromtimestamp(0, tz=ts.tzinfo)
-            entries = await self.uow.transactions.ledger(account_full_name, start, ts, None, offset=0, limit=None, order="ASC")
-            total = Decimal("0")
-            for tx in entries:
-                for line in tx.lines:
-                    if line.account_full_name != account_full_name:
-                        continue
-                    side = line.side if isinstance(line.side, str) else str(line.side.value)
-                    if side.upper() == "DEBIT":
-                        total += line.amount
-                    elif side.upper() == "CREDIT":
-                        total -= line.amount
-            return total
+        from decimal import Decimal
+        start = datetime.fromtimestamp(0, tz=ts.tzinfo)
+        entries = await self.uow.transactions.ledger(
+            account_full_name,
+            start,
+            ts,
+            None,
+            offset=0,
+            limit=None,
+            order="ASC",
+        )
+        total = Decimal("0")
+        for tx in entries:
+            for line in tx.lines:
+                if line.account_full_name != account_full_name:
+                    continue
+                side = line.side if isinstance(line.side, str) else str(line.side.value)
+                if side.upper() == "DEBIT":
+                    total += line.amount
+                elif side.upper() == "CREDIT":
+                    total -= line.amount
+        return total
 
