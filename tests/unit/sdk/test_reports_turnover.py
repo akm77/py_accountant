@@ -9,6 +9,7 @@ from application.dto.models import AccountDTO, CurrencyDTO
 from application.interfaces.ports import Clock
 from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 from py_accountant.sdk import use_cases
+from py_accountant.sdk.errors import UnexpectedError
 from py_accountant.sdk.reports.turnover import DailyTurnoverLine, get_account_daily_turnovers
 
 pytestmark = pytest.mark.asyncio
@@ -104,5 +105,5 @@ async def test_turnover_validation(async_uow: AsyncSqlAlchemyUnitOfWork) -> None
     await _bootstrap_minimal(async_uow)
     start = clock.now()
     end = (start - timedelta(days=1))
-    with pytest.raises(Exception):
+    with pytest.raises(UnexpectedError):
         await get_account_daily_turnovers(async_uow, clock, start=start, end=end)

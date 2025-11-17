@@ -35,8 +35,8 @@ async def test_create_currency_invalid_code_raises_validation_error(async_uow):
 async def test_set_base_currency_switches_single_base_no_rate_changes(async_uow):
     create = AsyncCreateCurrency(async_uow)
     # seed two currencies with rates
-    usd = await create("USD", exchange_rate=Decimal("1.0000001"))
-    eur = await create("EUR", exchange_rate=Decimal("0.9000004"))
+    await create("USD", exchange_rate=Decimal("1.0000001"))
+    await create("EUR", exchange_rate=Decimal("0.9000004"))
     # switch base to EUR
     set_base = AsyncSetBaseCurrency(async_uow)
     await set_base("EUR")
@@ -67,4 +67,3 @@ async def test_list_currencies_passthrough(async_uow):
     lst = AsyncListCurrencies(async_uow)
     rows = await lst()
     assert {r.code for r in rows} >= {"USD", "JPY"}
-

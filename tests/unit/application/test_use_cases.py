@@ -80,12 +80,12 @@ def test_trading_balance_use_case_with_rates():
     ])
     # Raw aggregation
     raw = GetTradingBalanceRawDTOs(uow, clock)()
-    eur_raw = next(l for l in raw if l.currency_code == "EUR")
+    eur_raw = next(line for line in raw if line.currency_code == "EUR")
     assert eur_raw.debit == Decimal("100")
     # Detailed aggregation with base
     det = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
     # Sum of net_base equals sum of converted net values
-    assert all(hasattr(l, "net_base") for l in det)
+    assert all(hasattr(line, "net_base") for line in det)
 
 
 def test_update_exchange_rates_basic():
@@ -140,7 +140,7 @@ def test_get_trading_balance_infers_base_when_missing():
     # Detailed aggregation uses explicit base currency
     det = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
     # Since debits and credits in USD cancel out, sum of net_base across USD-only is 0
-    total_base_net = sum(l.net_base for l in det if l.currency_code == "USD")
+    total_base_net = sum(line.net_base for line in det if line.currency_code == "USD")
     assert total_base_net == Decimal("0.00")
 
 
@@ -165,4 +165,4 @@ def test_rounding_money_and_rates():
     ])
     det = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
     # Money rounding to 2dp in base amounts
-    assert all(str(l.net_base).count('.') <= 1 and len(str(l.net_base).split('.')[-1]) <= 2 for l in det)
+    assert all(str(line.net_base).count('.') <= 1 and len(str(line.net_base).split('.')[-1]) <= 2 for line in det)

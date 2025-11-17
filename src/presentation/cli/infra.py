@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol
 
 from domain.errors import ValidationError
 
@@ -26,7 +26,25 @@ except Exception:  # pragma: no cover
     Base = None  # type: ignore
 
 
-T = TypeVar("T")
+class AsyncUowProtocol(Protocol):
+    async def __aenter__(self) -> AsyncUowProtocol:
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: Any | None,
+    ) -> None:
+        ...
+
+
+if TYPE_CHECKING:
+    from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork as _AsyncUow
+else:  # pragma: no cover - typing fallback
+    _AsyncUow = Any
+
+
 _DEFAULT_DB_URL_ASYNC = "sqlite+aiosqlite:///./py_accountant_cli.db"
 
 
@@ -34,7 +52,7 @@ def _resolve_url(url: str | None) -> str:
     return url or os.getenv("DATABASE_URL_ASYNC", _DEFAULT_DB_URL_ASYNC)
 
 
-async def _prep_uow(url: str) -> AsyncSqlAlchemyUnitOfWork:
+async def _prep_uow(url: str) -> _AsyncUow:
     if AsyncSqlAlchemyUnitOfWork is None or Base is None:  # pragma: no cover - infra missing
         raise ValidationError("Async infrastructure unavailable")
     uow = AsyncSqlAlchemyUnitOfWork(url)
@@ -43,7 +61,10 @@ async def _prep_uow(url: str) -> AsyncSqlAlchemyUnitOfWork:
     return uow
 
 
-def run_ephemeral_async_uow(fn: Callable[[Any], Awaitable[T]], url: str | None = None) -> T:
+def run_ephemeral_async_uow[UowT: AsyncUowProtocol, T](
+    fn: Callable[[UowT], Awaitable[T]],
+    url: str | None = None,
+) -> T:
     """Run an async callable with a freshly prepared AsyncSqlAlchemyUnitOfWork.
 
     Steps:
@@ -54,8 +75,10 @@ def run_ephemeral_async_uow(fn: Callable[[Any], Awaitable[T]], url: str | None =
     Raises ValidationError if infrastructure missing. Propagates domain/use case
     exceptions for outer CLI error classification.
     """
+
     async def _driver() -> T:
         uow = await _prep_uow(_resolve_url(url))
-        async with uow:  # type: ignore[union-attr]
+        async with uow:  # type: ignore[arg-type]
             return await fn(uow)
+
     return asyncio.run(_driver())

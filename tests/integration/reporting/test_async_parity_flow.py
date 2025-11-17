@@ -25,11 +25,11 @@ async def test_async_parity_flow_with_base_and_two_currencies(async_uow):
     await AsyncCreateCurrency(async_uow)("JPY", exchange_rate=Decimal("150"))
 
     rep = await AsyncGetParityReport(async_uow, clock)(include_dev=True)
-    codes = [l.currency_code for l in rep.lines]
+    codes = [line.currency_code for line in rep.lines]
     assert codes == ["EUR", "JPY", "USD"]
     # Deviation for non-base lines present
-    eur = next(l for l in rep.lines if l.currency_code == "EUR")
-    jpy = next(l for l in rep.lines if l.currency_code == "JPY")
+    eur = next(line for line in rep.lines if line.currency_code == "EUR")
+    jpy = next(line for line in rep.lines if line.currency_code == "JPY")
     assert eur.deviation_pct is not None and jpy.deviation_pct is not None
 
 
@@ -46,5 +46,4 @@ async def test_async_parity_flow_codes_filter(async_uow):
     await AsyncCreateCurrency(async_uow)("JPY", exchange_rate=Decimal("150"))
 
     rep = await AsyncGetParityReport(async_uow, clock)(codes=["JPY", "usd"])
-    assert [l.currency_code for l in rep.lines] == ["JPY", "USD"]
-
+    assert [line.currency_code for line in rep.lines] == ["JPY", "USD"]

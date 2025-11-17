@@ -31,7 +31,7 @@ def test_recalculate_inmemory_matches_direct():
     recalc = RecalculateAccountBalance(uow, clock, balance_service=svc)
 
     # Initial read warms cache
-    bal1 = get_balance("Assets:Cash")
+    get_balance("Assets:Cash")
     # Add another transaction in the future and recompute to now
     post([
         EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("25"), currency_code="USD"),
@@ -60,4 +60,3 @@ def test_recalculate_direct_aggregation_without_service():
     # Should equal a direct repository aggregation
     direct = uow.transactions.account_balance("Assets:Cash", clock.now())
     assert recalc("Assets:Cash") == direct
-

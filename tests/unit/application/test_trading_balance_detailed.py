@@ -55,8 +55,8 @@ def test_get_trading_balance_detailed_basic_conversion():
         assert line.net_base is not None
         assert line.used_rate is not None
     # EUR line conversion check
-    eur = next(l for l in lines if l.currency_code == "EUR")
-    assert eur.used_rate == Decimal("1.2")
+    eur_line = next(line for line in lines if line.currency_code == "EUR")
+    assert eur_line.used_rate == Decimal("1.2")
 
 
 def test_get_trading_balance_detailed_fallback_rate():
@@ -74,9 +74,9 @@ def test_get_trading_balance_detailed_fallback_rate():
         EntryLineDTO(side="CREDIT", account_full_name="Income:Sales", amount=Decimal("1000"), currency_code="JPY"),
     ])
     lines = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
-    jpy = next(l for l in lines if l.currency_code == "JPY")
+    jpy_line = next(line for line in lines if line.currency_code == "JPY")
     # With rate 1.0, converted numbers equal raw numbers
-    assert jpy.used_rate == Decimal("1")
-    assert jpy.debit_base == jpy.debit
-    assert jpy.credit_base == jpy.credit
-    assert jpy.net_base == jpy.net
+    assert jpy_line.used_rate == Decimal("1")
+    assert jpy_line.debit_base == jpy_line.debit
+    assert jpy_line.credit_base == jpy_line.credit
+    assert jpy_line.net_base == jpy_line.net

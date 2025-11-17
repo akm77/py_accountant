@@ -67,6 +67,6 @@ def test_trading_balance_detailed_use_case_with_rates():
 
     lines = GetTradingBalanceDetailedDTOs(uow, clock)("USD")
     # EUR used_rate should be 1.25 (rate_quantize to 6 d.p.)
-    found_eur = next((l for l in lines if l.currency_code == "EUR"), None)
+    found_eur = next((line for line in lines if line.currency_code == "EUR"), None)
     assert found_eur is not None
     assert found_eur.used_rate == Decimal("1.25")

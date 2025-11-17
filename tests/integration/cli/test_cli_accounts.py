@@ -84,7 +84,7 @@ def test_cli_account_list_human_format_multiple(db_path: Path):
     assert run_cli(["account", "add", "Income:Sales", "USD"], db_path).returncode == 0
     proc = run_cli(["account", "list"], db_path)
     assert proc.returncode == 0, proc.stderr
-    lines = [l for l in proc.stdout.splitlines() if l.strip()]
+    lines = [text_line for text_line in proc.stdout.splitlines() if text_line.strip()]
     # Expect deterministic lexicographic order by full_name
     assert lines == [
         "Account Assets:Cash currency=USD",

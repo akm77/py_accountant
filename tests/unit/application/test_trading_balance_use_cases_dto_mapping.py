@@ -44,12 +44,12 @@ def test_raw_use_case_returns_simple_dto() -> None:
     _seed_basic(uow)
     raw_uc = GetTradingBalanceRawDTOs(uow, type("_Clock", (), {"now": lambda self: datetime.now(UTC)})())
     lines = raw_uc()
-    assert lines and all(isinstance(l, TradingBalanceLineSimple) for l in lines)
+    assert lines and all(isinstance(line, TradingBalanceLineSimple) for line in lines)
     # Simple DTO must not have base conversion attributes
-    for l in lines:
-        assert not hasattr(l, "debit_base")
-        assert not hasattr(l, "credit_base")
-        assert not hasattr(l, "net_base")
+    for line in lines:
+        assert not hasattr(line, "debit_base")
+        assert not hasattr(line, "credit_base")
+        assert not hasattr(line, "net_base")
 
 
 def test_detailed_use_case_returns_detailed_dto() -> None:
@@ -57,17 +57,16 @@ def test_detailed_use_case_returns_detailed_dto() -> None:
     _seed_basic(uow)
     det_uc = GetTradingBalanceDetailedDTOs(uow, type("_Clock", (), {"now": lambda self: datetime.now(UTC)})())
     lines = det_uc("USD")
-    assert lines and all(isinstance(l, TradingBalanceLineDetailed) for l in lines)
-    for l in lines:
-        assert l.base_currency_code == "USD"
-        assert l.debit_base >= Decimal("0")
-        assert l.used_rate >= Decimal("1")
+    assert lines and all(isinstance(line, TradingBalanceLineDetailed) for line in lines)
+    for line in lines:
+        assert line.base_currency_code == "USD"
+        assert line.debit_base >= Decimal("0")
+        assert line.used_rate >= Decimal("1")
 
 
 def test_no_converted_fields_in_simple_output() -> None:
     uow = InMemoryUnitOfWork()
     _seed_basic(uow)
-    raw_uc = GetTradingBalanceRawDTOs(uow, type("_Clock", (), {"now": lambda self: datetime.now(UTC)})())
-    lines = raw_uc()
+    type("_Clock", (), {"now": lambda self: datetime.now(UTC)})()
     field_names = {f.name for f in getattr(TradingBalanceLineSimple, "__dataclass_fields__", {}).values()}
     assert "debit_base" not in field_names and "credit_base" not in field_names and "net_base" not in field_names

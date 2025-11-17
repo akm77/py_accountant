@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
 from typer import Option, Typer
 
@@ -85,14 +85,21 @@ def _detailed_line_to_dict(line: Any) -> dict[str, Any]:
     }
 
 
+_META_OPTION = Option([], "--meta", help="Meta key=value filters", show_default=False)
+_START_OPTION = Option(None, "--start", help="Start datetime (ISO8601)")
+_END_OPTION = Option(None, "--end", help="End datetime (ISO8601)")
+_JSON_OPTION = Option(False, "--json", help="Output JSON list")
+_BASE_OPTION = Option(None, "--base", help="Explicit base currency code")
+
+
 # --- Commands ---
 
 @trading.command("raw")
 def trading_raw(
-    start: str | None = Option(None, "--start", help="Start datetime (ISO8601)"),
-    end: str | None = Option(None, "--end", help="End datetime (ISO8601)"),
-    meta_items: list[str] = Option([], "--meta", help="Meta key=value filters", show_default=False),
-    json_output: bool = Option(False, "--json", help="Output JSON list"),
+    start: Annotated[str | None, _START_OPTION] = None,
+    end: Annotated[str | None, _END_OPTION] = None,
+    meta_items: Annotated[list[str], _META_OPTION] = (),
+    json_output: Annotated[bool, _JSON_OPTION] = False,
 ) -> None:
     """Report aggregated raw trading balance per currency (no conversion).
 
@@ -130,11 +137,11 @@ def trading_raw(
 
 @trading.command("detailed")
 def trading_detailed(
-    start: str | None = Option(None, "--start", help="Start datetime (ISO8601)"),
-    end: str | None = Option(None, "--end", help="End datetime (ISO8601)"),
-    meta_items: list[str] = Option([], "--meta", help="Meta key=value filters", show_default=False),
-    base: str | None = Option(None, "--base", help="Explicit base currency code"),
-    json_output: bool = Option(False, "--json", help="Output JSON list"),
+    start: Annotated[str | None, _START_OPTION] = None,
+    end: Annotated[str | None, _END_OPTION] = None,
+    meta_items: Annotated[list[str], _META_OPTION] = (),
+    base: Annotated[str | None, _BASE_OPTION] = None,
+    json_output: Annotated[bool, _JSON_OPTION] = False,
 ) -> None:
     """Report aggregated trading balance with conversion to base currency.
 
@@ -182,4 +189,3 @@ def trading_detailed(
                 ]
             )
         )
-

@@ -51,7 +51,7 @@ async def test_parity_report_filters_by_codes_subset(async_uow):
     await AsyncCreateCurrency(async_uow)("JPY", exchange_rate=Decimal("150"))
     await AsyncSetBaseCurrency(async_uow)("USD")
     rep = await AsyncGetParityReport(async_uow, clock)(codes=["eur", "usd", "usd", "invalid", "  "])
-    codes_out = [l.currency_code for l in rep.lines]
+    codes_out = [line.currency_code for line in rep.lines]
     assert codes_out == ["EUR", "USD"]
 
 
@@ -62,7 +62,7 @@ async def test_parity_report_deviation_flag_when_include_dev(async_uow):
     await AsyncCreateCurrency(async_uow)("EUR", exchange_rate=Decimal("1.2500"))
     await AsyncSetBaseCurrency(async_uow)("USD")
     rep = await AsyncGetParityReport(async_uow, clock)(include_dev=True)
-    eur_line = next(l for l in rep.lines if l.currency_code == "EUR")
+    eur_line = next(line for line in rep.lines if line.currency_code == "EUR")
     assert eur_line.deviation_pct == Decimal("25.00")  # (1.25 - 1) * 100
     assert rep.has_deviation is True
 
@@ -74,7 +74,7 @@ async def test_parity_report_no_deviation_when_flag_false(async_uow):
     await AsyncCreateCurrency(async_uow)("EUR", exchange_rate=Decimal("1.2500"))
     await AsyncSetBaseCurrency(async_uow)("USD")
     rep = await AsyncGetParityReport(async_uow, clock)(include_dev=False)
-    assert all(l.deviation_pct is None for l in rep.lines)
+    assert all(line.deviation_pct is None for line in rep.lines)
     assert rep.has_deviation is False
 
 
@@ -85,7 +85,7 @@ async def test_parity_report_handles_missing_base_currency(async_uow):
     # No base set
     rep = await AsyncGetParityReport(async_uow, clock)()
     assert rep.base_currency is None
-    assert all(l.deviation_pct is None for l in rep.lines)
+    assert all(line.deviation_pct is None for line in rep.lines)
 
 
 @pytest.mark.asyncio
@@ -98,7 +98,7 @@ async def test_parity_report_invalid_codes_ignored_or_validation_error(async_uow
         await AsyncGetParityReport(async_uow, clock)(codes="USD")  # type: ignore[arg-type]
     # Mixed invalid entries ignored
     rep = await AsyncGetParityReport(async_uow, clock)(codes=["usd", 123, None, "", "USD"])  # type: ignore[list-item]
-    assert [l.currency_code for l in rep.lines] == ["USD"]
+    assert [line.currency_code for line in rep.lines] == ["USD"]
 
 
 @pytest.mark.asyncio

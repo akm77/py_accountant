@@ -53,11 +53,11 @@ async def test_trading_balance_raw_single_currency_aggregate(async_uow):
     raw = AsyncGetTradingBalanceRaw(async_uow, clock)
     lines = await raw()
     assert len(lines) == 1
-    l = lines[0]
-    assert l.currency_code == "USD"
-    assert l.debit == Decimal("13.00")
-    assert l.credit == Decimal("13.00")
-    assert l.net == Decimal("0.00")
+    line = lines[0]
+    assert line.currency_code == "USD"
+    assert line.debit == Decimal("13.00")
+    assert line.credit == Decimal("13.00")
+    assert line.net == Decimal("0.00")
 
 
 @pytest.mark.asyncio
@@ -82,7 +82,7 @@ async def test_trading_balance_raw_multi_currency_sorted_and_rounded(async_uow):
     raw = AsyncGetTradingBalanceRaw(async_uow, clock)
     lines = await raw()
     # Should be two currencies, sorted lexicographically: EUR, USD
-    assert [l.currency_code for l in lines] == ["EUR", "USD"]
+    assert [line.currency_code for line in lines] == ["EUR", "USD"]
     eur = lines[0]
     usd = lines[1]
     assert eur.debit == Decimal("5.00") and eur.credit == Decimal("5.00") and eur.net == Decimal("0.00")
@@ -109,7 +109,7 @@ async def test_trading_balance_detailed_base_detected_via_get_base(async_uow):
     ])
     det = AsyncGetTradingBalanceDetailed(async_uow, clock)
     lines = await det()  # base inferred as USD
-    assert [l.currency_code for l in lines] == ["EUR", "USD"]
+    assert [line.currency_code for line in lines] == ["EUR", "USD"]
     eur = lines[0]
     usd = lines[1]
     assert eur.base_currency_code == "USD"
@@ -169,7 +169,7 @@ async def test_trading_balance_detailed_multi_currency_correct_conversion_and_us
     ])
     det = AsyncGetTradingBalanceDetailed(async_uow, clock)
     lines = await det()
-    eur = next(l for l in lines if l.currency_code == "EUR")
+    eur = next(line for line in lines if line.currency_code == "EUR")
     # used_rate must be quantized to 6 dp
     assert eur.used_rate == Decimal("1.111112")
 
