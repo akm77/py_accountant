@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from domain.errors import ValidationError
 
@@ -45,6 +45,8 @@ else:  # pragma: no cover - typing fallback
     _AsyncUow = Any
 
 
+UowT = TypeVar("UowT", bound=AsyncUowProtocol)
+T = TypeVar("T")
 _DEFAULT_DB_URL_ASYNC = "sqlite+aiosqlite:///./py_accountant_cli.db"
 
 
@@ -61,7 +63,7 @@ async def _prep_uow(url: str) -> _AsyncUow:
     return uow
 
 
-def run_ephemeral_async_uow[UowT: AsyncUowProtocol, T](
+def run_ephemeral_async_uow(
     fn: Callable[[UowT], Awaitable[T]],
     url: str | None = None,
 ) -> T:

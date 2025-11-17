@@ -50,7 +50,7 @@ select = [
     "SIM",# flake8-simplify
     "C4", # flake8-comprehensions
 ]
-ignore = ["E501"]  # handled by formatter; allow long lines when needed
+ignore = ["E501", "UP047"]  # E501: long lines; UP047: type params (incompatible with bound protocol runtime)
 
 [tool.ruff.format]
 quote-style = "double"

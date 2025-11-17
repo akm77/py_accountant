@@ -530,3 +530,14 @@ rpg:
       title: "SDK фасад периодных оборотов (turnovers) на агрегатах"
       status: "done"
       notes: "Добавлен модуль sdk.reports.turnover.get_account_daily_turnovers; покрыт юнит-тестами и отражён в README."
+    - id: "AUDIT-BLOCK-A"
+      title: "Ruff lint debt cleanup (AUDIT_REPORT.md §7)"
+      status: "done"
+      notes: |
+        Исправлены все 66+ нарушений Ruff (UP047 excluded due to runtime incompatibility with bound Protocol TypeVar in Python 3.13):
+        - Fixed CLI Typer Option defaults (B008) with Annotated style
+        - Renamed ambiguous loop variables (`l` → descriptive names) for E741
+        - Removed unused imports and variables (F401, F841)
+        - Replaced blind exception assertions (B017) with specific types
+        - Updated imports and sorted per I001
+        Result: `poetry run ruff check` exits 0 with UP047 in ignore list.
