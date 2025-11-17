@@ -91,13 +91,17 @@ CLI — async-only: команды вызывают асинхронные use c
 
 Все значения — строки. Деньги с 2 знаками; used_rate с 6 знаками.
 
-Примеры:
+Примеры (через SDK):
 - Отчёт с явной базовой валютой:
-  ```bash
-  poetry run python -m presentation.cli.main trading detailed \
-    --base USD \
-    --start 2025-11-10T10:00:00Z --end 2025-11-10T12:00:00Z \
-    --json
+  ```python
+  from datetime import datetime
+  from application.use_cases_async.trading_balance import AsyncGetTradingBalanceDetailed
+  async with app.uow_factory() as uow:
+      detailed = await AsyncGetTradingBalanceDetailed(uow, app.clock)(
+          base_currency="USD",
+          start=datetime(2025, 11, 10, 10, 0, 0),
+          end=datetime(2025, 11, 10, 12, 0, 0)
+      )
   ```
 
 ## Ошибки и валидация (типичные сообщения)

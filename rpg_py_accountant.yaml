@@ -1,8 +1,8 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    description: "Монорепозиторий: домен/приложение/инфраструктура/презентация. Цель — Clean Architecture."
-    last_updated: "2025-11-14"
+    description: "Монорепозиторий: домен/приложение/инфраструктура/SDK. Цель — Clean Architecture."
+    last_updated: "2025-11-17"
     environments:
       - name: "test"
         description: "Тестовая среда: локальный запуск, in-memory ил�� локальный Postgres, подробные логи."
@@ -172,9 +172,6 @@ rpg:
       - name: "asyncio_utils"
         path: "src/infrastructure/utils/asyncio_utils.py"
         description: "Helper run_sync(coro): безопасный запуск корутин из sync-контекста (guard на running loop, PEP695 generic)."
-      - name: "async_cli_foundation"
-        path: "src/presentation/cli/main.py"
-        description: "Async Typer CLI foundation (I21): provides 'version' and 'diagnostics ping' commands, minimal DI (_get_uow, _get_clock), predispatch for help/version/ping without full click stack. Future business commands added in I22+."
       - name: "currencies"
         path: "src/application/use_cases_async/currencies.py"
         description: "DEPRECATED entry; use the module node ниже"
@@ -230,11 +227,11 @@ rpg:
         path: "src/py_accountant/sdk/reports/turnover.py"
         description: "Фасад get_account_daily_turnovers: читает account_daily_turnovers, возвращает DailyTurnoverLine[], маппит ошибки через sdk.errors."
       - name: "examples/telegram_bot/app.py"
-        parent_module: "presentation"
-        description: "Пример Telegram-бота обновлён на SDK bootstrap (init_app → uow_factory), единый подход к ошибкам/форматам (I-DOC-01)."
+        parent_module: "py_accountant.sdk"
+        description: "Пример Telegram-бота использует SDK bootstrap (init_app → uow_factory), единый подход к ошибкам/форматам (I-DOC-01)."
       - name: "examples/telegram_bot/README.md"
-        parent_module: "presentation"
-        description: "README примера обновлён: запуск через SDK bootstrap, smoke-вызовы, локальный SQLite (I-DOC-01)."
+        parent_module: "py_accountant.sdk"
+        description: "README примера: запуск через SDK bootstrap, smoke-вызовы, локальный SQLite (I-DOC-01)."
 
   tests:
     unit_tests:
@@ -473,29 +470,27 @@ rpg:
       status: "done"
       notes: "Удалены классы SqlAlchemyUnitOfWork, SyncUnitOfworkWrapper и репозитории из repositories.py; осталась только асинхронная реализация."
     - id: "I-UX-01"
-      title: "CLI улучшение post: occurred-at, Rate, дружелюбные ошибки"
-      status: "done"
+      title: "CLI улучшение post: occurred-at, Rate, дружелюбные ошибки [REMOVED]"
+      status: "deprecated"
       notes: |
-        Внедрены улучшения CLI леджера: опция --occurred-at (UTC), парсер --line с опциональным :Rate и поддержкой вложенных ':' в Account, дружелюбный маппинг ошибок через SDK; совместимость флагов/формата сохранена; добавлены интеграционные тесты tests/integration/cli/test_cli_ledger_post_minimal.py."
+        CLI был удалён. Функциональность доступна через SDK: use_cases.post_transaction поддерживает парсинг строк формата SIDE:Account:Amount:Currency[:Rate].
     - id: "I-DX-02"
       title: "SDK bootstrap/settings/uow и runtime‑валидация dual‑URL"
       status: "done"
       notes: "Добавлены модули sdk.settings/uow/bootstrap, обновлены реэкспорты в sdk и корне, добавлены тесты (unit/integration); pytest зелёный."
     - id: "I-UX-02"
-      title: "CLI загрузка строк из файла (CSV/JSON)"
-      status: "done"
+      title: "CLI загрузка строк из файла (CSV/JSON) [REMOVED]"
+      status: "deprecated"
       notes: |
-        В 'ledger post' добавлена опция --lines-file <path> с поддержкой CSV (заголовки side,account,amount,currency[,rate]) и JSON (массив строк или объектов). Строки из файла нормализуются к формату парсера и объединяются с --line; порядок сохраняется. Ошибки формата/файла приводят к exit code 2 (через sdk.errors.map_exception). Добавлены интеграционные тесты tests/integration/cli/test_cli_ledger_post_files.py."
+        CLI был удалён. Парсинг строк доступен через SDK: use_cases.post_transaction.
     - id: "I-DX-03"
       title: "Идемпотентность постинга транзакций"
       status: "done"
       changes:
-        - "CLI: добавлен флаг --idempotency-key; приоритет над --meta idempotency_key; пустые строки игнорируются."
+        - "SDK: идемпотентность через meta={'idempotency_key': '...'} в post_transaction."
         - "ORM: JournalORM получил nullable колонку idempotency_key (String(255)); добавлен уникальный индекс."
         - "Repo: AsyncSqlAlchemyTransactionRepository — метод get_by_idempotency_key(); add() теперь проверяет ключ и сохраняет tx_id в journal.meta для стабильного возврата id; обработка IntegrityError для гонок."
         - "Alembic: миграция 0006_add_journal_idempotency_key (batch + unique index для SQLite совместимости)."
-      tests:
-        - "tests/integration/test_idempotent_posting.py"
       notes:
         - "Поведение без ключа не изменилось; повторные постинги с одним ключом возвращают первый tx.id (tx:<uuid>)."
         - "Конкурентные вставки защищены уникальным индексом; при конфликте выполняется повторное чтение."
@@ -541,3 +536,15 @@ rpg:
         - Replaced blind exception assertions (B017) with specific types
         - Updated imports and sorted per I001
         Result: `poetry run ruff check` exits 0 with UP047 in ignore list.
+    - id: "I32"
+      title: "Удаление слоя src/presentation (CLI)"
+      status: "done"
+      notes: |
+        Выполнено:
+        - Удалены директории: src/presentation, tests/integration/cli, tests/unit/presentation, tests/e2e/cli
+        - Удалён тест tests/integration/test_idempotent_posting.py (зависел от CLI)
+        - Обновлена документация: README.md, INTEGRATION_GUIDE.md, TRADING_WINDOWS.md, AUDIT_REPORT.md
+        - Обновлён RPG граф: удалены узлы presentation и async_cli_foundation
+        - Roadmap обновлён: I-UX-01, I-UX-02 помечены как deprecated
+        - Проект теперь предоставляет функциональность только через SDK
+        Причина: упрощение архитектуры, фокус на SDK как единственном интерфейсе.

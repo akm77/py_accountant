@@ -17,8 +17,7 @@ Contents:
 Notes:
     Import DTOs strictly from ``application.dto.models``. All orchestration
     functions are defined with ``async def`` and require an ``AsyncUnitOfWork``.
-    Synchronous paths (CLI/tests) continue to use existing sync use cases until
-    ASYNC-07 introduces presentation-layer bridges.
+    Access to functionality is provided through the SDK layer.
 
 """
 

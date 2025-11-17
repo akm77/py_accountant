@@ -1,18 +1,7 @@
 ```bash
 # 1) Миграции
 poetry run alembic upgrade head
-# 2) Базовые сущности
-poetry run python -m presentation.cli.main currency add USD
-poetry run python -m presentation.cli.main currency set-base USD
-poetry run python -m presentation.cli.main account add Assets:Cash USD
-# 3) Транзакция (две строки, суммы > 0)
-poetry run python -m presentation.cli.main ledger post --line "DEBIT:Assets:Cash:50:USD" --line "CREDIT:Assets:Cash:50:USD" --json
-# 4) Баланс счёта
-poetry run python -m presentation.cli.main ledger balance Assets:Cash --json
-# 5) Trading Detailed
-poetry run python -m presentation.cli.main trading detailed --base USD --json
-# 6) TTL план
-poetry run python -m presentation.cli.main fx ttl-plan --retention-days 90 --batch-size 100 --mode delete --json
+# 2) Базовые операции выполняются через SDK (см. примеры ниже)
 ```
 
 ## Runtime vs Migration Database URLs (dual‑URL)
@@ -26,7 +15,7 @@ poetry run python -m presentation.cli.main fx ttl-plan --retention-days 90 --bat
 
 Правила:
 - Alembic читает только `DATABASE_URL` (или fallback из `alembic.ini`); async‑драйверы там запрещены.
-- Приложение, CLI и SDK используют `DATABASE_URL_ASYNC`. При его отсутствии допускается нормализация sync URL в async.
+- SDK использует `DATABASE_URL_ASYNC`. При его отсутствии допускается нормализация sync URL в async.
 - В CI шаг миграций использует sync URL; рантайм — async.
 - См. также `docs/RUNNING_MIGRATIONS.md`.
 
@@ -162,20 +151,14 @@ async with app.uow_factory() as uow:
   - `DomainViolation` (DomainError)
   - `UnexpectedError` (иное)
 
-### CLI vs SDK
-- CLI покрывает большинство операций, включая TTL планирование.
-- Исполнение TTL (execute) только через SDK/use cases — репозитории остаются CRUD + TTL примитивы, оркестрация вне репозитория.
+## Форматы ввода/файлов (SDK)
 
-## Форматы ввода/файлов (CLI/SDK)
-
-- Строка проводки: `SIDE:Account:Amount:Currency[:Rate]` (поддерживаются вложенные `:` в Account в CLI-парсере).
-- Файлы для `--lines-file`:
-  - CSV: заголовки `side,account,amount,currency[,rate]`.
-  - JSON: массив строк в формате выше или объектов `{side,account,amount,currency[,rate]}`.
+- Строка проводки: `SIDE:Account:Amount:Currency[:Rate]` (пятый токен Rate опционален).
+- SDK принимает строки в формате выше или готовые EntryLineDTO объекты.
 
 ## Ссылки
 - См. «Шпаргалка проводок» — `docs/ACCOUNTING_CHEATSHEET.md`.
 - См. «TRADING_WINDOWS.md» и «FX_AUDIT.md» для отчётов и TTL.
 
 ---
-Документ согласован с кодом: `py_accountant/sdk/*`, `presentation/cli/*`, `application/use_cases_async/*`, `domain/quantize.py`.
+Документ согласован с кодом: `py_accountant/sdk/*`, `application/use_cases_async/*`, `domain/quantize.py`.
