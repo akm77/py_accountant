@@ -104,14 +104,14 @@ class AsyncGetParityReport:
                 )
 
         # Deterministic ordering: sort by currency_code ASC
-        lines.sort(key=lambda l: l.currency_code)
+        lines.sort(key=lambda line: line.currency_code)
         now = self.clock.now()
         report = ParityReportDTO(
             generated_at=now,
             base_currency=base_code,
             lines=lines,
             total_currencies=len(lines),
-            has_deviation=any(l.deviation_pct is not None for l in lines),
+            has_deviation=any(line.deviation_pct is not None for line in lines),
         )
         return report
 

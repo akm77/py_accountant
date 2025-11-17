@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 import pytest
 from sqlalchemy import select
@@ -14,10 +13,6 @@ from infrastructure.persistence.sqlalchemy.models import (
     AccountDailyTurnoverORM,
     JournalORM,
     TransactionLineORM,
-)
-from infrastructure.persistence.sqlalchemy.repositories_async import (
-    AsyncSqlAlchemyAccountRepository,
-    AsyncSqlAlchemyTransactionRepository,
 )
 from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
@@ -30,7 +25,7 @@ async def test_repository_upserts_balance(async_uow: AsyncSqlAlchemyUnitOfWork) 
     async def post(lines: list[EntryLineDTO]) -> None:
         dto = TransactionDTO(
             id="t1",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
             lines=lines,
             memo=None,
             meta={},
@@ -54,7 +49,7 @@ async def test_repository_upserts_turnover_same_day_multiple_lines(async_uow: As
     async def post(lines: list[EntryLineDTO]) -> None:
         dto = TransactionDTO(
             id="t2",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
             lines=lines,
             memo=None,
             meta={},
@@ -101,7 +96,7 @@ async def test_repository_concurrent_postings_consistent_balance(tmp_path) -> No
             repo = uow.transactions
             dto = TransactionDTO(
                 id=f"c{idx}",
-                occurred_at=datetime.now(timezone.utc),
+                occurred_at=datetime.now(UTC),
                 lines=[EntryLineDTO(side="DEBIT", account_full_name="Assets:Cash", amount=Decimal("1"), currency_code="USD", exchange_rate=None)],
                 memo=None,
                 meta={},
@@ -134,7 +129,7 @@ async def test_get_balance_matches_legacy_scan(async_uow: AsyncSqlAlchemyUnitOfW
     async def post(lines: list[EntryLineDTO]) -> None:
         dto = TransactionDTO(
             id="scan",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
             lines=lines,
             memo=None,
             meta={},

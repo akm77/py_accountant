@@ -175,10 +175,10 @@ def run_parity_report(*, preset: str = "default", scenarios_path: str | None, ex
         # Build currency->rate map from repository (None for base treated as 1)
         repo_curs = {c.code: c for c in uow.currencies.list_all()}
         new_base_total = Decimal("0")
-        for l in raw_lines:
-            rate = repo_curs.get(l.currency_code).exchange_rate if repo_curs.get(l.currency_code) else Decimal("1")
-            used = Decimal("1") if l.currency_code == base_code else rate or Decimal("1")
-            new_base_total += (l.debit - l.credit) * used
+        for line in raw_lines:
+            rate = repo_curs.get(line.currency_code).exchange_rate if repo_curs.get(line.currency_code) else Decimal("1")
+            used = Decimal("1") if line.currency_code == base_code else rate or Decimal("1")
+            new_base_total += (line.debit - line.credit) * used
         new_base_total = money_quantize(new_base_total)
         delta_bt = (money_quantize(exp_base_total) - new_base_total).copy_abs()
         if delta_bt > tolerance:

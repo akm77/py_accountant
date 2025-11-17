@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+
 from application.dto.models import EntryLineDTO
 from application.use_cases.ledger import CreateAccount, CreateCurrency, ListLedger, PostTransaction
 from domain import DomainError
@@ -27,62 +29,44 @@ def setup():
 def test_invalid_account_name():
     uow, clock = setup()
     ll = ListLedger(uow, clock)
-    try:
+    with pytest.raises(DomainError):
         ll("Cash", offset=0)
-        assert False, "Expected DomainError"
-    except DomainError:
-        pass
 
 
 def test_start_greater_than_end():
     uow, clock = setup()
     ll = ListLedger(uow, clock)
     now = clock.now()
-    try:
+    with pytest.raises(DomainError):
         ll("Assets:Cash", start=now + timedelta(seconds=10), end=now)
-        assert False, "Expected DomainError"
-    except DomainError:
-        pass
 
 
 def test_negative_offset():
     uow, clock = setup()
     ll = ListLedger(uow, clock)
-    try:
+    with pytest.raises(DomainError):
         ll("Assets:Cash", offset=-1)
-        assert False
-    except DomainError:
-        pass
 
 
 def test_negative_limit():
     uow, clock = setup()
     ll = ListLedger(uow, clock)
-    try:
+    with pytest.raises(DomainError):
         ll("Assets:Cash", limit=-5)
-        assert False
-    except DomainError:
-        pass
 
 
 def test_invalid_order():
     uow, clock = setup()
     ll = ListLedger(uow, clock)
-    try:
+    with pytest.raises(DomainError):
         ll("Assets:Cash", order="DOWN")
-        assert False
-    except DomainError:
-        pass
 
 
 def test_meta_not_dict():
     uow, clock = setup()
     ll = ListLedger(uow, clock)
-    try:
+    with pytest.raises(DomainError):
         ll("Assets:Cash", meta=123)  # type: ignore[arg-type]
-        assert False
-    except DomainError:
-        pass
 
 
 def test_limit_zero_returns_empty():

@@ -39,10 +39,7 @@ class DailyTurnoverLine:
 
 
 def _to_utc_day(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    else:
-        dt = dt.astimezone(UTC)
+    dt = dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
     return dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
 

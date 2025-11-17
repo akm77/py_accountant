@@ -80,12 +80,12 @@ class AsyncGetTradingBalanceRaw:
         raw_lines = RawAggregator().aggregate(entries)
         return [
             TradingBalanceLineSimple(
-                currency_code=l.currency_code,
-                debit=l.debit,
-                credit=l.credit,
-                net=l.net,
+                currency_code=line.currency_code,
+                debit=line.debit,
+                credit=line.credit,
+                net=line.net,
             )
-            for l in raw_lines
+            for line in raw_lines
         ]
 
 
@@ -178,15 +178,15 @@ class AsyncGetTradingBalanceDetailed:
         converted = ConvertedAggregator().aggregate(entries, domain_currencies, base_code=base_code_final)
         return [
             TradingBalanceLineDetailed(
-                currency_code=l.currency_code,
-                base_currency_code=l.base_currency_code,
-                debit=l.debit,
-                credit=l.credit,
-                net=l.net,
-                used_rate=l.used_rate,
-                debit_base=l.debit_base,
-                credit_base=l.credit_base,
-                net_base=l.net_base,
+                currency_code=line.currency_code,
+                base_currency_code=line.base_currency_code,
+                debit=line.debit,
+                credit=line.credit,
+                net=line.net,
+                used_rate=line.used_rate,
+                debit_base=line.debit_base,
+                credit_base=line.credit_base,
+                net_base=line.net_base,
             )
-            for l in converted
+            for line in converted
         ]

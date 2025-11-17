@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
+
 from application.dto.models import CurrencyDTO, EntryLineDTO, RateUpdateInput
 from application.use_cases.exchange_rates import UpdateExchangeRates
 from application.use_cases.ledger import (
@@ -32,11 +34,8 @@ def test_create_currency_and_account():
     acc = create_account("Assets:Cash", "USD")
     assert acc.full_name == "Assets:Cash"
     # duplicate account
-    try:
+    with pytest.raises(DomainError):
         create_account("Assets:Cash", "USD")
-        assert False, "Expected DomainError for duplicate"
-    except DomainError:
-        pass
 
 
 def test_post_transaction_and_balance_and_ledger():

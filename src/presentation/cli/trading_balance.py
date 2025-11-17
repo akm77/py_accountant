@@ -113,16 +113,16 @@ def trading_raw(
 
     lines = run_ephemeral_async_uow(_logic)
     if json_output:
-        print(json.dumps([_simple_line_to_dict(l) for l in lines]))
+        print(json.dumps([_simple_line_to_dict(line) for line in lines]))
         return
-    for l in lines:
+    for line in lines:
         print(
             " ".join(
                 [
-                    f"RAW {l.currency_code}",
-                    f"debit={money_quantize(l.debit)}",
-                    f"credit={money_quantize(l.credit)}",
-                    f"net={money_quantize(l.net)}",
+                    f"RAW {line.currency_code}",
+                    f"debit={money_quantize(line.debit)}",
+                    f"credit={money_quantize(line.credit)}",
+                    f"net={money_quantize(line.net)}",
                 ]
             )
         )
@@ -164,21 +164,21 @@ def trading_detailed(
 
     lines = run_ephemeral_async_uow(_logic)
     if json_output:
-        print(json.dumps([_detailed_line_to_dict(l) for l in lines]))
+        print(json.dumps([_detailed_line_to_dict(line) for line in lines]))
         return
-    for l in lines:
+    for line in lines:
         print(
             " ".join(
                 [
-                    f"DET {l.currency_code}",
-                    f"base={l.base_currency_code}",
-                    f"rate={l.used_rate}",
-                    f"debit={money_quantize(l.debit)}",
-                    f"credit={money_quantize(l.credit)}",
-                    f"net={money_quantize(l.net)}",
-                    f"debit_base={money_quantize(l.debit_base)}",
-                    f"credit_base={money_quantize(l.credit_base)}",
-                    f"net_base={money_quantize(l.net_base)}",
+                    f"DET {line.currency_code}",
+                    f"base={line.base_currency_code}",
+                    f"rate={line.used_rate}",
+                    f"debit={money_quantize(line.debit)}",
+                    f"credit={money_quantize(line.credit)}",
+                    f"net={money_quantize(line.net)}",
+                    f"debit_base={money_quantize(line.debit_base)}",
+                    f"credit_base={money_quantize(line.credit_base)}",
+                    f"net_base={money_quantize(line.net_base)}",
                 ]
             )
         )
