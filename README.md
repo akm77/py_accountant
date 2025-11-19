@@ -108,6 +108,26 @@ PY
 ---
 Следующие разделы описывают работу SDK и архитектуру.
 
+## Установка из GitHub
+
+### Poetry
+```bash
+poetry add git+https://github.com/akm77/py_accountant.git
+```
+
+Poetry сохранит зависимость в `pyproject.toml` в разделе `[tool.poetry.dependencies]`. При необходимости используйте флаг `--branch`, `--tag` или `--rev` для закрепления на конкретной версии.
+
+### pip
+```bash
+pip install "git+https://github.com/akm77/py_accountant.git"
+```
+
+Если проект использует `requirements.txt`, добавьте строку:
+```
+git+https://github.com/akm77/py_accountant.git
+```
+И выполните `pip install -r requirements.txt`. Для частных форков используйте SSH URL и настройте deploy key.
+
 ## Quick Start
 
 
@@ -157,7 +177,7 @@ asyncio.run(main())
 - Fast-path баланса: `use_cases.get_account_balance()` делегирует в AsyncGetAccountBalance, который при `as_of=None` читает денормализованный остаток из `account_balances` (O(1)); для исторических дат выполняется безопасный fallback к сканированию леджера.
 - Периодные обороты (SDK): `py_accountant.sdk.reports.turnover.get_account_daily_turnovers()` читает агрегаты `account_daily_turnovers` и возвращает списки дневных дебет/кредит/нетто по счёту/всем счетам без сканирования журнала.
 
-Подробн��е: см. `docs/INTEGRATION_GUIDE.md` (раздел «Использование как библиотеки (SDK)») и «Шпаргалку проводок» `docs/ACCOUNTING_CHEATSHEET.md`.
+Подробнее: см. `docs/INTEGRATION_GUIDE.md` (раздел «Использование как библиотеки (SDK)») и «Шпаргалку проводок» `docs/ACCOUNTING_CHEATSHEET.md`.
 
 ## Архитектура слоёв
 
