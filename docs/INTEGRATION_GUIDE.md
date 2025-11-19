@@ -10,29 +10,36 @@ poetry run alembic upgrade head
 
 | Назначение | Переменная | Пример | Допустимые драйверы |
 |------------|-----------|--------|---------------------|
-| Миграции (Alembic) | `DATABASE_URL` | `postgresql+psycopg://user:pass@host:5432/db` | `postgresql`, `postgresql+psycopg`, `sqlite`, `sqlite+pysqlite` |
-| Runtime (async) | `DATABASE_URL_ASYNC` | `postgresql+asyncpg://user:pass@host:5432/db` | `postgresql+asyncpg`, `sqlite+aiosqlite` |
+| Миграции (Alembic) | `DATABASE_URL` / `PYACC__DATABASE_URL` | `postgresql+psycopg://user:pass@host:5432/db` | `postgresql`, `postgresql+psycopg`, `sqlite`, `sqlite+pysqlite` |
+| Runtime (async) | `DATABASE_URL_ASYNC` / `PYACC__DATABASE_URL_ASYNC` | `postgresql+asyncpg://user:pass@host:5432/db` | `postgresql+asyncpg`, `sqlite+aiosqlite` |
 
 Правила:
 - Alembic читает только `DATABASE_URL` (или fallback из `alembic.ini`); async‑драйверы там запрещены.
-- SDK использует `DATABASE_URL_ASYNC`. При его отсутствии допускается нормализация sync URL в async.
+- SDK использует `DATABASE_URL_ASYNC` (или `PYACC__DATABASE_URL_ASYNC`). При его отсутствии допускается нормализация sync URL (любого из ключей) в async.
 - В CI шаг миграций использует sync URL; рантайм — async.
 - См. также `docs/RUNNING_MIGRATIONS.md`.
 
 Пример `.env`:
 ```
-DATABASE_URL=postgresql+psycopg://acc:pass@localhost:5432/ledger
-DATABASE_URL_ASYNC=postgresql+asyncpg://acc:pass@localhost:5432/ledger
-LOG_LEVEL=INFO
+TELEGRAM_BOT_TOKEN=bot-token
+BOT__SOME_SETTING=value
+PYACC__DATABASE_URL=postgresql+psycopg://acc:pass@localhost:5432/ledger
+PYACC__DATABASE_URL_ASYNC=postgresql+asyncpg://acc:pass@localhost:5432/ledger
+PYACC__LOG_LEVEL=INFO
+PYACC__LOGGING_ENABLED=true
 ```
+
+Необязательные параметры logging/TTL также поддерживают двойное имя (`LOG_LEVEL` и `PYACC__LOG_LEVEL`).
 
 Workflow:
 ```bash
-poetry run alembic upgrade head   # sync URL
-poetry run python -m presentation.cli.main trading detailed --base USD  # runtime async URL
+poetry run alembic upgrade head   # читает DATABASE_URL или PYACC__DATABASE_URL
+PYTHONPATH=src poetry run python -m examples.telegram_bot.app  # runtime async URL
 ```
 
-WARNING: Не прописывайте async URL в `alembic.ini` — потеряется защита.
+### Отключение встроенного логгера SDK
+- В инфраструктурном слое задайте `LOGGING_ENABLED=false` (или `PYACC__LOGGING_ENABLED=false`), чтобы SDK пропустил настройку structlog и позволил хост-приложению использовать собственный logger/handlers.
+- Поведение UoW и use case'ов не меняется: `app.logger` остаётся доступным, но не имеет обработчиков, пока вы не настроите их самостоятельно.
 
 ## Использование как библиотеки (SDK)
 
