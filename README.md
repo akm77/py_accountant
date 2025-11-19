@@ -10,12 +10,15 @@
 
 ## ENV переменные: runtime async, миграции sync
 
-- DATABASE_URL — синхронный URL для Alembic миграций (пример: `postgresql+psycopg://...`, `sqlite+pysqlite:///./dev.db`).
-- DATABASE_URL_ASYNC — асинхронный URL для рантайма (пример: `postgresql+asyncpg://...`, `sqlite+aiosqlite://...`).
+По умолчанию используется единый `.env`, в котором значения можно задавать напрямую или в неймспейсе SDK (`PYACC__`). Пример ключей:
+- `DATABASE_URL` / `PYACC__DATABASE_URL` — синхронный URL для Alembic миграций (пример: `postgresql+psycopg://...`, `sqlite+pysqlite:///./dev.db`).
+- `DATABASE_URL_ASYNC` / `PYACC__DATABASE_URL_ASYNC` — асинхронный URL для рантайма (пример: `postgresql+asyncpg://...`, `sqlite+aiosqlite://...`).
+- `LOG_LEVEL` / `PYACC__LOG_LEVEL`, `JSON_LOGS`, `LOGGING_ENABLED` и др. — настройки логирования и ttl (см. `docs/INTEGRATION_GUIDE.md`).
 
 Порядок:
 - Перед запуском приложения выполните миграции: `poetry run alembic upgrade head` (читает DATABASE_URL).
-- Приложение/воркеры используют DATABASE_URL_ASYNC. Если он не задан — код рантайма нормализует DATABASE_URL в async.
+- Приложение/воркеры используют DATABASE_URL_ASYNC. Если он не задан ни напрямую, ни в виде `PYACC__DATABASE_URL_ASYNC`, рантайм нормализует sync URL в async.
+- Чтобы отключить встроенную настройку логирования SDK, установите `LOGGING_ENABLED=false` (или `PYACC__LOGGING_ENABLED=false`).
 
 ## Quick Start
 
