@@ -40,25 +40,13 @@ class Settings:
 
 
 def _get_env(name: str, *, required: bool = True, default: str | None = None) -> str:
-    """Internal helper to fetch an environment variable.
-
-    Args:
-        name: Name of the environment variable.
-        required: If True and value missing/empty, raises ValueError.
-        default: Value used when variable is optional and not set.
-
-    Returns:
-        The environment value (str).
-
-    Raises:
-        ValueError: If required variable is missing.
-    """
-    raw = os.getenv(name)
-    if raw is None or raw.strip() == "":
-        if required:
-            raise ValueError(f"Missing env: {name}")
-        return default if default is not None else ""
-    return raw.strip()
+    for candidate in (f"PYACC__{name}", name):
+        raw = os.getenv(candidate)
+        if raw is not None and raw.strip() != "":
+            return raw.strip()
+    if required:
+        raise ValueError(f"Missing env: {name}")
+    return default if default is not None else ""
 
 
 def load_settings() -> Settings:

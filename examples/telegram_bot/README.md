@@ -20,12 +20,16 @@
 - DATABASE_URL — sync URL (для миграций)
 - DATABASE_URL_ASYNC — async URL (для runtime)
 - AUDIT_LIMIT — необязательный лимит строк для /audit
+- Все переменные поддерживают неймспейс SDK: вместо `DATABASE_URL` можно задать `PYACC__DATABASE_URL`, чтобы визуально отделить настройки py_accountant от ключей бота. Telegram-бот по-прежнему читает `TELEGRAM_BOT_TOKEN` без префикса.
+  - Чтобы отключить стандартный логгер SDK в примере, установите `PYACC__LOGGING_ENABLED=false`.
 
 Пример (macOS zsh):
 ```bash
 export TELEGRAM_BOT_TOKEN="dummy-token"
-export DATABASE_URL="sqlite:///dev.db"
-export DATABASE_URL_ASYNC="sqlite+aiosqlite:///dev.db"
+-export DATABASE_URL="sqlite:///dev.db"
+-export DATABASE_URL_ASYNC="sqlite+aiosqlite:///dev.db"
++export PYACC__DATABASE_URL="sqlite:///dev.db"
++export PYACC__DATABASE_URL_ASYNC="sqlite+aiosqlite:///dev.db"
 export AUDIT_LIMIT="10"
 ```
 
