@@ -21,6 +21,28 @@ __all__ = [
 ]
 
 
+def _env(name: str) -> str | None:
+    prefixed = os.getenv(f"PYACC__{name}")
+    if prefixed is not None and prefixed.strip() != "":
+        return prefixed
+    raw = os.getenv(name)
+    if raw is not None and raw.strip() != "":
+        return raw
+    return None
+
+
+def _env_snapshot() -> dict[str, str]:
+    keys = ["DATABASE_URL_ASYNC", "DATABASE_URL"]
+    snap: dict[str, str] = {}
+    for key in keys:
+        pref = f"PYACC__{key}"
+        if pref in os.environ:
+            snap[pref] = os.environ[pref]
+        if key in os.environ:
+            snap[key] = os.environ[key]
+    return snap
+
+
 @dataclass(slots=True)
 class Settings:
     """Lightweight container for SDK initialization settings.
@@ -70,9 +92,9 @@ def load_from_env() -> Settings:
     Reads DATABASE_URL_ASYNC and DATABASE_URL. Empty values are treated as None.
     Returns a Settings instance with an env snapshot of the two keys (if present).
     """
-    a = os.getenv("DATABASE_URL_ASYNC") or None
-    s = os.getenv("DATABASE_URL") or None
-    env_snapshot = {k: v for k, v in os.environ.items() if k in {"DATABASE_URL_ASYNC", "DATABASE_URL"}}
+    a = _env("DATABASE_URL_ASYNC")
+    s = _env("DATABASE_URL")
+    env_snapshot = _env_snapshot()
     return Settings(async_url=a, sync_url=s, env=env_snapshot)
 
 
