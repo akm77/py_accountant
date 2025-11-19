@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import logging
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -95,3 +96,10 @@ def test_structlog_json_file_rotation(tmp_path: Path, monkeypatch: pytest.Monkey
     # Rotation may have produced .1 file
     rotated_files = list(tmp_path.glob("app.log*"))
     assert rotated_files, "Rotation files expected"
+
+
+def test_logging_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOGGING_ENABLED", "false")
+    _reset_structlog_cache()
+    get_logger("disabled").info("no-op")
+    assert not logging.getLogger().handlers

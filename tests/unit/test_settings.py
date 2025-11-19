@@ -15,7 +15,16 @@ def clear_env(monkeypatch: pytest.MonkeyPatch) -> Generator:
     with suppress(Exception):
         get_settings.cache_clear()  # type: ignore[attr-defined]
     # Очистим переменные, которые могут мешать тестам
-    for key in ("ENV", "DATABASE_URL", "LOG_LEVEL", "JSON_LOGS"):
+    for key in (
+        "ENV",
+        "DATABASE_URL",
+        "LOG_LEVEL",
+        "JSON_LOGS",
+        "PYACC__DATABASE_URL",
+        "PYACC__LOGGING_ENABLED",
+        "PYACC__LOG_LEVEL",
+        "LOGGING_ENABLED",
+    ):
         monkeypatch.delenv(key, raising=False)
     yield
 
@@ -27,6 +36,7 @@ def test_settings_test_profile_defaults(monkeypatch: pytest.MonkeyPatch) -> None
     assert s.database_url.startswith("sqlite+")
     assert s.log_level.upper() == "DEBUG"
     assert s.json_logs is False
+    assert s.logging_enabled is True
 
 
 def test_settings_prod_profile_requires_db_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -52,3 +62,17 @@ def test_forced_env_switch(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENV", "production")
     s = get_settings(forced_env="test", ignore_env_file=True)
     assert s.env == "test"
+
+
+def test_namespaced_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYACC__DATABASE_URL", "sqlite:///namespaced.db")
+    monkeypatch.setenv("PYACC__LOG_LEVEL", "warning")
+    s = get_settings(ignore_env_file=True)
+    assert s.database_url.endswith("namespaced.db")
+    assert s.log_level.upper() == "WARNING"
+
+
+def test_logging_enabled_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOGGING_ENABLED", "false")
+    s = get_settings(ignore_env_file=True)
+    assert s.logging_enabled is False
