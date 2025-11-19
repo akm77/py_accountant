@@ -20,6 +20,94 @@
 - Приложение/воркеры используют DATABASE_URL_ASYNC. Если он не задан ни напрямую, ни в виде `PYACC__DATABASE_URL_ASYNC`, рантайм нормализует sync URL в async.
 - Чтобы отключить встроенную настройку логирования SDK, установите `LOGGING_ENABLED=false` (или `PYACC__LOGGING_ENABLED=false`).
 
+## Configuration Environment Guide
+
+### 1. Базовая структура `.env`
+Рекомендуется хранить настройки бота и `py_accountant` в одном `.env`, используя префикс `PYACC__` для всех переменных SDK. Такой подход даёт два преимущества:
+- визуально отделяет настройки интегратора от ядра бухгалтерии;
+- упрощает передачу секретов в CI/CD (можно скопировать одну группу переменных).
+
+Минимальный `.env`:
+```
+TELEGRAM_BOT_TOKEN=bot-token
+BOT__RATE_LIMIT=10
+PYACC__DATABASE_URL=sqlite+pysqlite:///./dev.db
+PYACC__DATABASE_URL_ASYNC=sqlite+aiosqlite:///./dev.db
+PYACC__LOG_LEVEL=DEBUG
+PYACC__LOGGING_ENABLED=true
+```
+
+### 2. Карта переменных py_accountant
+| Назначение | Переменная | Комментарии |
+|------------|-----------|-------------|
+| Sync URL для миграций | `DATABASE_URL` / `PYACC__DATABASE_URL` | Используется Alembic и любые sync-утилиты. Допустимы Postgres/SQLite sync драйверы. |
+| Async URL рантайма | `DATABASE_URL_ASYNC` / `PYACC__DATABASE_URL_ASYNC` | Основной источник для SDK/UoW. При отсутствии — нормализация из sync URL. |
+| Уровень логов | `LOG_LEVEL` / `PYACC__LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, ... |
+| Формат логов | `JSON_LOGS` / `PYACC__JSON_LOGS` | `true` включает JSON + опциональный файл/ротацию. |
+| Включение логгера | `LOGGING_ENABLED` / `PYACC__LOGGING_ENABLED` | `false` пропускает bootstrap логирования, если хост управляет логами сам. |
+| TTL FX Audit | `FX_TTL_*` / `PYACC__FX_TTL_*` | `MODE`, `RETENTION_DAYS`, `BATCH_SIZE`, `DRY_RUN`. |
+| Параметры БД (POOL, TIMEOUT, RETRY) | `DB_*` / `PYACC__DB_*` | Управляют async-пулом SQLAlchemy. |
+
+### 3. Разделение переменных бота и SDK
+- Используйте неймспейс `BOT__` или любой другой для собственных настроек. Пример: `BOT__ADMIN_CHAT_ID`, `BOT__PAYMENTS_URL`.
+- В коде бота читайте обе группы: `os.getenv("TELEGRAM_BOT_TOKEN")` и `os.getenv("BOT__ADMIN_CHAT_ID")`. Модуль SDK автоматически найдёт `PYACC__*`.
+
+### 4. Примеры конфигураций
+#### Локальная разработка (SQLite)
+```
+PYACC__DATABASE_URL=sqlite+pysqlite:///./dev.db
+PYACC__DATABASE_URL_ASYNC=sqlite+aiosqlite:///./dev.db
+PYACC__LOG_LEVEL=DEBUG
+PYACC__JSON_LOGS=false
+PYACC__LOGGING_ENABLED=true
+```
+- Миграции: `poetry run alembic upgrade head`
+- SDK-пример: `PYTHONPATH=src poetry run python -m examples.telegram_bot.app`
+
+#### Продакшен (PostgreSQL + внешний логгер)
+```
+PYACC__DATABASE_URL=postgresql+psycopg://ledger:***@db:5432/ledger
+PYACC__DATABASE_URL_ASYNC=postgresql+asyncpg://ledger:***@db:5432/ledger
+PYACC__JSON_LOGS=true
+PYACC__LOG_FILE=/var/log/py_accountant.json
+PYACC__LOG_ROTATION=size
+PYACC__LOG_MAX_BYTES=104857600
+PYACC__LOGGING_ENABLED=false  # логирование делегировано оркестратору
+```
+- Перед запуском воркеров вызывайте `PYTHONPATH=src poetry run alembic upgrade head` в том же окружении.
+
+### 5. Секреты и CI/CD
+- В GitHub Actions/CI вынесите все `PYACC__*` в secrets/vars и прокидывайте через `env:` на шаги миграций и тестов.
+- Для контейнеров используйте `.env` файл, смонтированный в compose/k8s Secret. Пример `docker-compose.yml`:
+```yaml
+services:
+  bot:
+    env_file:
+      - ./.env
+    environment:
+      PYACC__LOGGING_ENABLED: "false"
+```
+- Никогда не коммитьте `.env` с реальными данными; храните пример в `docs/.env.example` (по желанию).
+
+### 6. Траблшутинг
+- Ошибка `ValueError: DATABASE_URL required` → проверьте, что хотя бы один из ключей (`DATABASE_URL` или `PYACC__DATABASE_URL`) присутствует и доступен процессу.
+- Alembic читает только sync URL. Убедитесь, что runner, выполняющий миграции, загружает тот же `.env`.
+- При `LOGGING_ENABLED=false` убедитесь, что хост-приложение добавляет собственные хендлеры, иначе сообщения SDK пропадут.
+- Для смены БД без перезапуска обновите переменные и перезапустите процессы — настройки читаются при старте.
+
+### 7. Быстрая проверка окружения
+```bash
+python - <<'PY'
+import os
+for key in sorted(k for k in os.environ if k.startswith('PYACC__')):
+    print(f"{key}={os.environ[key]}")
+PY
+```
+Команда помогает убедиться, что все `PYACC__` переменные доступны перед запуском миграций или бота.
+
+---
+Следующие разделы описывают работу SDK и архитектуру.
+
 ## Quick Start
 
 
