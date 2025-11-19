@@ -30,6 +30,10 @@ def configure_logging(stream: IO[str] | None = None) -> None:
     stream: optional text stream for console handler (defaults to sys.stdout).
     """
     settings = get_settings()
+    if not settings.logging_enabled:
+        logging.basicConfig(handlers=[], level=logging.CRITICAL, force=True)
+        structlog.configure(cache_logger_on_first_use=True)
+        return
     level_value = _resolve_level(settings.log_level)
 
     # Common processors used in both stdlib pre-chain and structlog chain
@@ -110,5 +114,9 @@ def configure_logging(stream: IO[str] | None = None) -> None:
 def get_logger(name: str = "app") -> structlog.BoundLogger:
     """Return a structured logger; configure on first use if needed."""
     if not logging.getLogger().handlers:
-        configure_logging()
+        settings = get_settings()
+        if settings.logging_enabled:
+            configure_logging()
+        else:
+            logging.basicConfig(handlers=[], level=logging.CRITICAL, force=True)
     return structlog.get_logger(name)
