@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from py_accountant.sdk.bootstrap import init_app
-from py_accountant.sdk.settings import Settings, validate_dual_url
+from py_accountant.sdk.settings import Settings, load_from_env, validate_dual_url
 
 
 def test_only_async_url_ok():
@@ -54,3 +54,10 @@ def test_missing_both_urls_raises_in_init_app_when_use_env_true(monkeypatch: pyt
         # init_app without settings, use_env=True -> load_from_env -> missing async url -> build_uow_factory fails
         init_app(use_env=True)
 
+
+def test_namespaced_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYACC__DATABASE_URL_ASYNC", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("PYACC__DATABASE_URL", "sqlite+pysqlite:///:memory:")
+    settings = load_from_env()
+    assert settings.async_url.startswith("sqlite+aiosqlite")
+    assert settings.sync_url.startswith("sqlite+pysqlite")
