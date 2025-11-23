@@ -10,14 +10,26 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol, runtime_checkable
 
 from application.ports import Clock as ClockProtocol
+from py_accountant.sdk.settings import Settings, load_from_env, validate_dual_url
+from py_accountant.sdk.uow import build_uow_factory
 
 __all__ = ["AppContext", "init_app"]
 
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
-from py_accountant.sdk.settings import Settings, load_from_env, validate_dual_url
-from py_accountant.sdk.uow import build_uow_factory
+
+@runtime_checkable
+class AsyncUnitOfWorkProtocol(Protocol):  # pragma: no cover - structural typing helper
+    """Minimal async UoW protocol used by the SDK.
+
+    This mirrors the shape of AsyncSqlAlchemyUnitOfWork sufficiently for SDK use
+    and allows external projects to provide their own implementation if needed.
+    """
+
+    async def __aenter__(self) -> AsyncUnitOfWorkProtocol: ...  # noqa: D401
+
+    async def __aexit__(self, exc_type, exc, tb) -> None: ...  # noqa: D401
 
 
 @dataclass(slots=True)
@@ -34,13 +46,13 @@ class AppContext:
     """Application bootstrap context for SDK users.
 
     Attributes:
-        uow_factory: Callable producing AsyncSqlAlchemyUnitOfWork instances.
+        uow_factory: Callable producing async UnitOfWork instances.
         clock: UTC clock object with now() -> datetime.
         logger: A configured logging.Logger.
         settings: Validated Settings instance used to configure the app.
     """
 
-    uow_factory: Callable[[], AsyncSqlAlchemyUnitOfWork]
+    uow_factory: Callable[[], AsyncUnitOfWorkProtocol]
     clock: ClockProtocol
     logger: logging.Logger
     settings: Settings
@@ -69,7 +81,8 @@ def init_app(settings: Settings | None = None, *, use_env: bool = True) -> AppCo
 
     validate_dual_url(settings)
 
-    # Build UoW factory (requires async_url)
+    # Build UoW factory (requires async_url); this will raise a clear error if
+    # the default infrastructure UoW is not available in the installed package.
     uow_factory = build_uow_factory(settings)
 
     # Minimal logger; do not configure handlers here to avoid side effects
@@ -77,4 +90,3 @@ def init_app(settings: Settings | None = None, *, use_env: bool = True) -> AppCo
 
     ctx = AppContext(uow_factory=uow_factory, clock=_UtcClock(), logger=logger, settings=settings)
     return ctx
-
