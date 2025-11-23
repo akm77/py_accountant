@@ -8,6 +8,147 @@
 - Линт/формат: Ruff
 - Зависимости: Poetry
 
+## Важное замечание про опубликованный пакет и локальную разработку
+
+В репозитории хранится "core-only" реализация (Domain / Application / Infrastructure). В прошлом в пакете публиковался отдельный SDK-слой (`py_accountant.sdk.*`). На некоторых окружениях (например, в venv проектов, которые устанавливали старую версию) в `site-packages` может присутствовать установленный `py-accountant` с модулем `py_accountant.sdk` — это внешняя опубликованная версия пакета и она не обновляется автоматически из локального репозитория.
+
+Если вы видите в traceback импорт из `.../site-packages/py_accountant/...` или в IDE — External Libraries — присутствует `py_accountant.sdk`, это означает, что интерпретатор использует установленную версию пакета, а не исходники из этого репозитория. В таком случае локальные изменения в `src/` не повлияют на импортируемый код.
+
+Как убедиться, откуда импорт берётся:
+
+```bash
+# в каталоге проекта, где запускаете тесты (например tgbank):
+poetry run python - <<'PY'
+import py_accountant, inspect
+print(py_accountant.__file__)
+PY
+```
+
+Или посмотреть метаданные пакета:
+
+```bash
+poetry run pip show py_accountant
+```
+
+---
+
+## Рекомендуемый рабочий процесс разработки (чтобы тесты использовали локальный core)
+
+1) Лучший вариант — подключать локальную копию репозитория как path dependency в проекте интегратора (например в `tgbank`). В `pyproject.toml` интегратора добавьте:
+
+```toml
+[tool.poetry.dependencies]
+py_accountant = { path = "../py_accountant", develop = true }
+```
+
+Затем в каталоге интегратора выполните:
+
+```bash
+poetry update py_accountant
+poetry install
+```
+
+После этого интерпретатор и тесты будут импортировать вашу локальную версию (editable) и любые правки в исходниках будут видны сразу.
+
+2) Временная опция — удалить установленный пакет из venv и запускать с PYTHONPATH указывающим на `src`:
+
+```bash
+cd /path/to/integrator
+poetry run pip uninstall -y py_accountant
+PYTHONPATH=/path/to/py_accountant/src poetry run pytest
+```
+
+3) Быстрая грязная хак-опция для локального теста: в `conftest.py` интегратора (ранний hook) вставьте `sys.path.insert(0, "/path/to/py_accountant/src")`. Это работает, но менее предпочтительно для долгосрочной работы.
+
+---
+
+## Контракты (реальные, на которые полагаются интеграторы)
+
+Ниже — минимальная, реальная спецификация API/контрактов, которые ожидают use case'ы и интеграторы. Приведённые контракты отражают текущую реализацию в `application`/`application/use_cases_async` и `application/ports`.
+
+1) UnitOfWork протоколы
+- `UnitOfWork` (sync) — контекстный менеджер:
+  - __enter__() -> UnitOfWork
+  - __exit__(exc_type, exc, tb) -> None
+  - свойства: `accounts`, `journals`, `exchange_rate_events`, ... — объекты-репозитории по контрактам из `application.ports`
+
+- `AsyncUnitOfWork` (async) — асинхронный контекстный менеджер:
+  - async def __aenter__(self) -> AsyncUnitOfWork
+  - async def __aexit__(self, exc_type, exc, tb) -> None
+  - свойства: `accounts`, `journals`, `exchange_rate_events`, ...
+
+Репозитории предоставляют CRUD и примитивы, перечисленные в `application.ports` (например: `add`, `get_by_id`, `list`, `upsert_balance`, `list_old_events`, `archive_events` и т.д.).
+
+2) Use case'ы — вызов и сигнатура
+- Sync use cases (например `PostTransaction`, `GetBalance`) реализованы как вызываемые объекты: use_case(...) и возвращают значение напрямую.
+- Async use cases (например `AsyncPostTransaction`, `AsyncGetAccountBalance`) — асинхронно вызываемые объекты: `await use_case(...)`.
+
+Важно: некоторые интеграторы могли ожидать метода `execute()` у объекта use case. На текущей версии репозитория контракт — используйте вызов через `__call__` (sync) или `__call__` + `await` (async). Примеры:
+
+Sync example:
+
+```python
+# sync context
+with uow_factory() as uow:
+    use_case = PostTransaction(uow, clock)
+    result = use_case(lines=lines, memo=memo, meta=meta)
+```
+
+Async example:
+
+```python
+# async context
+async with uow_factory() as uow:
+    use_case = AsyncPostTransaction(uow, clock)
+    tx = await use_case(lines=lines, memo=memo, meta=meta)
+```
+
+Если у вас падают тесты с ошибкой "'AsyncPostTransaction' object has no attribute 'execute'", замените вызовы `await use_case.execute(...)` на `await use_case(...)`.
+
+---
+
+## Интеграция через core (кратко)
+
+Рекомендуемый способ использования — напрямую через слои Domain/Application и порты (`application.ports`). Async SDK‑слой больше не поставляется из этого репозитория; интеграция происходит напрямую через порты и use case'ы, как показано выше.
+
+### Шаги для интегратора (tgbank пример)
+1. Убедитесь, что в venv нет установленного старого пакета `py_accountant` (или используйте path dependency):
+
+```bash
+# проверить источник импорта
+poetry run python - <<'PY'
+import py_accountant
+print(py_accountant.__file__)
+PY
+```
+
+2. Если импорт идёт из `site-packages`, переключитесь на локальный код:
+- Добавьте path dependency (рекомендуется) или
+- `pip uninstall py_accountant` в окружении и используйте PYTHONPATH.
+
+3. Исправьте фасады/обёртки, чтобы вызывать use case как callable, не через `.execute()`.
+
+---
+
+## Установка из GitHub (последовательности для разных целей)
+
+### Для продакшена (фиксированная версия)
+```bash
+poetry add git+https://github.com/akm77/py_accountant.git@vX.Y.Z
+```
+
+### Для локальной разработки (рекомендуется)
+В вашем интеграторе (например `tgbank`) используйте path dependency:
+
+```toml
+[tool.poetry.dependencies]
+py_accountant = { path = "../py_accountant", develop = true }
+```
+
+Это гарантирует, что IDE и тесты будут использовать текущие исходники.
+
+---
+
 ## ENV переменные: runtime async, миграции sync
 
 ПОСЛЕ удаления SDK пространство имён `PYACC__` остаётся только как удобный префикс
@@ -144,7 +285,7 @@ git+https://github.com/akm77/py_accountant.git
 
 ```python
 from application.use_cases.ledger import PostTransaction, GetBalance
-from application.ports import UnitOfWork  # протокол
+from application.interfaces.ports import UnitOfWork  # legacy sync UnitOfWork protocol (preferred: use AsyncUnitOfWork from application.ports for async)
 
 
 def post_deposit(uow_factory, clock, lines, meta):
@@ -168,7 +309,7 @@ def get_balance(uow_factory, clock, account_name: str):
 
 ```python
 from collections.abc import Callable
-from application.ports import UnitOfWork as UnitOfWorkProtocol
+from application.interfaces.ports import UnitOfWork as UnitOfWorkProtocol
 
 
 class MyUnitOfWork(UnitOfWorkProtocol):

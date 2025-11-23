@@ -5,12 +5,12 @@ description = "Async accounting ledger application"
 authors = ["akm77 <aleksey.kotryakhov@gmail.com>"]
 readme = "README.md"
 # No packages section - Poetry used only as dependency manager
-packages = [
-  { include = "py_accountant", from = "src" },
-  { include = "application", from = "src" },
-  { include = "domain", from = "src" },
-  { include = "infrastructure", from = "src" }
-]
+#packages = [
+#  { include = "py_accountant", from = "src" },
+#  { include = "application", from = "src" },
+#  { include = "domain", from = "src" },
+#  { include = "infrastructure", from = "src" }
+#]
 
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"

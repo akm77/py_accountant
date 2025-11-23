@@ -191,6 +191,11 @@ rpg:
         parent_module: "infrastructure"
         description: "run_sync(coro): запрет nested loop, корректное закрытие корутины при ошибке."
 
+  notes:
+    - title: "Installed package vs local source"
+      description: |
+        Note: some integrator projects may have an installed PyPI/Git version of `py-accountant` in their virtualenv which includes a now-deprecated `py_accountant.sdk` module. When running tests in such integrator repositories, the interpreter may import the installed package from `site-packages` instead of the local `py_accountant` source in `src/`. See README for instructions to prefer the local repository (path dependency, uninstall, or PYTHONPATH).
+
   tests:
     unit_tests:
       - target_component: "AsyncGetAccountBalance"
