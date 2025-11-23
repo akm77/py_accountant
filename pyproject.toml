@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "py-accountant"
+name = "py_accountant"
 version = "0.1.0"
 description = "Async accounting ledger application"
 authors = ["akm77 <aleksey.kotryakhov@gmail.com>"]
