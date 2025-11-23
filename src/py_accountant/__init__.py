@@ -5,14 +5,15 @@ Provides a minimal public API and exposes the distribution version.
 
 from importlib import metadata as _metadata
 
+from py_accountant.sdk import bootstrap, errors, json, settings, uow, use_cases
+
 try:  # Attempt to read the installed package version
     __version__ = _metadata.version("py-accountant")
 except _metadata.PackageNotFoundError:  # Fallback when running from source without install
     __version__ = "0.0.0.dev"
 
 # Re-export SDK namespace for stable imports
-from . import sdk  # noqa: E402
-from .sdk import bootstrap, errors, json, settings, uow, use_cases  # noqa: E402
+
 
 __all__ = [
     "__version__",
