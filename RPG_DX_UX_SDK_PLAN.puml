@@ -1,79 +1,47 @@
 @startuml
-' Repository Planning Graph for SDK/DX/UX implementation
+' SDK удалён, диаграмма отражает core-only интеграцию через use cases и порты
 skinparam componentStyle rectangle
 skinparam shadowing false
 skinparam defaultTextAlignment left
 
-package "py_accountant.sdk" {
-  [sdk.__init__] as SDKInit
-  [sdk.bootstrap] as SDBoot
-  [sdk.settings] as SDSettings
-  [sdk.logging] as SDLogging
-  [sdk.uow] as SDUow
-  [sdk.errors] as SDErr
-  [sdk.json] as SDJson
-  [sdk.use_cases] as SDUse
+package "py_accountant core" {
+  component "application.use_cases.ledger" as LedgerUC
+  component "application.use_cases_async" as AppUCAsync
+  component "application.dto.models" as AppDTO
+  component "application.ports" as Ports
 }
 
-component "py_accountant.__init__" as RootInit
-component "application.use_cases_async" as AppUC
-component "application.dto.models" as AppDTO
-component "application.ports" as Ports
-component "infrastructure.sqlalchemy.uow" as InfraUow
-component "examples.telegram_bot.*" as TGBot
-component "presentation.cli.*" as CLI
+component "infrastructure.persistence.sqlalchemy.uow" as InfraUow
+component "infrastructure.persistence.sqlalchemy.repositories_async" as InfraRepo
+component "external app (tgbank, bot, etc.)" as ExternalApp
 
-' Edges (desired)
-RootInit --> SDKInit
-SDKInit --> SDBoot
-SDKInit --> SDUse
-SDKInit --> SDJson
-SDKInit --> SDSettings
-SDKInit --> SDErr
+ExternalApp --> LedgerUC
+ExternalApp --> AppUCAsync
 
-SDBoot --> SDSettings
-SDBoot --> SDLogging
-SDBoot --> SDUow
+LedgerUC --> Ports
+AppUCAsync --> Ports
 
-SDUow --> Ports
-SDUow --> InfraUow
+InfraUow --> Ports
+InfraRepo --> Ports
+InfraRepo --> InfraUow
 
-SDUse --> Ports
-SDUse --> AppUC
-SDUse --> AppDTO
-
-TGBot --> SDBoot
-TGBot --> SDUse
-TGBot --> SDJson
-
-CLI --> SDBoot
-CLI --> SDUse
-
-note right of SDSettings
-- load_from_env()
-- validate_dual_url()
-- Settings dataclass
+note right of LedgerUC
+- PostTransaction(lines, memo, meta) -> TransactionDTO
+- GetBalance(account_full_name, as_of, recompute)
+- GetLedger/ListLedger(...)
+- GetTradingBalanceRawDTOs/ DetailedDTOs(...)
 end note
 
-note right of SDBoot
-- init_app(env|settings) -> AppContext
-- uow_factory/clock/logger
-end note
-
-note right of SDUse
-- get_account_balance()
-- list_accounts_state()
-- post_transaction_simple()
-- get_trading_balance()
-- fx_ttl_plan/execute()
+note right of Ports
+- UnitOfWork / AsyncUnitOfWork
+- Repository Protocols (accounts, currencies, transactions, fx_audit, aggregates)
 end note
 
 legend right
   |= Artifact |= Purpose |
-  | sdk.* | Stable integration surface |
-  | Root __init__ | Re-export SDK |
-  | Ports/DTO | Contracts |
+  | application.use_cases.* | Public core API (use cases) |
+  | application.ports | Contracts for UoW/Repositories |
+  | infrastructure.* | Reference adapters (SQLAlchemy, logging, settings) |
 endlegend
 
 @enduml
-

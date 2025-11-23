@@ -1,3 +1,4 @@
+```markdown
 ```bash
 # 1) Миграции
 poetry run alembic upgrade head
@@ -43,7 +44,7 @@ PYTHONPATH=src poetry run python -m examples.telegram_bot.app  # runtime async U
 
 ## Использование как библиотеки (core-only)
 
-Вместо SDK-интерфейса интеграция осуществляется напрямую через async use cases и порты.
+Интеграция осуществляется напрямую через use case'ы и порты, без SDK‑обёртки.
 
 ### 1. Зависимость
 
@@ -57,49 +58,53 @@ pip install "git+https://github.com/akm77/py_accountant.git"
 
 ```python
 from collections.abc import Callable
-from application.ports import AsyncUnitOfWork as AsyncUnitOfWorkProtocol
+from application.ports import UnitOfWork as UnitOfWorkProtocol
 
-class MyAsyncUnitOfWork(AsyncUnitOfWorkProtocol):
-    async def __aenter__(self) -> "MyAsyncUnitOfWork":
-        # открыть async-сессию/подключение, инициализировать репозитории
+
+class MyUnitOfWork(UnitOfWorkProtocol):
+    def __enter__(self) -> "MyUnitOfWork":
+        # открыть сессию/подключение, инициализировать репозитории
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, exc_type, exc, tb) -> None:
         # commit/rollback и закрыть сессию
         ...
 
-    # свойства/репозитории, которые ожидают use cases
+    # свойства/репозитории, которые ожидают use case'ы
 
 
-def make_uow_factory(async_url: str) -> Callable[[], AsyncUnitOfWorkProtocol]:
-    def factory() -> AsyncUnitOfWorkProtocol:
-        return MyAsyncUnitOfWork(async_url)
+def make_uow_factory(url: str) -> Callable[[], UnitOfWorkProtocol]:
+    def factory() -> UnitOfWorkProtocol:
+        return MyUnitOfWork(url)
+
     return factory
 ```
 
-### 3. Вызов use cases
+### 3. Вызов use case'ов ledger
 
 ```python
-from application.use_cases_async.ledger import AsyncPostTransaction, AsyncGetAccountBalance
+from application.use_cases.ledger import PostTransaction, GetBalance
 
-async def post_deposit(uow_factory, clock, account: str, amount, currency: str, meta: dict):
+
+def post_deposit(uow_factory, clock, account: str, amount, currency: str, meta: dict):
     lines = [
-        f"DEBIT:{account}:{amount}:{currency}",
-        f"CREDIT:Income:Deposits:{amount}:{currency}",
+        # Заполните EntryLineDTO по своим правилам маппинга
     ]
-    async with uow_factory() as uow:
-        use_case = AsyncPostTransaction(uow, clock)
-        return await use_case.execute(lines=lines, memo="Deposit", meta=meta)
+    with uow_factory() as uow:
+        use_case = PostTransaction(uow, clock)
+        return use_case(lines=lines, memo="Deposit", meta=meta)
 
-async def get_balance(uow_factory, clock, account: str):
-    async with uow_factory() as uow:
-        use_case = AsyncGetAccountBalance(uow, clock)
-        return await use_case.execute(account_full_name=account, as_of=None)
+
+def get_balance(uow_factory, clock, account: str):
+    with uow_factory() as uow:
+        use_case = GetBalance(uow, clock)
+        return use_case(account_full_name=account)
 ```
 
 ### 4. Где искать контракты
 
-- Порты: `application.ports` (AsyncUnitOfWork, Async*Repository Protocol).
-- Use cases: `application.use_cases_async.*`.
+- Порты: `application.ports`.
+- Use case'ы: `application.use_cases.*` и `application.use_cases_async.*`.
 
-Документ согласован с кодом: `application/use_cases_async/*`, `application/ports.py`, `domain/quantize.py`.
+Документ согласован с кодом: `application/use_cases/ledger.py`,
+`application/use_cases_async/*`, `application/ports.py`.

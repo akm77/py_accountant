@@ -164,8 +164,8 @@ rpg:
         path: "src/application/use_cases_async/accounts.py"
         description: "Async аккаунты: создание/получение/список; используют domain.Account и репозитории."
       - name: "ledger"
-        path: "src/application/use_cases_async/ledger.py"
-        description: "Async леджер и баланс: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance (fast-path через агрегаты)."
+        path: "src/application/use_cases/ledger.py"
+        description: "Sync ledger и балансы: PostTransaction, GetBalance, GetLedger, ListLedger, GetTradingBalanceRawDTOs, GetTradingBalanceDetailedDTOs."
       - name: "fx_audit"
         path: "src/application/use_cases_async/fx_audit.py"
         description: "Async FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents."
@@ -343,14 +343,14 @@ rpg:
       status: "done"
       notes: "repositories.py заменён на заглушки; остались только async реализации."
     - id: "I29"
-      title: "Удаление legacy sync UoW и репозиториев"
+      title: "Удаление legacy sync UоW и репозиториев"
       status: "done"
-      notes: "Удалены sync UoW и репозитории; AsyncSqlAlchemyUnitOfWork — единственный UoW в core."
+      notes: "Удалены sync UоW и репозитории; AsyncSqlAlchemyUnitOfWork — единственный UоW в core."
     - id: "CORE-01"
       title: "Удаление публичного SDK-слоя и переход на core-only интеграцию"
       status: "done"
       notes: |
         Удалён пакет src/py_accountant и все модули py_accountant.sdk/*.
         Документация обновлена: интеграция только через domain/application/ports.
-        RPG-граф обновлён: SDK-узлы и требования удалены.
-        Интеграторы (например, tgbank) реализуют свои AsyncUnitOfWork и репозитории по контрактам application.ports.
+        RPG-граф обновлён: SDK-узлы и требования удалены; добавлены узлы для application.use_cases.ledger.*.
+        Интеграторы реализуют свой UnitOfWork и репозитории по контрактам application.ports.

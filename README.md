@@ -10,15 +10,21 @@
 
 ## ENV переменные: runtime async, миграции sync
 
-По умолчанию используется единый `.env`, в котором значения можно задавать напрямую или в неймспейсе SDK (`PYACC__`). Пример ключей:
-- `DATABASE_URL` / `PYACC__DATABASE_URL` — синхронный URL для Alembic миграций (пример: `postgresql+psycopg://...`, `sqlite+pysqlite:///./dev.db`).
-- `DATABASE_URL_ASYNC` / `PYACC__DATABASE_URL_ASYNC` — асинхронный URL для рантайма (пример: `postgresql+asyncpg://...`, `sqlite+aiosqlite://...`).
-- `LOG_LEVEL` / `PYACC__LOG_LEVEL`, `JSON_LOGS`, `LOGGING_ENABLED` и др. — настройки логирования и ttl (см. `docs/INTEGRATION_GUIDE.md`).
+ПОСЛЕ удаления SDK пространство имён `PYACC__` остаётся только как удобный префикс
+для окружения, но никаких модулей `py_accountant.sdk.*` больше нет. Ядро
+используется напрямую через слои Domain/Application и порты (`application.ports`).
 
-Порядок:
-- Перед запуском приложения выполните миграции: `poetry run alembic upgrade head` (читает DATABASE_URL).
-- Приложение/воркеры используют DATABASE_URL_ASYNC. Если он не задан ни напрямую, ни в виде `PYACC__DATABASE_URL_ASYNC`, рантайм нормализует sync URL в async.
-- Чтобы отключить встроенную настройку логирования SDK, установите `LOGGING_ENABLED=false` (или `PYACC__LOGGING_ENABLED=false`).
+Минимальный `.env` для работы ядра:
+
+```
+DATABASE_URL=sqlite+pysqlite:///./dev.db
+DATABASE_URL_ASYNC=sqlite+aiosqlite:///./dev.db
+LOG_LEVEL=DEBUG
+LOGGING_ENABLED=true
+```
+
+`PYACC__*` можно продолжать использовать как алиасы (через pydantic-settings в
+`infrastructure.config.settings`), но это деталь конкретного хоста.
 
 ## Configuration Environment Guide
 
@@ -130,77 +136,71 @@ git+https://github.com/akm77/py_accountant.git
 
 ## Интеграция через core
 
-Рекомендуемый способ использования — напрямую через слои Domain/Application и порты (`application.ports`).
+Рекомендуемый способ использования — напрямую через слои Domain/Application и
+порты (`application.ports`). Async SDK‑слой удалён, public API — это use case'ы
+из `application.use_cases` и `application.use_cases_async`.
 
 ### 1. Подключение ядра в вашем проекте
 
-Добавьте зависимость на репозиторий:
-
-```bash
-poetry add git+https://github.com/akm77/py_accountant.git
-# или
-pip install "git+https://github.com/akm77/py_accountant.git"
-```
-
-Далее в коде интегратора (например, `tgbank`):
-
 ```python
-from application.use_cases_async.ledger import AsyncPostTransaction, AsyncGetAccountBalance
-from application.ports import AsyncUnitOfWork  # протокол
+from application.use_cases.ledger import PostTransaction, GetBalance
+from application.ports import UnitOfWork  # протокол
 
-async def post_deposit(uow_factory, clock, lines, meta):
-    async with uow_factory() as uow:  # type: AsyncUnitOfWork
-        use_case = AsyncPostTransaction(uow, clock)
-        return await use_case.execute(lines=lines, memo="Deposit", meta=meta)
 
-async def get_balance(uow_factory, clock, account_name: str):
-    async with uow_factory() as uow:
-        use_case = AsyncGetAccountBalance(uow, clock)
-        return await use_case.execute(account_full_name=account_name, as_of=None)
+def post_deposit(uow_factory, clock, lines, meta):
+    # uow_factory: Callable[[], UnitOfWork]
+    with uow_factory() as uow:  # sync или async контекст в зависимости от реализации
+        use_case = PostTransaction(uow, clock)
+        # фактический контракт: __call__, а не execute
+        return use_case(lines=lines, memo="Deposit", meta=meta)
+
+
+def get_balance(uow_factory, clock, account_name: str):
+    with uow_factory() as uow:
+        use_case = GetBalance(uow, clock)
+        return use_case(account_full_name=account_name)
 ```
 
-Интегратор реализует свой `uow_factory: Callable[[], AsyncUnitOfWork]` и репозитории по контрактам из `application.ports`.
+Интегратор реализует свой `uow_factory` и репозитории по контрактам из
+`application.ports`.
 
 ### 2. Реализация собственного UoW и репозиториев
 
-Простейший каркас UoW (асинхронный, совместимый с протоколами ports):
-
 ```python
 from collections.abc import Callable
-from application.ports import AsyncUnitOfWork as AsyncUnitOfWorkProtocol
+from application.ports import UnitOfWork as UnitOfWorkProtocol
 
-class MyAsyncUnitOfWork(AsyncUnitOfWorkProtocol):
-    async def __aenter__(self) -> "MyAsyncUnitOfWork":
-        # создать async session/connection, инициализировать репозитории
+
+class MyUnitOfWork(UnitOfWorkProtocol):
+    def __enter__(self) -> "MyUnitOfWork":
+        # открыть sync/async‑совместимую сессию, инициализировать репозитории
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        # закоммитить/откатить и закрыть сессию
+    def __exit__(self, exc_type, exc, tb) -> None:
+        # commit/rollback и закрыть сессию
         ...
 
-    # здесь реализуются свойства/репозитории, которые ожидают use cases
+    # здесь реализуются свойства/репозитории, которые ожидают use case'ы
 
 
-def make_uow_factory(async_url: str) -> Callable[[], AsyncUnitOfWorkProtocol]:
-    def factory() -> AsyncUnitOfWorkProtocol:
-        return MyAsyncUnitOfWork(async_url)
+def make_uow_factory(url: str) -> Callable[[], UnitOfWorkProtocol]:
+    def factory() -> UnitOfWorkProtocol:
+        return MyUnitOfWork(url)
+
     return factory
 ```
 
-Таким образом, внешнее приложение контролирует persistence-слой, а `py_accountant` предоставляет только домен и сценарии.
+### 3. Где искать use case'ы и порты
 
-### 3. Где искать use cases и порты
+- Порты: `src/application/ports.py` (контракты UoW/репозиториев).
+- Синхронные use case'ы (включая `PostTransaction`, `GetBalance`,
+  `GetLedger`, `ListLedger`, `GetTradingBalanceRawDTOs`,
+  `GetTradingBalanceDetailedDTOs`): `src/application/use_cases/ledger.py`.
+- Async use case'ы (если вам нужен полностью async‑стек):
+  `src/application/use_cases_async/*.py`.
 
-- Порты (контракты UoW/репозиториев): `src/application/ports.py`.
-- Async use cases:
-  - `src/application/use_cases_async/accounts.py`
-  - `src/application/use_cases_async/ledger.py`
-  - `src/application/use_cases_async/currencies.py`
-  - `src/application/use_cases_async/trading_balance.py`
-  - `src/application/use_cases_async/fx_audit.py`
-  - `src/application/use_cases_async/fx_audit_ttl.py`
-
-Подробности интеграции см. в `docs/INTEGRATION_GUIDE.md` (разделы про dual-URL и использование портов/use cases).
+Документация согласована с кодом: `application/use_cases/ledger.py`,
+`application/use_cases_async/*`, `application/ports.py`.
 
 ## Архитектура слоёв
 
@@ -252,7 +252,10 @@ def make_uow_factory(async_url: str) -> Callable[[], AsyncUnitOfWorkProtocol]:
 
 ## Полностью асинхронное ядро
 
-Синхронные репозитории и legacy sync UoW удалены в I29 (async-only завершён). Единственный поддерживаемый путь выполнения — async через собственный UoW и use cases. Alembic по-прежнему использует sync драйверы только для миграций.
+Слои Domain и Application предоставляют как sync, так и async use case'ы.
+Async‑репозитории и `AsyncSqlAlchemyUnitOfWork` реализованы в инфраструктуре
+(`infrastructure.persistence.sqlalchemy`). Публичный SDK‑слой больше не
+поставляется; интеграция происходит напрямую через порты и use case'ы.
 
 ## Fast balance & turnover (denormalized aggregates)
 

@@ -9,28 +9,29 @@
 - `PYACC__FX_TTL_MODE|RETENTION_DAYS|BATCH_SIZE|DRY_RUN` — FX audit TTL policy knobs.
 - `PYACC__DB_POOL_SIZE|MAX_OVERFLOW|POOL_TIMEOUT` — async engine tuning. Legacy names without the prefix still work, but `PYACC__` keeps bot and SDK settings separate.
 
-## 2. SDK Bootstrap Snippet
+## 2. Core integration snippet (без SDK)
+
 ```python
-from py_accountant.sdk import bootstrap, use_cases
+from application.use_cases.ledger import PostTransaction
+from application.ports import UnitOfWork
 
-app = bootstrap.init_app()  # reads env, validates dual URL
 
-async def post_sample_tx():
-    async with app.uow_factory() as uow:
-        await use_cases.post_transaction(
-            uow,
-            app.clock,
-            ["DEBIT:Assets:Cash:100:USD", "CREDIT:Income:Sales:100:USD"],
+def post_sample_tx(uow_factory, clock):
+    with uow_factory() as uow:  # type: UnitOfWork
+        use_case = PostTransaction(uow, clock)
+        return use_case(
+            lines=[
+                # здесь должны быть EntryLineDTO, собранные по вашим правилам
+            ],
             memo="CribSheet",
             meta={"idempotency_key": "cribsheet-001"},
         )
 ```
 
 ## 3. Key Paths
-- `src/py_accountant/sdk/bootstrap.py` — `init_app`, `AppContext`.
-- `src/py_accountant/sdk/use_cases.py` — async facades for posting, balance, ledger.
-- `src/py_accountant/sdk/settings.py` — env loader + dual URL validation.
+- `src/application/ports.py` — контракты UoW и репозиториев.
+- `src/application/use_cases/ledger.py` — sync use case'ы по журналу и балансам.
+- `src/application/use_cases_async/*.py` — async use case'ы (опционально).
 - `src/infrastructure/config/settings.py` — pydantic settings (env aliases, logging toggle).
-- `src/infrastructure/logging/config.py` — structlog bootstrap (honors `LOGGING_ENABLED`).
-- `examples/telegram_bot/` — reference bot wiring (config, handlers, README).
-
+- `src/infrastructure/logging/config.py` — structlog bootstrap.
+- `examples/` — примеры интеграции.
