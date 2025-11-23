@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .settings import Settings
+from py_accountant.sdk.settings import Settings
 
 try:  # Import infrastructure UoW with a user-friendly error on failure
     from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
