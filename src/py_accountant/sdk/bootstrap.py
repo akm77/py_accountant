@@ -13,10 +13,11 @@ from datetime import UTC, datetime
 
 from application.ports import Clock as ClockProtocol
 
-from .settings import Settings, load_from_env, validate_dual_url
-from .uow import AsyncSqlAlchemyUnitOfWork, build_uow_factory
-
 __all__ = ["AppContext", "init_app"]
+
+from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.sdk.settings import Settings, load_from_env, validate_dual_url
+from py_accountant.sdk.uow import build_uow_factory
 
 
 @dataclass(slots=True)
