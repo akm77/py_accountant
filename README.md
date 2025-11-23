@@ -128,56 +128,79 @@ git+https://github.com/akm77/py_accountant.git
 ```
 И выполните `pip install -r requirements.txt`. Для частных форков используйте SSH URL и настройте deploy key.
 
-## Quick Start
+## Интеграция через core
 
+Рекомендуемый способ использования — напрямую через слои Domain/Application и порты (`application.ports`).
 
-## SDK surface
+### 1. Подключение ядра в вашем проекте
 
-Над существующими async use cases добавлен тонкий стабильный SDK-слой: `py_accountant.sdk`.
-Ключевые модули: `bootstrap`, `use_cases`, `json`, `errors`, `settings`, `uow`.
+Добавьте зависимость на репозиторий:
 
-Минимальный рабочий пример (инициализация + постинг с idempotency_key + баланс/ledger):
-
-```python
-import asyncio
-from py_accountant.sdk import bootstrap, use_cases, json as sdk_json
-
-async def main():
-    app = bootstrap.init_app()  # читает .env, валидирует dual-URL
-    # 1) Постинг транзакции (две строки)
-    async with app.uow_factory() as uow:
-        tx = await use_cases.post_transaction(
-            uow,
-            app.clock,
-            [
-                "DEBIT:Assets:Cash:100:USD",
-                "CREDIT:Income:Sales:100:USD",
-            ],
-            memo="Init",
-            meta={"idempotency_key": "demo-001"},
-        )
-    print("TX:", sdk_json.to_json(tx))
-
-    # 2) Баланс счёта
-    async with app.uow_factory() as uow:
-        bal = await use_cases.get_account_balance(uow, app.clock, "Assets:Cash")
-    print("BAL:", sdk_json.to_json({"account": "Assets:Cash", "balance": bal}))
-
-    # 3) Выписка по счёту (короткая форма)
-    async with app.uow_factory() as uow:
-        items = await use_cases.get_ledger(uow, app.clock, "Assets:Cash", limit=5, order="DESC")
-    print("LEDGER items:", len(items))
-
-asyncio.run(main())
+```bash
+poetry add git+https://github.com/akm77/py_accountant.git
+# или
+pip install "git+https://github.com/akm77/py_accountant.git"
 ```
 
-- Trading Detailed и TTL (plan/execute): выполняются через существующие use case’ы внутри `async with app.uow_factory(): ...` (см. подробности в docs/INTEGRATION_GUIDE.md).
-- Согласованные форматы: Decimal → строка; datetime → ISO8601 UTC (`Z`/`+00:00`).
-- Маппинг ошибок: используйте `py_accountant.sdk.errors.map_exception()` для дружелюбных сообщений.
-- Fast-path баланса: `use_cases.get_account_balance()` делегирует в AsyncGetAccountBalance, который при `as_of=None` читает денормализованный остаток из `account_balances` (O(1)); для исторических дат выполняется безопасный fallback к сканированию леджера.
-- Периодные обороты (SDK): `py_accountant.sdk.reports.turnover.get_account_daily_turnovers()` читает агрегаты `account_daily_turnovers` и возвращает списки дневных дебет/кредит/нетто по счёту/всем счетам без сканирования журнала.
+Далее в коде интегратора (например, `tgbank`):
 
-Подробнее: см. `docs/INTEGRATION_GUIDE.md` (раздел «Использование как библиотеки (SDK)») и «Шпаргалку проводок» `docs/ACCOUNTING_CHEATSHEET.md`.
+```python
+from application.use_cases_async.ledger import AsyncPostTransaction, AsyncGetAccountBalance
+from application.ports import AsyncUnitOfWork  # протокол
+
+async def post_deposit(uow_factory, clock, lines, meta):
+    async with uow_factory() as uow:  # type: AsyncUnitOfWork
+        use_case = AsyncPostTransaction(uow, clock)
+        return await use_case.execute(lines=lines, memo="Deposit", meta=meta)
+
+async def get_balance(uow_factory, clock, account_name: str):
+    async with uow_factory() as uow:
+        use_case = AsyncGetAccountBalance(uow, clock)
+        return await use_case.execute(account_full_name=account_name, as_of=None)
+```
+
+Интегратор реализует свой `uow_factory: Callable[[], AsyncUnitOfWork]` и репозитории по контрактам из `application.ports`.
+
+### 2. Реализация собственного UoW и репозиториев
+
+Простейший каркас UoW (асинхронный, совместимый с протоколами ports):
+
+```python
+from collections.abc import Callable
+from application.ports import AsyncUnitOfWork as AsyncUnitOfWorkProtocol
+
+class MyAsyncUnitOfWork(AsyncUnitOfWorkProtocol):
+    async def __aenter__(self) -> "MyAsyncUnitOfWork":
+        # создать async session/connection, инициализировать репозитории
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        # закоммитить/откатить и закрыть сессию
+        ...
+
+    # здесь реализуются свойства/репозитории, которые ожидают use cases
+
+
+def make_uow_factory(async_url: str) -> Callable[[], AsyncUnitOfWorkProtocol]:
+    def factory() -> AsyncUnitOfWorkProtocol:
+        return MyAsyncUnitOfWork(async_url)
+    return factory
+```
+
+Таким образом, внешнее приложение контролирует persistence-слой, а `py_accountant` предоставляет только домен и сценарии.
+
+### 3. Где искать use cases и порты
+
+- Порты (контракты UoW/репозиториев): `src/application/ports.py`.
+- Async use cases:
+  - `src/application/use_cases_async/accounts.py`
+  - `src/application/use_cases_async/ledger.py`
+  - `src/application/use_cases_async/currencies.py`
+  - `src/application/use_cases_async/trading_balance.py`
+  - `src/application/use_cases_async/fx_audit.py`
+  - `src/application/use_cases_async/fx_audit_ttl.py`
+
+Подробности интеграции см. в `docs/INTEGRATION_GUIDE.md` (разделы про dual-URL и использование портов/use cases).
 
 ## Архитектура слоёв
 
@@ -186,8 +209,7 @@ asyncio.run(main())
 См. docs/ARCHITECTURE_OVERVIEW.md. Кратко:
 - Domain — value-объекты, сервисы (балансы, политика курсов). Чистый слой.
 - Application — DTO и use case'ы. Зависит от Domain; работает через порты.
-- Infrastructure — адаптеры (SQLAlchemy, in-memory, Alembic, logging, settings).
-- SDK — публичный интерфейс для использования как библиотеки (bootstrap, use_cases, json, errors).
+- Infrastructure — адаптеры (SQLAlchemy, Alembic, logging, settings).
 
 Данные в JSON: Decimal → строка, datetime → ISO8601 UTC.
 
@@ -225,13 +247,12 @@ asyncio.run(main())
 - docs/PERFORMANCE.md
 - docs/RUNNING_MIGRATIONS.md
 - docs/MIGRATION_HISTORY.md
-- docs/INTEGRATION_GUIDE.md ← гид по встраиванию (SDK)
+- docs/INTEGRATION_GUIDE.md ← гид по встраиванию (core-only)
 - docs/ACCOUNTING_CHEATSHEET.md ← шпаргалка по проводкам
-- examples/telegram_bot/README.md ← пример Telegram Bot
 
 ## Полностью асинхронное ядро
 
-Синхронные репозитории и legacy sync UoW удалены в I29 (async-only завершён). Единственный поддерживаемый путь выполнения — async через SDK. Alembic по-прежнему использует sync драйверы только для миграций.
+Синхронные репозитории и legacy sync UoW удалены в I29 (async-only завершён). Единственный поддерживаемый путь выполнения — async через собственный UoW и use cases. Alembic по-прежнему использует sync драйверы только для миграций.
 
 ## Fast balance & turnover (denormalized aggregates)
 

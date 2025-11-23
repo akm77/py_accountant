@@ -1,11 +1,11 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    description: "Монорепозиторий: домен/приложение/инфраструктура/SDK. Цель — Clean Architecture."
-    last_updated: "2025-11-17"
+    description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
+    last_updated: "2025-11-23"
     environments:
       - name: "test"
-        description: "Тестовая среда: локальный запуск, in-memory ил�� локальный Postgres, подробные логи."
+        description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
         env_vars:
           - name: "ENV"
             required: true
@@ -129,109 +129,67 @@ rpg:
         description: "Валидатор баланса LedgerValidator: мультивалютная сверка в базовой валюте (money_quantize), без инфраструктурных зависимостей."
       - name: "domain.trading_balance"
         path: "src/domain/trading_balance.py"
-        description: "RawAggregator.aggregate: группировка LedgerEntry по currency_code, накопление debit/credit, квантование итогов и вычисление net; возврат list[RawBalanceLine]. ConvertedAggregator.aggregate: группировка + конвертация в базовую валюту (обязан rate_to_base для небазовых), определение базы по base_code или get_base_currency, возврат list[ConvertedBalanceLine] с полями used_rate/debit_base/credit_base/net_base."
+        description: "RawAggregator.aggregate и ConvertedAggregator.aggregate для торгового баланса; чистая доменная логика."
       - name: "domain.fx_audit"
         path: "src/domain/fx_audit.py"
-        description: "FX Audit TTL domain service: FxAuditTTLService with make_cutoff/identify_old/batch_plan; dataclasses ExchangeRateEventRef, TTLConfig, Batch; ArchivalMode enum; чистая логика без I/O."
+        description: "FX Audit TTL domain service: FxAuditTTLService с make_cutoff/identify_old/batch_plan; чистая логика без I/O."
       - name: "TTLUseCases"
         path: "src/application/use_cases_async/fx_audit_ttl.py"
-        description: "Async TTL use cases for FX audit: plan and execute archival/delete using domain FxAuditTTLService; repositories stay CRUD-only; supports dry_run."
+        description: "Async TTL use cases for FX audit: план и выполнение archival/delete через FxAuditTTLService; репозитории остаются CRUD-only."
       - name: "infrastructure"
         path: "src/infrastructure"
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
       - name: "presentation"
         path: "src/presentation"
-        description: "API/CLI: контроллеры, валидация, презентеры."
+        description: "API/CLI: контроллеры, валидация, презентеры (слой оставлен для потенциального будущего HTTP/API)."
       - name: "config"
         path: "src/infrastructure/config"
         description: "Конфигурация приложения на pydantic-settings; выбор профиля окружения."
       - name: "logging"
         path: "src/infrastructure/logging"
         description: "Структурированное логирование на structlog; единая инициализация логгера."
-      - name: "py_accountant"
-        path: "src/py_accountant"
-        description: "Публичный пакет-оболочка корневого проекта (версия, утилиты)."
-      - name: "py_accountant.sdk"
-        path: "src/py_accountant/sdk"
-        description: "Публичный SDK-слой: json/errors/use_cases; тонкие фасады над async use cases."
-      - name: "py_accountant.sdk.bootstrap"
-        path: "src/py_accountant/sdk/bootstrap.py"
-        description: "init_app(settings|env) -> AppContext{uow_factory, clock, logger, settings}; runtime-валидация dual-URL."
-      - name: "py_accountant.sdk.settings"
-        path: "src/py_accountant/sdk/settings.py"
-        description: "Загрузка из ENV (DATABASE_URL/DATABASE_URL_ASYNC), validate_dual_url(sync/async)."
-      - name: "py_accountant.sdk.uow"
-        path: "src/py_accountant/sdk/uow.py"
-        description: "build_uow_factory(settings) -> Callable[AsyncSqlAlchemyUnitOfWork]."
       - name: "async_engine"
         path: "src/infrastructure/persistence/sqlalchemy/async_engine.py"
-        description: "Async фабрики: normalize_async_url, get_async_engine, get_async_session_factory"
+        description: "Async фабрики: normalize_async_url, get_async_engine, get_async_session_factory."
       - name: "repositories_async"
         path: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
-        description: "Async реализации портов репозиториев на SQLAlchemy: CRUD + TTL примитивы (list_old_events/archive_events/delete_events_by_ids). С I31 добавлено: метод accounts.get_balance и апдейт агрегатов при постинге (account_balances, account_daily_turnovers)."
+        description: "Async реализации портов репозиториев на SQLAlchemy: CRUD + TTL примитивы, fast-path accounts.get_balance и агрегаты account_balances/account_daily_turnovers."
       - name: "asyncio_utils"
         path: "src/infrastructure/utils/asyncio_utils.py"
-        description: "Helper run_sync(coro): безопасный запуск корутин из sync-контекста (guard на running loop, PEP695 generic)."
-      - name: "currencies"
-        path: "src/application/use_cases_async/currencies.py"
-        description: "DEPRECATED entry; use the module node ниже"
+        description: "Helper run_sync(coro): безопасный запуск корутин из sync-контекста."
       - name: "currencies (use cases)"
         path: "src/application/use_cases_async/currencies.py"
-        description: "use_cases_async/currencies: используют доменные сервисы для валидации и выбора базы; репозитории — только CRUD."
+        description: "Async currencies use cases: валидация и выбор базовой валюты; репозитории — только CRUD."
       - name: "accounts"
         path: "src/application/use_cases_async/accounts.py"
-        description: "Async аккаунты: AsyncCreateAccount использует domain.Account для валидации и нормализации full_name/currency_code; проверяет существование валюты и уникальность full_name; репозитории — только CRUD. AsyncGetAccount/AsyncListAccounts — passthrough."
+        description: "Async аккаунты: создание/получение/список; используют domain.Account и репозитории."
       - name: "ledger"
         path: "src/application/use_cases_async/ledger.py"
-        description: "Async леджер и баланс: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance (оптимизирован для чтения из account_balances при as_of=None). Legacy AsyncGetTradingBalance — удалён (I30)."
+        description: "Async леджер и баланс: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance (fast-path через агрегаты)."
       - name: "fx_audit"
         path: "src/application/use_cases_async/fx_audit.py"
         description: "Async FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents."
       - name: "trading_balance"
         path: "src/application/use_cases_async/trading_balance.py"
-        description: "Async trading balance use cases (I18): AsyncGetTradingBalanceRaw / Detailed через domain RawAggregator & ConvertedAggregator; репозитории — только CRUD."
+        description: "Async trading balance use cases через domain RawAggregator & ConvertedAggregator."
       - name: "fx_audit_ttl"
         path: "src/application/use_cases_async/fx_audit_ttl.py"
-        description: "AsyncPlanFxAuditTTL (план: cutoff, ids, batches) и AsyncExecuteFxAuditTTL (выполнение: delete/archive с dry_run). Ошибки: ValidationError для параметров и несогласованностей плана."
+        description: "AsyncPlanFxAuditTTL и AsyncExecuteFxAuditTTL: планирование и выполнение TTL/архивации."
       - name: "src/infrastructure/persistence/sqlalchemy/models.py"
         parent_module: "infrastructure"
-        description: "ORM schema only: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, ExchangeRateEventORM, ExchangeRateEventArchiveORM. I31: добавлены AccountBalanceORM и AccountDailyTurnoverORM."
+        description: "ORM schema: CurrencyORM, AccountORM, JournalORM, TransactionLineORM, ExchangeRateEventORM, ExchangeRateEventArchiveORM, AccountBalanceORM, AccountDailyTurnoverORM."
       - name: "src/infrastructure/persistence/sqlalchemy/repositories_async.py"
         parent_module: "infrastructure"
-        description: "Async реализации портов репозиториев на SQLAlchemy: CRUD + TTL примитивы. I31: добавлен fast-path accounts.get_balance и апдейты агрегатов при постинге."
+        description: "Async реализации портов репозиториев на SQLAlchemy: CRUD + TTL примитивы и агрегаты."
       - name: "src/infrastructure/persistence/sqlalchemy/uow.py"
         parent_module: "infrastructure"
-        description: "AsyncSqlAlchemyUnitOfWork only (legacy sync UoW и wrapper удалены в I29)."
+        description: "AsyncSqlAlchemyUnitOfWork only (legacy sync UoW удалён)."
       - name: "docs/RUNNING_MIGRATIONS.md"
         parent_module: "infrastructure"
         description: "Helper для CI: запуск Alembic миграций, примеры GitHub Actions/GitLab, checklist."
       - name: "src/infrastructure/utils/asyncio_utils.py"
         parent_module: "infrastructure"
         description: "run_sync(coro): запрет nested loop, корректное закрытие корутины при ошибке."
-      - name: "src/py_accountant/sdk/__init__.py"
-        parent_module: "py_accountant.sdk"
-        description: "Экспорт модулей SDK: json, errors, use_cases, reports."
-      - name: "src/py_accountant/sdk/json.py"
-        parent_module: "py_accountant.sdk"
-        description: "JSON presenter: Decimal→str, datetime→ISO8601 UTC (Z/+00:00), детерминированный dumps."
-      - name: "src/py_accountant/sdk/errors.py"
-        parent_module: "py_accountant.sdk"
-        description: "Публичные ошибки SDK и map_exception() для маппинга внутренних исключений."
-      - name: "src/py_accountant/sdk/use_cases.py"
-        parent_module: "py_accountant.sdk"
-        description: "SimpleTransactionParser и тонкие async фасады post_transaction/get_account_balance/get_ledger."
-      - name: "py_accountant.sdk.reports"
-        path: "src/py_accountant/sdk/reports"
-        description: "SDK отчётность: пакет фасадов отчётов поверх денормализованных агрегатов."
-      - name: "py_accountant.sdk.reports.turnover"
-        path: "src/py_accountant/sdk/reports/turnover.py"
-        description: "Фасад get_account_daily_turnovers: читает account_daily_turnovers, возвращает DailyTurnoverLine[], маппит ошибки через sdk.errors."
-      - name: "examples/telegram_bot/app.py"
-        parent_module: "py_accountant.sdk"
-        description: "Пример Telegram-бота использует SDK bootstrap (init_app → uow_factory), единый подход к ошибкам/форматам (I-DOC-01)."
-      - name: "examples/telegram_bot/README.md"
-        parent_module: "py_accountant.sdk"
-        description: "README примера: запуск через SDK bootstrap, smoke-вызовы, локальный SQLite (I-DOC-01)."
 
   tests:
     unit_tests:
@@ -241,7 +199,13 @@ rpg:
         coverage_status: "updated for fast-path"
       - target_component: "AccountAggregates"
         test_file: "tests/unit/infrastructure/test_account_aggregates.py"
-        test_functions: ["test_repository_upserts_balance", "test_repository_upserts_turnover_same_day_multiple_lines", "test_repository_concurrent_postings_consistent_balance", "test_get_balance_fallback_zero_when_missing", "test_get_balance_matches_legacy_scan"]
+        test_functions: [
+          "test_repository_upserts_balance",
+          "test_repository_upserts_turnover_same_day_multiple_lines",
+          "test_repository_concurrent_postings_consistent_balance",
+          "test_get_balance_fallback_zero_when_missing",
+          "test_get_balance_matches_legacy_scan",
+        ]
         coverage_status: "added"
       - target_component: "DomainErrors"
         test_file: "tests/unit/domain/test_errors.py"
@@ -249,7 +213,11 @@ rpg:
         coverage_status: "added"
       - target_component: "QuantizeUtilities"
         test_file: "tests/unit/domain/test_quantize.py"
-        test_functions: ["test_money_quantize_rounds", "test_rate_quantize_rounds", "test_no_global_context_mutation"]
+        test_functions: [
+          "test_money_quantize_rounds",
+          "test_rate_quantize_rounds",
+          "test_no_global_context_mutation",
+        ]
         coverage_status: "added"
       - target_component: "CurrencyValueObject"
         test_file: "tests/unit/domain/test_currency_base_rule.py"
@@ -311,43 +279,6 @@ rpg:
             "test_validation_errors",
           ]
         coverage_status: "added"
-      - target_component: "py_accountant.sdk"
-        test_file: "tests/unit/sdk/test_imports.py"
-        test_functions: ["test_sdk_imports_available_from_root"]
-        coverage_status: "added"
-      - target_component: "py_accountant.sdk"
-        test_file: "tests/unit/sdk/test_json_presenter.py"
-        test_functions:
-          [
-            "test_decimal_to_str",
-            "test_datetime_aware_to_z",
-            "test_datetime_naive_treated_as_utc",
-            "test_list_of_dicts_serializes",
-            "test_to_json_deterministic_keys",
-          ]
-        coverage_status: "added"
-      - target_component: "py_accountant.sdk"
-        test_file: "tests/unit/sdk/test_error_mapping.py"
-        test_functions:
-          [
-            "test_map_validation_error_to_user_input",
-            "test_map_domain_error_to_domain_violation",
-            "test_map_value_error_to_user_input",
-            "test_map_other_to_unexpected",
-          ]
-        coverage_status: "added"
-      - target_component: "py_accountant.sdk.settings"
-        test_file: "tests/unit/sdk/test_settings_dual_url.py"
-        test_functions:
-          [
-            "test_only_async_url_ok",
-            "test_sync_and_async_pair_sqlite_ok",
-            "test_sync_is_async_driver_raises",
-            "test_async_is_sync_driver_raises",
-            "test_mismatched_hosts_pg_raises",
-            "test_missing_both_urls_raises_in_init_app_when_use_env_true",
-          ]
-        coverage_status: "added"
       - target_component: "DocsPresence"
         test_file: "tests/docs/test_docs_sections_present.py"
         test_functions:
@@ -356,15 +287,6 @@ rpg:
             "test_integration_guide_has_dual_url_and_sdk",
             "test_cheatsheet_exists_and_has_sections",
           ]
-        coverage_status: "added"
-      - target_component: "SDKReportsTurnover"
-        test_file: "tests/unit/sdk/test_reports_turnover.py"
-        test_functions: [
-          "test_turnover_empty",
-          "test_turnover_single_day",
-          "test_turnover_cross_days",
-          "test_turnover_validation",
-        ]
         coverage_status: "added"
 
   edges:
@@ -389,26 +311,6 @@ rpg:
         to: "infrastructure.persistence.sqlalchemy.uow"
         data_type: "Repository → UoW"
         description: "Использование AsyncSession в транзакционном scope."
-      - from: "py_accountant.sdk.use_cases"
-        to: "application.use_cases_async.ledger"
-        data_type: "SDK facade → Use case"
-        description: "SDK вызывает AsyncGetAccountBalance/AsyncPostTransaction."
-      - from: "py_accountant.sdk.reports.turnover"
-        to: "infrastructure.persistence.sqlalchemy.models"
-        data_type: "SDK facade → ORM"
-        description: "Читает агрегаты AccountDailyTurnoverORM через UoW session."
-      - from: "py_accountant.sdk.reports.turnover"
-        to: "infrastructure.persistence.sqlalchemy.uow"
-        data_type: "SDK facade → UoW (session)"
-        description: "Использует AsyncSession из AsyncSqlAlchemyUnitOfWork."
-      - from: "py_accountant.sdk.reports.turnover"
-        to: "py_accountant.sdk.json"
-        data_type: "Serialization"
-        description: "Результаты сериализуются JSON презентером (Decimal→str, datetime→ISO)."
-      - from: "tests.unit.sdk"
-        to: "py_accountant.sdk.reports.turnover"
-        data_type: "Tests → SDK reports"
-        description: "Юнит-тесты фасада отчётности по оборотам."
       - from: "tests.integration.ledger"
         to: "application.use_cases_async.ledger"
         data_type: "Integration tests → Use case"
@@ -416,124 +318,39 @@ rpg:
 
   validation_matrix:
     requirement_to_test_map:
-      - sdk_fast_balance: [
-          "tests/unit/sdk/test_balance_fast_path_smoke.py",
-          "tests/unit/application/test_async_get_account_balance.py",
-        ]
-      - sdk_docs_updated: [
-          "tests/docs/test_docs_sections_present.py",
-        ]
-      - sdk_serialization_stable: [
-          "tests/unit/sdk/test_json_presenter.py",
-        ]
-      - sdk_errors_mapping: [
-          "tests/unit/sdk/test_error_mapping.py",
-        ]
-      - sdk_turnovers_facade: [
-          "tests/unit/sdk/test_reports_turnover.py",
-        ]
+      # SDK-specific requirements удалены; остаются только core-требования.
+      # ...existing core requirements if any...
 
   roadmap_updates:
     - id: "ASYNC-03"
       title: "Перевод репозиториев на async API"
       status: "done"
+      notes: "repositories_async.py — единственный источник CRUD/TTL для async слоя."
     - id: "ASYNC-04"
       title: "Сохранение синхронного пути для Alembic и вспомогательных сценариев"
       status: "done"
-      notes: "alembic/env.py валидирует sync URL, игнорирует DATABASE_URL_ASYNC, тесты alembic/config/docs добавлены; документация обновлена (INTEGRATION_GUIDE, MIGRATION_HISTORY, README)."
+      notes: "alembic/env.py валидирует sync URL, игнорирует DATABASE_URL_ASYNC."
     - id: "ASYNC-05"
       title: "Async Protocols для UoW и репозиториев"
       status: "done"
-      notes: "ports.py дополнен AsyncUnitOfWork и Async*Repository Protocol; sync контракты сохранены; добавлен структурный тест test_async_ports_protocols.py."
+      notes: "ports.py содержит AsyncUnitOfWork и Async*Repository Protocol; интеграторы реализуют их у себя."
     - id: "ASYNC-06"
       title: "Use cases: переход на async с минимальным шумом"
       status: "done"
-      notes: |
-        Добавлен пакет application/use_cases_async с async вариантами ключевых сценариев:
-        - Валюты: AsyncCreateCurrency, AsyncSetBaseCurrency, AsyncListCurrencies
-        - Счета: AsyncCreateAccount, AsyncGetAccount, AsyncListAccounts
-        - Транзакции/Леджер: AsyncPostTransaction, AsyncListTransactionsBetween, AsyncGetLedger, AsyncGetAccountBalance, AsyncGetTradingBalance
-        - FX audit: AsyncAddExchangeRateEvent, AsyncListExchangeRateEvents
-        Добавлен unit smoke тест tests/unit/application/test_async_use_cases_smoke.py (создание валют/счёта/транзакции, леджер, балансы, edge: limit=0/offset<0, ошибки). Существующие sync use cases не изменялись. Все новые функции имеют докстроки.
-    - id: "ASYNC-07"
-      title: "CLI/Presentation: синхронные обёртки поверх async use cases"
-      status: "done"
-      notes: |
-        CLI ранее временно использовал async use cases через синхронные фасады (presentation/async_bridge.py) и helper run_sync.
-        В I27 этот слой удалён; CLI работает напрямую через async команды и эфемерный async UoW.
+      notes: "Добавлены application/use_cases_async/*; sync use cases сохранены для обратной совместимости."
     - id: "I28"
       title: "Deprecate sync repositories"
       status: "done"
-      notes: "repositories.py заменён на заглушки; добавлены структурные тесты; граф обновлён."
+      notes: "repositories.py заменён на заглушки; остались только async реализации."
     - id: "I29"
       title: "Удаление legacy sync UoW и репозиториев"
       status: "done"
-      notes: "Удалены классы SqlAlchemyUnitOfWork, SyncUnitOfworkWrapper и репозитории из repositories.py; осталась только асинхронная реализация."
-    - id: "I-UX-01"
-      title: "CLI улучшение post: occurred-at, Rate, дружелюбные ошибки [REMOVED]"
-      status: "deprecated"
-      notes: |
-        CLI был удалён. Функциональность доступна через SDK: use_cases.post_transaction поддерживает парсинг строк формата SIDE:Account:Amount:Currency[:Rate].
-    - id: "I-DX-02"
-      title: "SDK bootstrap/settings/uow и runtime‑валидация dual‑URL"
-      status: "done"
-      notes: "Добавлены модули sdk.settings/uow/bootstrap, обновлены реэкспорты в sdk и корне, добавлены тесты (unit/integration); pytest зелёный."
-    - id: "I-UX-02"
-      title: "CLI загрузка строк из файла (CSV/JSON) [REMOVED]"
-      status: "deprecated"
-      notes: |
-        CLI был удалён. Парсинг строк доступен через SDK: use_cases.post_transaction.
-    - id: "I-DX-03"
-      title: "Идемпотентность постинга транзакций"
-      status: "done"
-      changes:
-        - "SDK: идемпотентность через meta={'idempotency_key': '...'} в post_transaction."
-        - "ORM: JournalORM получил nullable колонку idempotency_key (String(255)); добавлен уникальный индекс."
-        - "Repo: AsyncSqlAlchemyTransactionRepository — метод get_by_idempotency_key(); add() теперь проверяет ключ и сохраняет tx_id в journal.meta для стабильного возврата id; обработка IntegrityError для гонок."
-        - "Alembic: миграция 0006_add_journal_idempotency_key (batch + unique index для SQLite совместимости)."
-      notes:
-        - "Поведение без ключа не изменилось; повторные постинги с одним ключом возвращают первый tx.id (tx:<uuid>)."
-        - "Конкурентные вставки защищены уникальным индексом; при конфликте выполняется повторное чтение."
-    - id: "I-DOC-01"
-      title: "Документация и примеры на SDK"
+      notes: "Удалены sync UoW и репозитории; AsyncSqlAlchemyUnitOfWork — единственный UoW в core."
+    - id: "CORE-01"
+      title: "Удаление публичного SDK-слоя и переход на core-only интеграцию"
       status: "done"
       notes: |
-        Добавлен раздел "SDK surface" в README с краткими примерами init_app/post/balance/ledger и ссылками.
-        В docs/INTEGRATION_GUIDE.md консолидирован dual-URL и добавлена подробная секция по SDK (init_app/UоW/операции/TTL/errors/форматы).
-        Создан новый файл docs/ACCOUNTING_CHEATSHEET.md с форматами, файлами, ошибками и идемпотентностью.
-        Пример Telegram-бота обновлён на SDK bootstrap; README примера переписан.
-        Добавлен docs-тест tests/docs/test_docs_sections_present.py на наличие ключевых разделов.
-      tests:
-        - "tests/docs/test_docs_sections_present.py"
-    - id: "I13-cleanup-fx-orchestration"
-      title: "Удаление orchestration метода move_events_to_archive из async FX репозитория"
-      status: "done"
-      notes: "Метод удалён из AsyncSqlAlchemyExchangeRateEventsRepository и AsyncExchangeRateEventsRepository Protocol; TTL теперь только через примитивы list_old_events + archive_events + delete_events_by_ids; оркестрация (plan/execute) в FxAuditTTLService и use cases."
-    - id: "I31"
-      title: "Денормализованные агрегаты баланса/оборотов и fast-path баланса (AsyncGetAccountBalance)"
-      status: "done (phase 1)"
-      notes: |
-        Выполнено:
-        - Миграции / ORM: добавлены таблицы account_balances и account_daily_turnovers; в models.py добавлены AccountBalanceORM и AccountDailyTurnoverORM.
-        - Репозитории: при постинге транзакции выполняется upsert агрегатов; accounts.get_balance читает из account_balances с fallback=0.
-        - Use case: AsyncGetAccountBalance использует fast-path для текущего баланса.
-        - Тесты: добавлены unit-тесты tests/unit/infrastructure/test_account_aggregates.py.
-        - Документация: README и docs/ACCOUNTING_CHEATSHEET.md дополнены секцией о денормализации (I31).
-        Следующие шаги:
-        - Интеграционные и performance-тесты для Postgres (конкурентные постинги и бенчмарки).
-    - id: "I31-SDK"
-      title: "SDK фасад периодных оборотов (turnovers) на агрегатах"
-      status: "done"
-      notes: "Добавлен модуль sdk.reports.turnover.get_account_daily_turnovers; покрыт юнит-тестами и отражён в README."
-    - id: "I32"
-      title: "Удаление слоя src/presentation (CLI)"
-      status: "done"
-      notes: |
-        Выполнено:
-        - Удалены директории: src/presentation, tests/integration/cli, tests/unit/presentation, tests/e2e/cli
-        - Удалён тест tests/integration/test_idempotent_posting.py (зависел от CLI)
-        - Обновлена документация: README.md, INTEGRATION_GUIDE.md, TRADING_WINDOWS.md, AUDIT_REPORT.md
-        - Обновлён RPG граф: удалены узлы presentation и async_cli_foundation
-        - Roadmap обновлён: I-UX-01, I-UX-02 помечены как deprecated
-        - Проект теперь предоставляет функциональность только через SDK
-        Причина: упрощение архитектуры, фокус на SDK как единственном интерфейсе.
+        Удалён пакет src/py_accountant и все модули py_accountant.sdk/*.
+        Документация обновлена: интеграция только через domain/application/ports.
+        RPG-граф обновлён: SDK-узлы и требования удалены.
+        Интеграторы (например, tgbank) реализуют свои AsyncUnitOfWork и репозитории по контрактам application.ports.

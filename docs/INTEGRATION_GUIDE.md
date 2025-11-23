@@ -1,7 +1,7 @@
 ```bash
 # 1) Миграции
 poetry run alembic upgrade head
-# 2) Базовые операции выполняются через SDK (см. примеры ниже)
+# 2) Базовые операции выполняются через core (см. примеры ниже)
 ```
 
 ## Runtime vs Migration Database URLs (dual‑URL)
@@ -41,131 +41,65 @@ PYTHONPATH=src poetry run python -m examples.telegram_bot.app  # runtime async U
 - В инфраструктурном слое задайте `LOGGING_ENABLED=false` (или `PYACC__LOGGING_ENABLED=false`), чтобы SDK пропустил настройку structlog и позволил хост-приложению использовать собственный logger/handlers.
 - Поведение UoW и use case'ов не меняется: `app.logger` остаётся доступным, но не имеет обработчиков, пока вы не настроите их самостоятельно.
 
-## Использование как библиотеки (SDK)
+## Использование как библиотеки (core-only)
 
-SDK предоставляет стабильные импорты для интеграторов: `from py_accountant.sdk import bootstrap, use_cases, json, errors`.
+Вместо SDK-интерфейса интеграция осуществляется напрямую через async use cases и порты.
 
-### Инициализация
-```python
-from py_accountant.sdk import bootstrap
-app = bootstrap.init_app()  # читает env, валидирует dual‑URL, создаёт uow_factory и UTC clock
-# app.uow_factory(): Callable возвращающий AsyncSqlAlchemyUnitOfWork
-# app.clock.now(): datetime в UTC
-# app.settings: доступ к URL/параметрам
+### 1. Зависимость
+
+```bash
+poetry add git+https://github.com/akm77/py_accountant.git
+# или
+pip install "git+https://github.com/akm77/py_accountant.git"
 ```
 
-### Постинг транзакции (idempotency_key)
-```python
-from py_accountant.sdk import use_cases
-
-async with app.uow_factory() as uow:
-    tx = await use_cases.post_transaction(
-        uow,
-        app.clock,
-        [
-            "DEBIT:Assets:Cash:100:USD",
-            "CREDIT:Income:Sales:100:USD",
-        ],
-        memo="Sale",
-        meta={"idempotency_key": "order-42"},
-    )
-```
-
-- Формат строки: `SIDE:Account:Amount:Currency[:Rate]` (Rate > 0 при небазовой валюте).
-- Можно передавать готовые EntryLineDTO вместо строк.
-
-### Баланс и выписка
-```python
-async with app.uow_factory() as uow:
-    bal = await use_cases.get_account_balance(uow, app.clock, "Assets:Cash")
-async with app.uow_factory() as uow:
-    txs = await use_cases.get_ledger(
-        uow,
-        app.clock,
-        "Assets:Cash",
-        start=None,
-        end=None,
-        meta={},
-        limit=50,
-        order="DESC",
-    )
-```
-
-### Trading raw/detailed
-```python
-from application.use_cases_async.trading_balance import (
-    AsyncGetTradingBalanceRaw,
-    AsyncGetTradingBalanceDetailed,
-)
-async with app.uow_factory() as uow:
-    raw = await AsyncGetTradingBalanceRaw(uow, app.clock)()
-async with app.uow_factory() as uow:
-    det = await AsyncGetTradingBalanceDetailed(uow, app.clock)(base_currency="USD")
-```
-
-Пример (async):
+### 2. Реализация собственного UoW
 
 ```python
-from application.use_cases_async.trading_balance import AsyncGetTradingBalanceDetailed
+from collections.abc import Callable
+from application.ports import AsyncUnitOfWork as AsyncUnitOfWorkProtocol
 
-lines = await AsyncGetTradingBalanceDetailed(uow, clock)(base_currency="USD")
-for l in lines:
-    print(l.currency_code, l.net_base)
+class MyAsyncUnitOfWork(AsyncUnitOfWorkProtocol):
+    async def __aenter__(self) -> "MyAsyncUnitOfWork":
+        # открыть async-сессию/подключение, инициализировать репозитории
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        # commit/rollback и закрыть сессию
+        ...
+
+    # свойства/репозитории, которые ожидают use cases
+
+
+def make_uow_factory(async_url: str) -> Callable[[], AsyncUnitOfWorkProtocol]:
+    def factory() -> AsyncUnitOfWorkProtocol:
+        return MyAsyncUnitOfWork(async_url)
+    return factory
 ```
 
-### TTL конфигурация (FX Audit)
+### 3. Вызов use cases
 
-Переменные окружения управляют политикой TTL:
-- `FX_TTL_MODE` — `none|delete|archive` (по умолчанию `none`). Определяет, будут ли события удалены или архивированы.
-- `FX_TTL_RETENTION_DAYS` — период хранения (>=0). Cutoff = `now() - retention_days` в UTC.
-- `FX_TTL_BATCH_SIZE` — максимальный размер батча (`>0`, по умолчанию `1000`). Используется при построении плана.
-- `FX_TTL_DRY_RUN` — логический флаг (`true|false`). При `true` исполнение пропускает мутации (без вызова `archive_events` и `delete_events_by_ids`).
-
-Workflow (безопасный старт):
-1. Установите `FX_TTL_MODE=archive`, `FX_TTL_DRY_RUN=true`, задайте `FX_TTL_RETENTION_DAYS=90`.
-2. Выполните CLI `fx ttl-plan` и изучите `total_old`, `batches`, `old_event_ids`.
-3. Запустите исполнение через воркер (SDK) с `FX_TTL_DRY_RUN=false`.
-4. Мониторьте размеры архивной таблицы и длительность батчей.
-
-Dry-run семантика: план возвращается полностью, но `AsyncExecuteFxAuditTTL` не вызывает примитивы мутации.
-
-Dual-URL и TTL: миграции (sync URL) должны быть выполнены до запуска TTL-воркеров; runtime async URL используется планом и ис��олнением.
-
-### TTL plan/execute (FX Audit)
 ```python
-from application.use_cases_async.fx_audit_ttl import AsyncPlanFxAuditTTL, AsyncExecuteFxAuditTTL
+from application.use_cases_async.ledger import AsyncPostTransaction, AsyncGetAccountBalance
 
-async with app.uow_factory() as uow:
-    plan = await AsyncPlanFxAuditTTL(uow, app.clock)(
-        retention_days=90,
-        batch_size=1000,
-        mode="archive",  # none|delete|archive
-        limit=None,
-        dry_run=False,
-    )
-async with app.uow_factory() as uow:
-    result = await AsyncExecuteFxAuditTTL(uow, app.clock)(plan)
+async def post_deposit(uow_factory, clock, account: str, amount, currency: str, meta: dict):
+    lines = [
+        f"DEBIT:{account}:{amount}:{currency}",
+        f"CREDIT:Income:Deposits:{amount}:{currency}",
+    ]
+    async with uow_factory() as uow:
+        use_case = AsyncPostTransaction(uow, clock)
+        return await use_case.execute(lines=lines, memo="Deposit", meta=meta)
+
+async def get_balance(uow_factory, clock, account: str):
+    async with uow_factory() as uow:
+        use_case = AsyncGetAccountBalance(uow, clock)
+        return await use_case.execute(account_full_name=account, as_of=None)
 ```
 
-### Единые форматы и сериализация
-- Decimal → строка; datetime → ISO8601 UTC (допуск `Z` или `+00:00`).
-- Квантизация: деньги — 2 знака, курсы — 6 знаков, ROUND_HALF_EVEN (см. `src/domain/quantize.py`).
-- Презентер: `py_accountant.sdk.json.to_dict/to_json`.
+### 4. Где искать контракты
 
-### Ошибки и маппинг
-- Используйте `py_accountant.sdk.errors.map_exception(exc)` для приведения внутренних ошибок к:
-  - `UserInputError` (ValidationError/ValueError)
-  - `DomainViolation` (DomainError)
-  - `UnexpectedError` (иное)
+- Порты: `application.ports` (AsyncUnitOfWork, Async*Repository Protocol).
+- Use cases: `application.use_cases_async.*`.
 
-## Форматы ввода/файлов (SDK)
-
-- Строка проводки: `SIDE:Account:Amount:Currency[:Rate]` (пятый токен Rate опционален).
-- SDK принимает строки в формате выше или готовые EntryLineDTO объекты.
-
-## Ссылки
-- См. «Шпаргалка проводок» — `docs/ACCOUNTING_CHEATSHEET.md`.
-- См. «TRADING_WINDOWS.md» и «FX_AUDIT.md» для отчётов и TTL.
-
----
-Документ согласован с кодом: `py_accountant/sdk/*`, `application/use_cases_async/*`, `domain/quantize.py`.
+Документ согласован с кодом: `application/use_cases_async/*`, `application/ports.py`, `domain/quantize.py`.

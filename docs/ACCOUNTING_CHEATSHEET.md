@@ -1,4 +1,4 @@
-# Шпаргалка проводок (CLI/SDK)
+# Шпаргалка проводок (core)
 
 Эта шпаргалка объединяет форматы строк/файлов, правила валидации, частые ошибки и идемпотентность постинга.
 
@@ -55,13 +55,10 @@
 - "Base currency is not defined" — выполните `currency set-base <CODE>`.
 - "Unbalanced ledger" — дебет/кредит не сходятся в базовой валюте; проверьте суммы и курсы.
 
-Маппинг ошибок: `py_accountant.sdk.errors.map_exception()` приводит внутренние ValidationError/DomainError/ValueError к дружелюбным публичным ошибкам.
-
 ## Идемпотентность постинга
 
 Повторный постинг одной и той же операции можно сделать идемпотентным с помощью ключа:
-- CLI: `--idempotency-key my-key` (имеет приоритет над `--meta idempotency_key=...`).
-- SDK: положите ключ в `meta["idempotency_key"]` при вызове `post_transaction`.
+- в meta use case'а укажите `meta["idempotency_key"] = "some-key"` при вызове `AsyncPostTransaction`.
 
 Повтор с тем же ключом вернёт первый `tx.id` без дублей. Без ключа поведение прежнее.
 
@@ -78,7 +75,7 @@
 4. Commit фиксирует всё сразу (атомарность).
 
 Получение баланса:
-- Текущий (as_of=None): чтение из account_balances или Decimal('0') если строки нет. В SDK: `py_accountant.sdk.use_cases.get_account_balance()` делегирует в AsyncGetAccountBalance и использует этот быстрый путь.
+- Текущий (as_of=None): чтение из account_balances или Decimal('0') если строки нет.
 - Исторический (as_of < now): пока fallback к сканированию строк; future: snapshots.
 
 Гонки и идемпотентность:
