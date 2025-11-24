@@ -1,7 +1,7 @@
 import pytest
 
-from domain.accounts import Account
-from domain.errors import ValidationError
+from py_accountant.domain.accounts import Account
+from py_accountant.domain.errors import ValidationError
 
 
 def test_account_full_name_validation():

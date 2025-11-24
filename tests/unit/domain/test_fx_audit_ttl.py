@@ -4,12 +4,8 @@ import datetime as dt
 
 import pytest
 
-from domain.errors import ValidationError
-from domain.fx_audit import (
-    Batch,
-    ExchangeRateEventRef,
-    FxAuditTTLService,
-)
+from py_accountant.domain.errors import ValidationError
+from py_accountant.domain.fx_audit import Batch, ExchangeRateEventRef, FxAuditTTLService
 
 
 def test_identify_old_events():

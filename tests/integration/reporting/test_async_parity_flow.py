@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from application.use_cases_async import (
+from py_accountant.application.use_cases_async import (
     AsyncCreateCurrency,
     AsyncGetParityReport,
     AsyncSetBaseCurrency,

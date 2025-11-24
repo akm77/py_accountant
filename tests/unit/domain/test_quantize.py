@@ -1,6 +1,6 @@
 from decimal import Decimal, getcontext
 
-from domain.quantize import money_quantize, rate_quantize
+from py_accountant.domain.quantize import money_quantize, rate_quantize
 
 
 def test_money_quantize_rounds():

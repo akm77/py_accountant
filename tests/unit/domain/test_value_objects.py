@@ -2,13 +2,13 @@ from decimal import Decimal
 
 import pytest
 
-from domain import (
-    AccountName,
+from py_accountant.domain import (
     CurrencyCode,
+    AccountName,
     DomainError,
+    ExchangeRate,
     EntryLine,
     EntrySide,
-    ExchangeRate,
     TransactionVO,
 )
 

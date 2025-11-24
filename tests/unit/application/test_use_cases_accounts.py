@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from application.use_cases_async import (
+from py_accountant.application.use_cases_async import AsyncCreateCurrency
+from py_accountant.application.use_cases_async.accounts import (
     AsyncCreateAccount,
-    AsyncCreateCurrency,
     AsyncGetAccount,
     AsyncListAccounts,
 )
-from domain.errors import ValidationError
+from py_accountant.domain.errors import ValidationError
 
 
 @pytest.mark.asyncio

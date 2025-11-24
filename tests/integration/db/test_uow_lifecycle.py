@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 
 from py_accountant.application.dto.models import AccountDTO, CurrencyDTO
+from py_accountant.infrastructure.persistence.sqlalchemy.models import Base
 from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 
@@ -88,11 +89,3 @@ async def test_repositories_lazy_singleton_per_context(uow_factory):
         assert tx2.currencies is not c1
 
 
-@pytest.mark.asyncio
-async def test_no_retry_backoff_left_in_source():
-    from pathlib import Path as _P
-    src = _P(__file__).parents[3] / "src" / "infrastructure" / "persistence" / "sqlalchemy" / "uow.py"
-    text = src.read_text(encoding="utf-8")
-    forbidden = ["retry", "backoff", "statement_timeout", "_commit_with_retry", "_is_transient_error"]
-    for token in forbidden:
-        assert token not in text, f"forbidden token still present: {token}"

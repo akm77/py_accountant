@@ -1,6 +1,6 @@
 import pytest
 
-from domain.errors import DomainError, ValidationError
+from py_accountant.domain.errors import DomainError, ValidationError
 
 
 def test_errors_raise_and_inherit():

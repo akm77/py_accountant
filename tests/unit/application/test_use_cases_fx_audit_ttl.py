@@ -5,13 +5,13 @@ from decimal import Decimal
 
 import pytest
 
-from domain.errors import ValidationError
 from py_accountant.application.dto.models import FxAuditTTLPlanDTO
 from py_accountant.application.use_cases_async import (
     AsyncAddExchangeRateEvent,
     AsyncExecuteFxAuditTTL,
     AsyncPlanFxAuditTTL,
 )
+from py_accountant.domain.errors import ValidationError
 
 
 @pytest.mark.asyncio

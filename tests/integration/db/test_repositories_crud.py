@@ -5,9 +5,12 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from py_accountant.application.dto.models import CurrencyDTO, AccountDTO
-from py_accountant.infrastructure.persistence.sqlalchemy.repositories_async import AsyncSqlAlchemyCurrencyRepository, \
-    AsyncSqlAlchemyAccountRepository
+from py_accountant.application.dto.models import AccountDTO, CurrencyDTO
+from py_accountant.infrastructure.persistence.sqlalchemy.models import Base
+from py_accountant.infrastructure.persistence.sqlalchemy.repositories_async import (
+    AsyncSqlAlchemyAccountRepository,
+    AsyncSqlAlchemyCurrencyRepository,
+)
 
 
 @pytest.mark.asyncio

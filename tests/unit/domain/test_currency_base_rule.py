@@ -2,7 +2,7 @@ from decimal import getcontext
 
 import pytest
 
-from domain.currencies import BaseCurrencyRule, Currency, get_base_currency
+from py_accountant.domain.currencies import BaseCurrencyRule, Currency, get_base_currency
 
 
 def test_set_base_preserves_other_rates():

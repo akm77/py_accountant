@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain import ExchangeRatePolicy
+from py_accountant.domain.services.exchange_rate_policy import ExchangeRatePolicy
 
 
 def test_policy_last_write():
