@@ -3,12 +3,12 @@ from decimal import Decimal
 import pytest
 
 from py_accountant.domain import (
-    CurrencyCode,
     AccountName,
+    CurrencyCode,
     DomainError,
-    ExchangeRate,
     EntryLine,
     EntrySide,
+    ExchangeRate,
     TransactionVO,
 )
 

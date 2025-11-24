@@ -1,6 +1,6 @@
 # py-accountant
 
-Чистая архитектура для бухгалтерского ядра на Python 3.13+ и SQLAlchemy 2.x. Слои: Domain / Application / Infrastructure. Исторические детали см. в Migration History.
+Чистая архитектура для бухгалтерского ядра на Python 3.13+ и SQLAlchemy 2.x. Слои: Domain / Application / Infrastructure. Исторические детали (включая старый SDK-слой) см. в Migration History.
 
 - Язык: Python 3.13+
 - ORM: SQLAlchemy 2.x
@@ -88,6 +88,10 @@ PYTHONPATH=/path/to/py_accountant/src poetry run pytest
 Sync example:
 
 ```python
+from py_accountant.application.use_cases.ledger import PostTransaction, GetBalance
+from py_accountant.application.ports import UnitOfWork as UnitOfWorkProtocol
+
+
 # sync context
 with uow_factory() as uow:
     use_case = PostTransaction(uow, clock)
@@ -97,6 +101,10 @@ with uow_factory() as uow:
 Async example:
 
 ```python
+from py_accountant.application.use_cases_async.ledger import AsyncPostTransaction
+from py_accountant.application.ports import AsyncUnitOfWork as AsyncUnitOfWorkProtocol
+
+
 # async context
 async with uow_factory() as uow:
     use_case = AsyncPostTransaction(uow, clock)
@@ -109,7 +117,7 @@ async with uow_factory() as uow:
 
 ## Интеграция через core (кратко)
 
-Рекомендуемый способ использования — напрямую через слои Domain/Application и порты (`application.ports`). Async SDK‑слой больше не поставляется из этого репозитория; интеграция происходит напрямую через порты и use case'ы, как показано выше.
+Рекомендуемый способ использования — напрямую через слои Domain/Application и порты модуля `py_accountant.application.ports`. Async SDK‑слой больше не поставляется из этого репозитория; интеграция происходит напрямую через порты и use case'ы, как показано выше.
 
 ### Шаги для интегратора (tgbank пример)
 1. Убедитесь, что в venv нет установленного старого пакета `py_accountant` (или используйте path dependency):
@@ -188,7 +196,7 @@ PYACC__LOGGING_ENABLED=true
 | Назначение | Переменная | Комментарии |
 |------------|-----------|-------------|
 | Sync URL для миграций | `DATABASE_URL` / `PYACC__DATABASE_URL` | Используется Alembic и любые sync-утилиты. Допустимы Postgres/SQLite sync драйверы. |
-| Async URL рантайма | `DATABASE_URL_ASYNC` / `PYACC__DATABASE_URL_ASYNC` | Основной источник для SDK/UoW. При отсутствии — нормализация из sync URL. |
+| Async URL рантайма | `DATABASE_URL_ASYNC` / `PYACC__DATABASE_URL_ASYNC` | Основной источник для Async UoW и инфраструктуры (`py_accountant.infrastructure.persistence.sqlalchemy.async_engine`). При отсутствии — нормализация из sync URL. |
 | Уровень логов | `LOG_LEVEL` / `PYACC__LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, ... |
 | Формат логов | `JSON_LOGS` / `PYACC__JSON_LOGS` | `true` включает JSON + опциональный файл/ротацию. |
 | Включение логгера | `LOGGING_ENABLED` / `PYACC__LOGGING_ENABLED` | `false` пропускает bootstrap логирования, если хост управляет логами сам. |
@@ -253,7 +261,7 @@ PY
 Команда помогает убедиться, что все `PYACC__` переменные доступны перед запуском миграций или бота.
 
 ---
-Следующие разделы описывают работу SDK и архитектуру.
+Следующие разделы описывают исторический SDK-слой и архитектуру. Для актуальной интеграции используйте только импорты `py_accountant.*` и контракты из `py_accountant.application.ports` и `py_accountant.application.use_cases*`.
 
 ## Установка из GitHub
 

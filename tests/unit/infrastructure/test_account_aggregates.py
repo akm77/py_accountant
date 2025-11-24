@@ -11,9 +11,9 @@ from py_accountant.application.dto.models import EntryLineDTO, TransactionDTO
 from py_accountant.infrastructure.persistence.sqlalchemy.models import (
     AccountBalanceORM,
     AccountDailyTurnoverORM,
+    Base,
     JournalORM,
     TransactionLineORM,
-    Base,
 )
 from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 

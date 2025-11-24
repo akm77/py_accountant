@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from py_accountant.application.ports import Clock, SupportsCommitRollback as UnitOfWork
+from py_accountant.application.ports import Clock
+from py_accountant.application.ports import SupportsCommitRollback as UnitOfWork
 from py_accountant.domain import AccountBalanceServiceProtocol, InMemoryAccountBalanceService
 
 

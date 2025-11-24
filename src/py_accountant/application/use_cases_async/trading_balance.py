@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from py_accountant.application.dto.models import TradingBalanceLineDetailed, TradingBalanceLineSimple
+from py_accountant.application.dto.models import (
+    TradingBalanceLineDetailed,
+    TradingBalanceLineSimple,
+)
 from py_accountant.application.ports import AsyncUnitOfWork, Clock
 from py_accountant.domain.currencies import Currency
 from py_accountant.domain.errors import ValidationError

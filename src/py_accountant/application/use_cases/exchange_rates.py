@@ -6,8 +6,8 @@ from decimal import Decimal
 
 from py_accountant.application.dto.models import CurrencyDTO, RateUpdateInput
 from py_accountant.application.ports import SupportsCommitRollback as UnitOfWork
-from py_accountant.domain.quantize import rate_quantize
 from py_accountant.domain import CurrencyCode, DomainError, ExchangeRatePolicy
+from py_accountant.domain.quantize import rate_quantize
 
 
 @dataclass

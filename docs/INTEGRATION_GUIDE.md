@@ -2,7 +2,7 @@
 ```bash
 # 1) Миграции
 poetry run alembic upgrade head
-# 2) Базовые операции выполняются через core (см. примеры ниже)
+# 2) Базовые операции выполняются через core (`py_accountant.*`, см. примеры ниже)
 ```
 
 ## Runtime vs Migration Database URLs (dual‑URL)
@@ -16,7 +16,7 @@ poetry run alembic upgrade head
 
 Правила:
 - Alembic читает только `DATABASE_URL` (или fallback из `alembic.ini`); async‑драйверы там запрещены.
-- SDK использует `DATABASE_URL_ASYNC` (или `PYACC__DATABASE_URL_ASYNC`). При его отсутствии допускается нормализация sync URL (любого из ключей) в async.
+- Инфраструктурный слой (`py_accountant.infrastructure.persistence.sqlalchemy.*` и `AsyncSqlAlchemyUnitOfWork`) использует `DATABASE_URL_ASYNC` (или `PYACC__DATABASE_URL_ASYNC`). При его отсутствии допускается нормализация sync URL (любого из ключей) в async.
 - В CI шаг миграций использует sync URL; рантайм — async.
 - См. также `docs/RUNNING_MIGRATIONS.md`.
 
@@ -44,7 +44,7 @@ PYTHONPATH=src poetry run python -m examples.telegram_bot.app  # runtime async U
 
 ## Использование как библиотеки (core-only)
 
-Интеграция осуществляется напрямую через use case'ы и порты, без SDK‑обёртки.
+Интеграция осуществляется напрямую через use case'ы и порты модуля `py_accountant.application`, без отдельного SDK‑обёртки. Во внешних проектах используйте только импорты вида `py_accountant.*`.
 
 ### 1. Зависимость
 
@@ -58,7 +58,7 @@ pip install "git+https://github.com/akm77/py_accountant.git"
 
 ```python
 from collections.abc import Callable
-from application.ports import UnitOfWork as UnitOfWorkProtocol
+from py_accountant.application.ports import UnitOfWork as UnitOfWorkProtocol
 
 
 class MyUnitOfWork(UnitOfWorkProtocol):
@@ -83,7 +83,7 @@ def make_uow_factory(url: str) -> Callable[[], UnitOfWorkProtocol]:
 ### 3. Вызов use case'ов ledger
 
 ```python
-from application.use_cases.ledger import PostTransaction, GetBalance
+from py_accountant.application.use_cases.ledger import PostTransaction, GetBalance
 
 
 def post_deposit(uow_factory, clock, account: str, amount, currency: str, meta: dict):
@@ -103,8 +103,9 @@ def get_balance(uow_factory, clock, account: str):
 
 ### 4. Где искать контракты
 
-- Порты: `application.ports`.
-- Use case'ы: `application.use_cases.*` и `application.use_cases_async.*`.
+- Порты: `py_accountant.application.ports`.
+- Use case'ы (sync): `py_accountant.application.use_cases.*`.
+- Use case'ы (async): `py_accountant.application.use_cases_async.*`.
 
-Документ согласован с кодом: `application/use_cases/ledger.py`,
-`application/use_cases_async/*`, `application/ports.py`.
+Документ согласован с кодом: `src/py_accountant/application/use_cases/ledger.py`,
+`src/py_accountant/application/use_cases_async/*`, `src/py_accountant/application/ports.py`.

@@ -6,10 +6,10 @@ from decimal import Decimal
 import pytest
 
 from py_accountant.application.dto.models import (
+    AccountDTO,
     CurrencyDTO,
     EntryLineDTO,
     TransactionDTO,
-    AccountDTO,
 )
 from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 

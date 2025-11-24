@@ -105,7 +105,7 @@ rpg:
     modules:
       - name: "application"
         path: "src/py_accountant/application"
-        description: "Сценарии (use cases), DTO и интерфейсы портов (репозитории, UоW, Clock)."
+        description: "Сценарии (use cases), DTO и интерфейсы портов (репозитории, UоW, Clock) для core-only пакета `py_accountant`. Интеграторы импортируют только py_accountant.application.*."
       - name: "use_cases_async"
         path: "src/py_accountant/application/use_cases_async"
         description: "Async use cases: currencies/accounts/ledger/trading/fx audit (параллельно sync)."
@@ -141,7 +141,7 @@ rpg:
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
       - name: "presentation"
         path: "src/presentation"
-        description: "API/CLI: контроллеры, валидация, презентеры (слой оставлен для потенциального будущего HTTP/API)."
+        description: "API/CLI: контроллеры, валидация, презентеры. **Planned/future layer**: описан в архитектурных документах и диаграммах, но может отсутствовать в текущей версии репозитория; интеграторы работают через core-пакет `py_accountant` (application/domain/infrastructure)."
       - name: "config"
         path: "src/py_accountant/infrastructure/config"
         description: "Конфигурация приложения на pydantic-settings; выбор профиля окружения."
@@ -355,7 +355,7 @@ rpg:
       title: "Переход на core-only интеграцию c installable-пакетом py_accountant"
       status: "done"
       notes: |
-        Восстановлен инсталлюемый пакет src/py_accountant с core-only поверхностью (без публичного SDK-слоя).
+        Восстановлен инсталлируемый пакет src/py_accountant с core-only поверхностью (без публичного SDK-слоя).
         Интеграция продолжается через domain/application/ports; внешние проекты импортируют py_accountant.*.
-        RPG-граф обновлён: пути узлов указывают на src/py_accountant/...; SDK-узлы и требования не возвращаются.
-        Интеграторы по-прежнему реализуют свой UnitOfWork и репозитории по контрактам application.ports.
+        RPG-граф обновлён: пути узлов указывают на src/py_accountant/...; SDK-узлы и требования удалены или помечены как исторические в документации.
+        Интеграторы по-прежнему реализуют свой UnitOfWork и репозитории по контрактам py_accountant.application.ports.

@@ -15,7 +15,7 @@
   - Работают через порты (AsyncUnitOfWork, репозитории, Clock); I/O выполняется только адаптерами инфраструктуры.
 - Domain (Чистая модель)
   - Value-объекты и сервисы агрегации (trading raw/converted, FX‑политики), никаких обращений к БД/сетям/файлам.
-  - Квантизация централизована: money=2 знака, rate=6 знаков, округление ROUND_HALF_EVEN (см. `src/domain/quantize.py`).
+  - Квантитизация централизована: money=2 знака, rate=6 знаков, округление ROUND_HALF_EVEN (см. `src/py_accountant/domain/quantize.py`, импортируемый как `py_accountant.domain.quantize`).
 - Infrastructure (Адаптеры)
   - AsyncSqlAlchemyUnitOfWork и SQLAlchemy-репозитории (CRUD-only), конфиг, логирование.
   - Alembic используется только для миграций и работает с синхронным драйвером (см. `alembic/env.py`).
@@ -42,7 +42,7 @@
 
 ## Квантизация (Quantization)
 
-Источник истины: `src/domain/quantize.py`.
+Источник истины: `src/py_accountant/domain/quantize.py` (импорт: `from py_accountant.domain.quantize import money_quantize, rate_quantize`).
 - Деньги: 2 знака после запятой, ROUND_HALF_EVEN — функция `money_quantize(x)`.
 - FX‑курс: 6 знаков после запятой, ROUND_HALF_EVEN — функция `rate_quantize(x)`.
 Эти функции не изменяют глобальный Decimal‑контекст (используют локальный).
@@ -59,8 +59,8 @@
 
 ## Trading: raw vs detailed
 
-- Raw: агрегирует по валютам без конверсии (см. `domain/trading_balance.RawAggregator`).
-- Detailed: агрегирует и конвертирует в базовую валюту (см. `domain/trading_balance.ConvertedAggregator`).
+- Raw: агрегирует по валютам без конверсии (см. `py_accountant.domain.trading_balance.RawAggregator`).
+- Detailed: агрегирует и конвертирует в базовую валюту (см. `py_accountant.domain.trading_balance.ConvertedAggregator`).
   - Требования:
     - Базовая валюта обязана быть задана: явно (`--base`) или выбрана из справочника валют (единственная is_base=true).
     - Для базовой валюты `used_rate = 1`.
@@ -131,7 +131,7 @@
 - Domain: `src/py_accountant/domain/quantize.py`, `src/py_accountant/domain/trading_balance.py`
 - Use cases (async): `src/py_accountant/application/use_cases_async/trading_balance.py`, `src/py_accountant/application/use_cases_async/fx_audit_ttl.py`
 - Ports: `src/py_accountant/application/ports.py`
-- Alembic (sync-only): `alembic/env.py`
+- (Planned) CLI/Presentation: `src/presentation/cli/main.py`, `src/presentation/cli/*.py` — этот слой описан в архитектуре как возможное будущее HTTP/CLI API и может отсутствовать в текущей версии репозитория; интеграторы работают через core-пакет `py_accountant`.
 
 ## Ключевые тезисы (TL;DR)
 

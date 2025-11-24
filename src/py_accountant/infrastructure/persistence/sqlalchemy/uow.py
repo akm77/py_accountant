@@ -6,12 +6,6 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from py_accountant.application.interfaces.ports import (
-    AccountRepository,
-    CurrencyRepository,
-    ExchangeRateEventsRepository,
-    TransactionRepository,
-)
 from py_accountant.infrastructure.persistence.sqlalchemy.async_engine import (
     get_async_engine,
     get_async_session_factory,
