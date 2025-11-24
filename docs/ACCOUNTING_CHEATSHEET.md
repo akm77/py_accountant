@@ -41,7 +41,7 @@
 - Входные naive‑даты трактуются как UTC; сериализация datetime — ISO8601 UTC (`Z`/`+00:00`).
 - JSON: Decimal сериализуется строкой; порядок ключей стабилен.
 
-Квантизация (см. `src/domain/quantize.py`):
+Квантизация (см. `src/py_accountant/domain/quantize.py`, импорт: `from py_accountant.domain.quantize import money_quantize, rate_quantize`):
 - Деньги — 2 знака, ROUND_HALF_EVEN.
 - Курсы — 6 знаков, ROUND_HALF_EVEN.
 
@@ -87,6 +87,30 @@
 - Проводки с нулевыми суммами можно пропустить (оптимизация).
 
 Будущее расширение: account_balance_snapshots для быстрых исторических "as_of" запросов.
+
+## Исходный код и импорты для интеграторов
+
+**Доменная логика:**
+- `src/py_accountant/domain/quantize.py` — квантизация денег и курсов
+- `src/py_accountant/domain/trading_balance.py` — агрегация торгового баланса
+- `src/py_accountant/domain/ledger.py` — валидация баланса
+
+**Импорты для интеграторов:**
+```python
+# Квантизация
+from py_accountant.domain.quantize import money_quantize, rate_quantize
+
+# Trading balance
+from py_accountant.domain.trading_balance import RawAggregator, ConvertedAggregator
+
+# Use cases
+from py_accountant.application.use_cases_async.ledger import AsyncPostTransaction, AsyncGetAccountBalance
+from py_accountant.application.use_cases_async.currencies import AsyncCreateCurrency, AsyncSetBaseCurrency
+from py_accountant.application.use_cases_async.accounts import AsyncCreateAccount
+
+# Ports (для реализации своего UoW)
+from py_accountant.application.ports import AsyncUnitOfWork, Clock
+```
 
 ## Дополнительно
 
