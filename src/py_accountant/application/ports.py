@@ -17,11 +17,18 @@ from py_accountant.application.dto.models import (
 __all__ = [
     "Clock",
     "SupportsCommitRollback",
+    # Async protocols (primary)
     "AsyncCurrencyRepository",
     "AsyncAccountRepository",
     "AsyncTransactionRepository",
     "AsyncExchangeRateEventsRepository",
     "AsyncUnitOfWork",
+    # Sync protocols (for inmemory adapters and legacy use cases)
+    "CurrencyRepository",
+    "AccountRepository",
+    "TransactionRepository",
+    "ExchangeRateEventsRepository",
+    "UnitOfWork",
 ]
 
 
@@ -133,3 +140,79 @@ class AsyncUnitOfWork(Protocol):
 
     @property
     def exchange_rate_events(self) -> AsyncExchangeRateEventsRepository: ...
+
+
+# ================ Sync Protocols (legacy, for inmemory adapters and sync use cases) ================
+
+
+@runtime_checkable
+class CurrencyRepository(Protocol):
+    """Sync currency repository protocol."""
+
+    def get_by_code(self, code: str) -> CurrencyDTO | None: ...
+    def upsert(self, dto: CurrencyDTO) -> CurrencyDTO: ...
+    def list_all(self) -> list[CurrencyDTO]: ...
+    def get_base(self) -> CurrencyDTO | None: ...
+    def set_base(self, code: str) -> None: ...
+    def clear_base(self) -> None: ...
+    def bulk_upsert_rates(self, updates: list[tuple[str, Decimal]]) -> None: ...
+
+
+@runtime_checkable
+class AccountRepository(Protocol):
+    """Sync account repository protocol."""
+
+    def get_by_full_name(self, full_name: str) -> AccountDTO | None: ...
+    def create(self, dto: AccountDTO) -> AccountDTO: ...
+    def list(self, parent_id: str | None = None) -> list[AccountDTO]: ...
+
+
+@runtime_checkable
+class TransactionRepository(Protocol):
+    """Sync transaction repository protocol."""
+
+    def add(self, dto: TransactionDTO) -> TransactionDTO: ...
+    def list_between(self, start: datetime, end: datetime, meta: dict[str, Any] | None = None) -> list[TransactionDTO]: ...
+    def ledger(
+        self,
+        account_full_name: str,
+        start: datetime,
+        end: datetime,
+        meta: dict[str, Any] | None = None,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        order: str = "ASC",
+    ) -> list[RichTransactionDTO]: ...
+
+
+@runtime_checkable
+class ExchangeRateEventsRepository(Protocol):
+    """Sync exchange rate events repository protocol."""
+
+    def add_event(self, code: str, rate: Decimal, occurred_at: datetime, policy_applied: str, source: str | None) -> ExchangeRateEventDTO: ...
+    def list_events(self, code: str | None = None, limit: int | None = None) -> list[ExchangeRateEventDTO]: ...
+    def list_old_events(self, cutoff: datetime, limit: int) -> list[ExchangeRateEventDTO]: ...
+    def delete_events_by_ids(self, ids: list[int]) -> int: ...
+    def archive_events(self, rows: list[ExchangeRateEventDTO], archived_at: datetime) -> int: ...
+
+
+@runtime_checkable
+class UnitOfWork(Protocol):
+    """Sync unit of work protocol."""
+
+    @property
+    def accounts(self) -> AccountRepository: ...
+
+    @property
+    def currencies(self) -> CurrencyRepository: ...
+
+    @property
+    def transactions(self) -> TransactionRepository: ...
+
+    @property
+    def exchange_rate_events(self) -> ExchangeRateEventsRepository: ...
+
+    def commit(self) -> None: ...
+    def rollback(self) -> None: ...
+

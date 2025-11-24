@@ -1,23 +1,23 @@
-"""Tests for unified async ports module (I11).
+"""Tests for unified ports module (post-cleanup).
 
 Ensures:
-- application.ports exposes only async Protocol interfaces (no legacy sync names)
-- Deprecated proxy application.interfaces.ports re-exports the same objects (identity check)
+- application.ports exposes both async (primary) and sync (legacy) Protocol interfaces
+- Async interfaces are the main public API
+- Sync interfaces kept for backward compatibility with inmemory adapters and sync use cases
+- application.interfaces.ports removed (no longer needed)
 """
 from __future__ import annotations
 
 import inspect
 
-import py_accountant.application.interfaces.ports as deprecated_ports
 from py_accountant.application import ports
 
-# Legacy sync names that must be absent from the new unified module
-LEGACY_SYNC_NAMES = {
-    "UnitOfWork",  # sync UoW Protocol
+# Sync protocols (now part of main ports module for backward compatibility)
+EXPECTED_SYNC = {
+    "UnitOfWork",
     "CurrencyRepository",
     "AccountRepository",
     "TransactionRepository",
-    "BalanceRepository",
     "ExchangeRateEventsRepository",
 }
 
@@ -32,26 +32,27 @@ EXPECTED_ASYNC = {
 }
 
 
-def test_async_ports_public_surface_only_async():
+def test_ports_public_surface_contains_all():
+    """Verify all async and sync protocols are in __all__."""
     exported = set(getattr(ports, "__all__", []))
     assert EXPECTED_ASYNC.issubset(exported), "Missing async names in __all__"
-    assert exported.isdisjoint(LEGACY_SYNC_NAMES), "Legacy sync names leaked into unified ports"
-    # Ensure attributes exist and are Protocol subclasses (runtime_checkable marks them as Protocol instances)
-    for name in EXPECTED_ASYNC:
+    assert EXPECTED_SYNC.issubset(exported), "Missing sync names in __all__"
+    # Ensure attributes exist and are Protocol subclasses
+    for name in EXPECTED_ASYNC | EXPECTED_SYNC:
         attr = getattr(ports, name, None)
         assert attr is not None, f"Missing {name}"
         assert inspect.isclass(attr), f"{name} not a class"
 
 
-def test_deprecated_proxy_reexports_identity():
-    for name in EXPECTED_ASYNC:
-        new_obj = getattr(ports, name)
-        old_obj = getattr(deprecated_ports, name)
-        assert new_obj is old_obj, f"Proxy did not re-export same object for {name}"
-    # Ensure removed async balance is not present
+def test_async_balance_repository_removed():
+    """AsyncBalanceRepository was removed in favor of fast-path get_balance."""
     assert not hasattr(ports, "AsyncBalanceRepository")
 
 
-def test_no_legacy_sync_protocols_present():
-    for legacy in LEGACY_SYNC_NAMES:
-        assert not hasattr(ports, legacy), f"Legacy sync Protocol {legacy} must not be defined in application.ports"
+def test_interfaces_module_removed():
+    """application.interfaces.ports module should be removed."""
+    try:
+        import py_accountant.application.interfaces.ports  # noqa: F401
+        assert False, "application.interfaces.ports should not exist anymore"
+    except ModuleNotFoundError:
+        pass  # Expected

@@ -1,8 +1,23 @@
 rpg:
   metadata:
     project_name: "py_accountant"
+    version: "1.0.0"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
-    last_updated: "2025-11-23"
+    last_updated: "2025-11-24"
+    changelog:
+      - version: "1.0.0"
+        date: "2025-11-24"
+        changes:
+          - "Удалён узел 'presentation' (реализуется в интеграторах)"
+          - "Добавлена версионность RPG-графа"
+          - "Удалён legacy module application/interfaces/ports.py"
+          - "Обновлены импорты на application.ports"
+      - version: "0.9.0"
+        date: "2025-11-23"
+        changes:
+          - "CORE-01: Переход на core-only интеграцию"
+          - "I29: Удаление legacy sync UoW и репозиториев"
+          - "ASYNC-03-06: Полный async API"
     environments:
       - name: "test"
         description: "Тестовая среда: локальный запуск, in-memory или локальный Postgres, подробные логи."
@@ -139,9 +154,6 @@ rpg:
       - name: "infrastructure"
         path: "src/py_accountant/infrastructure"
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
-      - name: "presentation"
-        path: "src/presentation"
-        description: "API/CLI: контроллеры, валидация, презентеры. **Planned/future layer**: описан в архитектурных документах и диаграммах, но может отсутствовать в текущей версии репозитория; интеграторы работают через core-пакет `py_accountant` (application/domain/infrastructure)."
       - name: "config"
         path: "src/py_accountant/infrastructure/config"
         description: "Конфигурация приложения на pydantic-settings; выбор профиля окружения."

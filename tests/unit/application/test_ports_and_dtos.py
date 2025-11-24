@@ -11,12 +11,12 @@ from py_accountant.application.dto.models import (
     TradingBalanceLineSimple,
     TransactionDTO,
 )
-from py_accountant.application.interfaces.ports import (
+from py_accountant.application.ports import (
     AccountRepository,
+    Clock,
     CurrencyRepository,
     TransactionRepository,
 )
-from py_accountant.application.ports import Clock
 
 
 def test_dto_shapes() -> None:

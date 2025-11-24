@@ -11,7 +11,7 @@ from py_accountant.application.dto.models import (
     RichTransactionDTO,
     TransactionDTO,
 )
-from py_accountant.application.interfaces.ports import (
+from py_accountant.application.ports import (
     AccountRepository,
     CurrencyRepository,
     ExchangeRateEventsRepository,

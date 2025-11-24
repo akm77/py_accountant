@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from py_accountant.application.interfaces.ports import (
+from py_accountant.application.ports import (
     AccountRepository,
     CurrencyRepository,
     ExchangeRateEventsRepository,
