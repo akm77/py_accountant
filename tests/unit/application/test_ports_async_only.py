@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import inspect
 
-import application.interfaces.ports as deprecated_ports
-import application.ports as ports
+import py_accountant.application.interfaces.ports as deprecated_ports
+from py_accountant.application import ports
 
 # Legacy sync names that must be absent from the new unified module
 LEGACY_SYNC_NAMES = {

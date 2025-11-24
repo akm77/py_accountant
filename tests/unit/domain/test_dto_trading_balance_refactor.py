@@ -5,7 +5,10 @@ from decimal import Decimal
 
 import pytest
 
-from application.dto.models import TradingBalanceLineDetailed, TradingBalanceLineSimple
+from py_accountant.application.dto.models import (
+    TradingBalanceLineDetailed,
+    TradingBalanceLineSimple,
+)
 
 
 def test_simple_line_without_converted_fields() -> None:

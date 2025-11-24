@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from application.dto.models import (
+from py_accountant.application.dto.models import (
     AccountDTO,
     CurrencyDTO,
     EntryLineDTO,
@@ -11,12 +11,12 @@ from application.dto.models import (
     TradingBalanceLineSimple,
     TransactionDTO,
 )
-from application.interfaces.ports import (
+from py_accountant.application.interfaces.ports import (
     AccountRepository,
-    Clock,
     CurrencyRepository,
     TransactionRepository,
 )
+from py_accountant.application.ports import Clock
 
 
 def test_dto_shapes() -> None:

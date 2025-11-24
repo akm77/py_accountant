@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from infrastructure.persistence.inmemory.repositories import InMemoryExchangeRateEventsRepository
+from py_accountant.infrastructure.persistence.inmemory.repositories import (
+    InMemoryExchangeRateEventsRepository,
+)
 
 
 def _mk_event(repo: InMemoryExchangeRateEventsRepository, code: str, rate: str, ts: datetime) -> None:

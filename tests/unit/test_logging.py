@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import re
 import logging
+import re
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -10,7 +10,8 @@ from typing import Any
 import pytest
 import structlog
 
-from infrastructure.logging.config import configure_logging, get_logger
+from py_accountant.infrastructure.config.settings import get_settings
+from py_accountant.infrastructure.logging.config import configure_logging, get_logger
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -24,7 +25,7 @@ def _reset_structlog_cache() -> None:
 @pytest.fixture(autouse=True)
 def reset(monkeypatch: pytest.MonkeyPatch) -> None:
     _reset_structlog_cache()
-    from infrastructure.config.settings import get_settings
+
     with suppress(AttributeError):  # type: ignore[attr-defined]
         get_settings.cache_clear()  # type: ignore[attr-defined]
 

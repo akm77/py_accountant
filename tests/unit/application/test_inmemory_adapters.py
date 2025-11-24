@@ -3,14 +3,19 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from application.dto.models import AccountDTO, CurrencyDTO, EntryLineDTO, TransactionDTO
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.inmemory.repositories import (
+from py_accountant.application.dto.models import (
+    AccountDTO,
+    CurrencyDTO,
+    EntryLineDTO,
+    TransactionDTO,
+)
+from py_accountant.infrastructure.persistence.inmemory.clock import FixedClock
+from py_accountant.infrastructure.persistence.inmemory.repositories import (
     InMemoryAccountRepository,
     InMemoryCurrencyRepository,
     InMemoryTransactionRepository,
 )
-from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
+from py_accountant.infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
 
 
 def test_inmemory_currency_repo() -> None:

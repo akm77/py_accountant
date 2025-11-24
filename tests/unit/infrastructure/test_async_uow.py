@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import text
 
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 
 @pytest.mark.asyncio

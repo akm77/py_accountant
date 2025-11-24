@@ -5,7 +5,7 @@ import os
 import pytest
 from sqlalchemy import text
 
-from infrastructure.persistence.sqlalchemy.async_engine import (
+from py_accountant.infrastructure.persistence.sqlalchemy.async_engine import (
     get_async_engine,
     get_async_session_factory,
     normalize_async_url,

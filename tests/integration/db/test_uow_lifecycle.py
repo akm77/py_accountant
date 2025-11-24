@@ -5,9 +5,8 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from application.dto.models import AccountDTO, CurrencyDTO
-from infrastructure.persistence.sqlalchemy.models import Base
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.application.dto.models import AccountDTO, CurrencyDTO
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 
 @pytest_asyncio.fixture

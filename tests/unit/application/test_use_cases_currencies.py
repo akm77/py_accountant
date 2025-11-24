@@ -4,13 +4,13 @@ from decimal import Decimal
 
 import pytest
 
-from application.use_cases_async.currencies import (
+from py_accountant.application.use_cases_async.currencies import (
     AsyncCreateCurrency,
     AsyncListCurrencies,
     AsyncSetBaseCurrency,
 )
-from domain.errors import ValidationError
-from domain.quantize import rate_quantize
+from py_accountant.domain.errors import ValidationError
+from py_accountant.domain.quantize import rate_quantize
 
 pytestmark = pytest.mark.asyncio
 

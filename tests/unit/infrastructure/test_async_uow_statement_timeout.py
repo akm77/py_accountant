@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from infrastructure.config.settings import get_settings
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.infrastructure.config.settings import get_settings
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 pytestmark = pytest.mark.asyncio
 

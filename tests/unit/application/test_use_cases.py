@@ -5,9 +5,9 @@ from decimal import Decimal
 
 import pytest
 
-from application.dto.models import CurrencyDTO, EntryLineDTO, RateUpdateInput
-from application.use_cases.exchange_rates import UpdateExchangeRates
-from application.use_cases.ledger import (
+from py_accountant.application.dto.models import CurrencyDTO, EntryLineDTO, RateUpdateInput
+from py_accountant.application.use_cases.exchange_rates import UpdateExchangeRates
+from py_accountant.application.use_cases.ledger import (
     CreateAccount,
     CreateCurrency,
     GetBalance,
@@ -16,9 +16,10 @@ from application.use_cases.ledger import (
     GetTradingBalanceRawDTOs,
     PostTransaction,
 )
-from domain import DomainError, ExchangeRatePolicy
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
+from py_accountant.domain import DomainError
+from py_accountant.domain.services.exchange_rate_policy import ExchangeRatePolicy
+from py_accountant.infrastructure.persistence.inmemory.clock import FixedClock
+from py_accountant.infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
 
 
 def setup_uow() -> InMemoryUnitOfWork:
@@ -130,7 +131,6 @@ def test_get_trading_balance_infers_base_when_missing():
     uow = InMemoryUnitOfWork()
     uow.currencies.upsert(CurrencyDTO(code="USD"))
     uow.currencies.set_base("USD")
-    from application.use_cases.ledger import CreateAccount, CreateCurrency, PostTransaction
     CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
     CreateAccount(uow)("Assets:Cash", "USD")
     CreateAccount(uow)("Income:Sales", "USD")
@@ -151,7 +151,6 @@ def test_rounding_money_and_rates():
     uow.currencies.upsert(CurrencyDTO(code="JPY"))
     updater = UpdateExchangeRates(uow)
     updater([RateUpdateInput(code="JPY", rate=Decimal("150.1234567890"))])
-    from application.use_cases.ledger import CreateAccount, CreateCurrency, PostTransaction
     CreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
     CreateCurrency(uow)("JPY", exchange_rate=Decimal("150.1234567890"))
     CreateAccount(uow)("Assets:CashUSD", "USD")

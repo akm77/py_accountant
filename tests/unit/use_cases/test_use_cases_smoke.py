@@ -3,16 +3,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from application.dto.models import EntryLineDTO
-from application.use_cases.ledger import (
+from py_accountant.application.dto.models import EntryLineDTO
+from py_accountant.application.use_cases.ledger import (
     CreateAccount,
     CreateCurrency,
     GetBalance,
     GetTradingBalanceDetailedDTOs,
     PostTransaction,
 )
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
+from py_accountant.infrastructure.persistence.inmemory.clock import FixedClock
+from py_accountant.infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
 
 
 def test_create_currency_and_account_happy_path_use_cases():

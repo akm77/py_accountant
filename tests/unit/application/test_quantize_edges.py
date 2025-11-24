@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from application.utils.quantize import money_quantize, rate_quantize
+from py_accountant.application.utils.quantize import money_quantize, rate_quantize
 
 
 def test_money_quantize_round_half_even_edge():

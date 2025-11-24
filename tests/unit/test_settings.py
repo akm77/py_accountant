@@ -6,7 +6,7 @@ from contextlib import suppress
 import pytest
 from pydantic import ValidationError
 
-from infrastructure.config.settings import BaseAppSettings, get_settings
+from py_accountant.infrastructure.config.settings import BaseAppSettings, get_settings
 
 
 @pytest.fixture(autouse=True)

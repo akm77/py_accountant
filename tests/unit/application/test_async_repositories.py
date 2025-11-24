@@ -5,8 +5,13 @@ from decimal import Decimal
 
 import pytest
 
-from application.dto.models import AccountDTO, CurrencyDTO, EntryLineDTO, TransactionDTO
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.application.dto.models import (
+    CurrencyDTO,
+    EntryLineDTO,
+    TransactionDTO,
+    AccountDTO,
+)
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 pytestmark = pytest.mark.asyncio
 

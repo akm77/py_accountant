@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from application.dto.models import EntryLineDTO, TransactionDTO
-from domain import InMemoryAccountBalanceService
+from py_accountant.application.dto.models import EntryLineDTO, TransactionDTO
+from py_accountant.domain import InMemoryAccountBalanceService
 
 
 def make_tx(idx: int, account: str, amount: str, side: str = "DEBIT", seconds: int = 0) -> TransactionDTO:

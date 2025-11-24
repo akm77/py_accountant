@@ -7,14 +7,15 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from application.dto.models import EntryLineDTO, TransactionDTO
-from infrastructure.persistence.sqlalchemy.models import (
+from py_accountant.application.dto.models import EntryLineDTO, TransactionDTO
+from py_accountant.infrastructure.persistence.sqlalchemy.models import (
     AccountBalanceORM,
     AccountDailyTurnoverORM,
     JournalORM,
     TransactionLineORM,
+    Base,
 )
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 
 @pytest.mark.asyncio
@@ -83,7 +84,6 @@ async def test_repository_concurrent_postings_consistent_balance(tmp_path) -> No
     # Bootstrap schema via one UoW
     init_uow = AsyncSqlAlchemyUnitOfWork(url)
     async with init_uow.engine.begin() as conn:  # type: ignore[attr-defined]
-        from infrastructure.persistence.sqlalchemy.models import Base
         await conn.run_sync(Base.metadata.create_all)
 
     # Skip on SQLite due to database is locked under concurrent writes

@@ -5,16 +5,16 @@ from decimal import Decimal
 
 import pytest
 
-from application.dto.models import EntryLineDTO
-from application.use_cases.ledger import (
+from py_accountant.application.dto.models import EntryLineDTO
+from py_accountant.application.use_cases.ledger import (
     CreateAccount,
     CreateCurrency,
     GetTradingBalanceDetailedDTOs,
     PostTransaction,
 )
-from domain import DomainError
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
+from py_accountant.domain import DomainError
+from py_accountant.infrastructure.persistence.inmemory.clock import FixedClock
+from py_accountant.infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
 
 
 def setup_uow() -> InMemoryUnitOfWork:

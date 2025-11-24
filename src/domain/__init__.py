@@ -1,27 +1,8 @@
-from .errors import DomainError
-from .services.account_balance_service import (
-    AccountBalanceServiceProtocol,
-    InMemoryAccountBalanceService,
-)
-from .services.exchange_rate_policy import ExchangeRatePolicy
-from .value_objects import (
-    AccountName,
-    CurrencyCode,
-    EntryLine,
-    EntrySide,
-    ExchangeRate,
-    TransactionVO,
-)
+"""Compatibility facade for legacy imports.
 
-__all__ = [
-    "DomainError",
-    "CurrencyCode",
-    "AccountName",
-    "EntrySide",
-    "ExchangeRate",
-    "EntryLine",
-    "TransactionVO",
-    "AccountBalanceServiceProtocol",
-    "InMemoryAccountBalanceService",
-    "ExchangeRatePolicy",
-]
+Internal code and tests may import ``domain.*``.
+Real installable package is ``py_accountant.domain.*``.
+"""
+
+from py_accountant.domain import *  # noqa: F401,F403
+

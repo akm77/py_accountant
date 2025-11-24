@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from domain.value_objects import CurrencyCode, DomainError
+from py_accountant.domain.value_objects import CurrencyCode, DomainError
 
 
 def test_currency_code_min_length():

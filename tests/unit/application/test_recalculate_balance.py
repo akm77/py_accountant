@@ -3,12 +3,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from application.dto.models import EntryLineDTO
-from application.use_cases.ledger import CreateAccount, CreateCurrency, GetBalance, PostTransaction
-from application.use_cases.recalculate import RecalculateAccountBalance
-from domain.services.account_balance_service import InMemoryAccountBalanceService
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
+from py_accountant.application.dto.models import EntryLineDTO
+from py_accountant.application.use_cases.ledger import (
+    CreateAccount,
+    CreateCurrency,
+    GetBalance,
+    PostTransaction,
+)
+from py_accountant.application.use_cases.recalculate import RecalculateAccountBalance
+from py_accountant.domain.services.account_balance_service import InMemoryAccountBalanceService
+from py_accountant.infrastructure.persistence.inmemory.clock import FixedClock
+from py_accountant.infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
 
 
 def test_recalculate_inmemory_matches_direct():

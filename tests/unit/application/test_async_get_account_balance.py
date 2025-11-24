@@ -5,10 +5,10 @@ from decimal import Decimal
 
 import pytest
 
-from application.dto.models import EntryLineDTO
-from application.interfaces.ports import Clock
-from application.use_cases_async.ledger import AsyncGetAccountBalance, AsyncPostTransaction
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.application.dto.models import EntryLineDTO
+from py_accountant.application.ports import Clock
+from py_accountant.application.use_cases_async import AsyncGetAccountBalance, AsyncPostTransaction
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 pytestmark = pytest.mark.asyncio
 
@@ -26,8 +26,32 @@ async def _bootstrap_minimal(uow: AsyncSqlAlchemyUnitOfWork) -> None:
     await uow.currencies.upsert(type("Cur", (), {"code": "USD", "exchange_rate": Decimal("1.0"), "is_base": False})())  # type: ignore[arg-type]
     await uow.currencies.set_base("USD")
     # accounts
-    await uow.accounts.create(type("Acc", (), {"id": "", "name": "Cash", "full_name": "Assets:Cash", "currency_code": "USD", "parent_id": None})())  # type: ignore[arg-type]
-    await uow.accounts.create(type("Acc", (), {"id": "", "name": "Salary", "full_name": "Income:Salary", "currency_code": "USD", "parent_id": None})())  # type: ignore[arg-type]
+    await uow.accounts.create(
+        type(
+            "Acc",
+            (),
+            {
+                "id": "",
+                "name": "Cash",
+                "full_name": "Assets:Cash",
+                "currency_code": "USD",
+                "parent_id": None,
+            },
+        )()
+    )  # type: ignore[arg-type]
+    await uow.accounts.create(
+        type(
+            "Acc",
+            (),
+            {
+                "id": "",
+                "name": "Salary",
+                "full_name": "Income:Salary",
+                "currency_code": "USD",
+                "parent_id": None,
+            },
+        )()
+    )  # type: ignore[arg-type]
 
 
 async def test_balance_computed_via_ledger_scan(async_uow: AsyncSqlAlchemyUnitOfWork):

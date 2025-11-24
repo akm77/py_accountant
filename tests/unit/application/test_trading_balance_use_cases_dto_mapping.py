@@ -3,19 +3,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from application.dto.models import (
+from py_accountant.application.dto.models import (
     EntryLineDTO,
     TradingBalanceLineDetailed,
     TradingBalanceLineSimple,
 )
-from application.use_cases.ledger import (
+from py_accountant.application.use_cases.ledger import (
     CreateAccount,
     CreateCurrency,
     GetTradingBalanceDetailedDTOs,
     GetTradingBalanceRawDTOs,
     PostTransaction,
 )
-from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
+from py_accountant.infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
 
 
 def _seed_basic(uow: InMemoryUnitOfWork) -> None:

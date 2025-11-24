@@ -4,9 +4,9 @@ from decimal import Decimal, getcontext
 
 import pytest
 
-from domain.errors import ValidationError
-from domain.ledger import EntrySide, LedgerEntry
-from domain.trading_balance import RawAggregator, RawBalanceLine
+from py_accountant.domain.errors import ValidationError
+from py_accountant.domain.ledger import EntrySide, LedgerEntry
+from py_accountant.domain.trading_balance import RawAggregator, RawBalanceLine
 
 
 def test_empty_returns_no_lines():

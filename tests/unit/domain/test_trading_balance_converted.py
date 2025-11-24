@@ -4,10 +4,10 @@ from decimal import Decimal, getcontext
 
 import pytest
 
-from domain.currencies import Currency
-from domain.errors import ValidationError
-from domain.ledger import EntrySide, LedgerEntry
-from domain.trading_balance import (
+from py_accountant.domain.currencies import Currency
+from py_accountant.domain.errors import ValidationError
+from py_accountant.domain.ledger import EntrySide, LedgerEntry
+from py_accountant.domain.trading_balance import (
     ConvertedAggregator,
     ConvertedBalanceLine,
 )

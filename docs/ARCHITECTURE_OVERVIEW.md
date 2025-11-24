@@ -2,7 +2,7 @@
 
 Коротко: ядро async-only; порты объявлены как Protocol-интерфейсы; домен чистый (без I/O); квантизация фиксирована: money=2dp, rate=6dp, ROUND_HALF_EVEN; Trading Detailed требует базовую валюту, а для небазовой — положительный курс; в CLI для FX TTL есть только план, исполнение делает воркер/SDK.
 
-- Репозиторий: py_accountant (Poetry)
+- Репозиторий: py_accountant (Poetry, installable пакет `py_accountant` под `src/py_accountant`)
 - Диаграмма: docs/ARCHITECTURE_OVERVIEW.puml (PlantUML) — поток CLI → Async Use Cases → Ports → Infra (Async UoW + Repos) → DB; Domain отдельно, без I/O.
 
 ## Слои системы
@@ -128,9 +128,9 @@
 ## Навигация по исходникам (источники истины)
 
 - CLI: `src/presentation/cli/main.py`, `src/presentation/cli/*.py`
-- Domain: `src/domain/quantize.py`, `src/domain/trading_balance.py`
-- Use cases (async): `src/application/use_cases_async/trading_balance.py`, `src/application/use_cases_async/fx_audit_ttl.py`
-- Ports: `src/application/ports.py`
+- Domain: `src/py_accountant/domain/quantize.py`, `src/py_accountant/domain/trading_balance.py`
+- Use cases (async): `src/py_accountant/application/use_cases_async/trading_balance.py`, `src/py_accountant/application/use_cases_async/fx_audit_ttl.py`
+- Ports: `src/py_accountant/application/ports.py`
 - Alembic (sync-only): `alembic/env.py`
 
 ## Ключевые тезисы (TL;DR)

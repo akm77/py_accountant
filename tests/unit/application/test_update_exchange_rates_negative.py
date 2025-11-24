@@ -5,12 +5,13 @@ from decimal import Decimal
 
 import pytest
 
-from application.dto.models import RateUpdateInput
-from application.use_cases.exchange_rates import UpdateExchangeRates
-from application.use_cases.ledger import CreateCurrency
-from domain import DomainError, ExchangeRatePolicy
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
+from py_accountant.application.dto.models import RateUpdateInput
+from py_accountant.application.use_cases.exchange_rates import UpdateExchangeRates
+from py_accountant.application.use_cases.ledger import CreateCurrency
+from py_accountant.domain import DomainError
+from py_accountant.domain.services.exchange_rate_policy import ExchangeRatePolicy
+from py_accountant.infrastructure.persistence.inmemory.clock import FixedClock
+from py_accountant.infrastructure.persistence.inmemory.uow import InMemoryUnitOfWork
 
 
 def _setup_uow():

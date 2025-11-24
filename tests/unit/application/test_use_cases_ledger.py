@@ -5,11 +5,14 @@ from decimal import Decimal
 
 import pytest
 
-from application.dto.models import EntryLineDTO
-from application.use_cases_async.accounts import AsyncCreateAccount
-from application.use_cases_async.currencies import AsyncCreateCurrency, AsyncSetBaseCurrency
-from application.use_cases_async.ledger import AsyncPostTransaction
-from domain.errors import DomainError, ValidationError
+from py_accountant.application.dto.models import EntryLineDTO
+from py_accountant.application.use_cases_async.accounts import AsyncCreateAccount
+from py_accountant.application.use_cases_async.currencies import (
+    AsyncCreateCurrency,
+    AsyncSetBaseCurrency,
+)
+from py_accountant.application.use_cases_async.ledger import AsyncPostTransaction
+from py_accountant.domain.errors import DomainError, ValidationError
 
 
 class _TestClock:

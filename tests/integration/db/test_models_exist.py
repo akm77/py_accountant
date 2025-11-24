@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, inspect
 
-from infrastructure.persistence.sqlalchemy.models import Base
+from py_accountant.infrastructure.persistence.sqlalchemy.models import Base
 
 
 def test_tables_present_minimal_set():

@@ -6,16 +6,20 @@ from typing import cast
 
 import pytest
 
-from application.dto.models import EntryLineDTO
-from application.interfaces.ports import AsyncUnitOfWork as AsyncUoWProtocol
-from application.use_cases_async.accounts import AsyncCreateAccount
-from application.use_cases_async.currencies import AsyncCreateCurrency, AsyncSetBaseCurrency
-from application.use_cases_async.ledger import AsyncGetLedger, AsyncPostTransaction
-from infrastructure.persistence.inmemory.clock import FixedClock
-from infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.application.dto.models import EntryLineDTO
+from py_accountant.application.use_cases_async import (
+    AsyncCreateCurrency,
+    AsyncSetBaseCurrency,
+    AsyncCreateAccount,
+    AsyncPostTransaction,
+    AsyncGetLedger,
+)
+from py_accountant.infrastructure.persistence.inmemory.clock import FixedClock
+from py_accountant.infrastructure.persistence.sqlalchemy.models import Base
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 
-async def seed(uow: AsyncUoWProtocol, clock):
+async def seed(uow, clock):
     await AsyncCreateCurrency(uow)("USD", exchange_rate=Decimal("1"))
     # Set USD as base to satisfy domain ledger validation
     await AsyncSetBaseCurrency(uow)("USD")
@@ -33,13 +37,14 @@ async def seed(uow: AsyncUoWProtocol, clock):
         ], memo=f"tx{i}", meta=meta)
 
 
+
 @pytest.mark.asyncio
 async def test_pagination_and_order_and_meta_async(tmp_path):
     db_path = tmp_path / "ledger.sqlite3"
     url = f"sqlite+aiosqlite:///{db_path}"
-    uow: AsyncUoWProtocol = cast(AsyncUoWProtocol, AsyncSqlAlchemyUnitOfWork(url=url))
+    uow = AsyncSqlAlchemyUnitOfWork(url=url)
 
-    from infrastructure.persistence.sqlalchemy.models import Base  # type: ignore
+
     async with cast(AsyncSqlAlchemyUnitOfWork, uow).engine.begin() as conn:  # type: ignore[attr-defined]
         await conn.run_sync(Base.metadata.create_all)
 

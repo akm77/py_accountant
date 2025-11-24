@@ -2,9 +2,9 @@ from decimal import Decimal, getcontext
 
 import pytest
 
-from domain.currencies import Currency
-from domain.errors import DomainError, ValidationError
-from domain.ledger import EntrySide, LedgerEntry, LedgerValidator
+from py_accountant.domain.currencies import Currency
+from py_accountant.domain.errors import DomainError, ValidationError
+from py_accountant.domain.ledger import EntrySide, LedgerEntry, LedgerValidator
 
 
 def make_currencies_usd_eur_jpy():

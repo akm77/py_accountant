@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain.services.exchange_rate_policy import ExchangeRatePolicy
+from py_accountant.domain.services.exchange_rate_policy import ExchangeRatePolicy
 
 
 def test_weighted_average_sequence_and_none_prev():
