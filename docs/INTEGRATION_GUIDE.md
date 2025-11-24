@@ -109,3 +109,20 @@ def get_balance(uow_factory, clock, account: str):
 
 Документ согласован с кодом: `src/py_accountant/application/use_cases/ledger.py`,
 `src/py_accountant/application/use_cases_async/*`, `src/py_accountant/application/ports.py`.
+
+---
+
+## Детальные примеры интеграции
+
+Для подробных пошаговых руководств по интеграции в конкретные фреймворки см.:
+
+- **[INTEGRATION_GUIDE_AIOGRAM.md](INTEGRATION_GUIDE_AIOGRAM.md)** — Полное руководство по интеграции в Telegram Bot на aiogram 3.x
+  - Структура проекта и зависимости
+  - UnitOfWork и Clock адаптеры
+  - Маппинг команд на use cases
+  - Dependency Injection через middlewares
+  - Error handling и логирование
+  - CI/CD, Docker, миграции в production
+  - Тестирование (unit, integration, e2e)
+  - Production checklist с мониторингом и безопасностью
+

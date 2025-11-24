@@ -388,16 +388,26 @@ def make_uow_factory(url: str) -> Callable[[], UnitOfWorkProtocol]:
 См. docs/MIGRATION_HISTORY.md — ключевые шаги и удалённый код (историческая справка).
 
 ## Полезные ссылки
-- docs/ARCHITECTURE_OVERVIEW.md
-- docs/ARCHITECTURE_OVERVIEW.svg
-- docs/FX_AUDIT.md
-- docs/TRADING_WINDOWS.md
-- docs/PARITY_REPORT.md
-- docs/PERFORMANCE.md
-- docs/RUNNING_MIGRATIONS.md
-- docs/MIGRATION_HISTORY.md
-- docs/INTEGRATION_GUIDE.md ← гид по встраиванию (core-only)
-- docs/ACCOUNTING_CHEATSHEET.md ← шпаргалка по проводкам
+
+### Архитектура и концепции
+- docs/ARCHITECTURE_OVERVIEW.md — архитектура Clean Architecture
+- docs/ARCHITECTURE_OVERVIEW.svg — диаграмма слоёв
+- docs/ACCOUNTING_CHEATSHEET.md — шпаргалка по проводкам
+- docs/PERFORMANCE.md — производительность и оптимизации
+
+### Интеграция
+- **docs/INTEGRATION_GUIDE.md** — базовое руководство по встраиванию (core-only)
+- **docs/INTEGRATION_GUIDE_AIOGRAM.md** — детальное руководство по интеграции в Telegram Bot (aiogram 3.x) ⭐
+- examples/telegram_bot/ — рабочий пример бота с py_accountant
+
+### Специализированные возможности
+- docs/FX_AUDIT.md — аудит валютных операций
+- docs/TRADING_WINDOWS.md — торговые окна и отчёты
+- docs/PARITY_REPORT.md — отчёты о паритете
+
+### Техническая документация
+- docs/RUNNING_MIGRATIONS.md — работа с миграциями Alembic
+- docs/MIGRATION_HISTORY.md — история изменений архитектуры
 
 ## Полностью асинхронное ядро
 
