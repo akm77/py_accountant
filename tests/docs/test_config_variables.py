@@ -81,7 +81,11 @@ class TestConfigurationVariables:
         if not documented_vars:
             pytest.skip("CONFIG_REFERENCE.md not found")
 
-        nonexistent = documented_vars - code_vars
+        # DATABASE_URL_ASYNC is used in examples and docker-compose but not in settings.py
+        # It's the async variant of DATABASE_URL for runtime usage
+        exception_vars = {'DATABASE_URL_ASYNC'}
+
+        nonexistent = documented_vars - code_vars - exception_vars
 
         if nonexistent:
             pytest.fail(

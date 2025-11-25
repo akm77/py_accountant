@@ -90,6 +90,14 @@ def all_markdown_files() -> list[Path]:
     """Список всех markdown файлов в проекте."""
     root = Path(__file__).parent.parent.parent
 
+    # Skip historical/proposal documents with outdated imports
+    skip_files = {
+        'DOCUMENTATION_FIX_PROPOSAL.md',
+        'AUDIT_PRIORITIES.md',
+        'AUDIT_REMOVED_COMPONENTS.md',
+        'AUDIT_CODE_MAPPING.md',
+    }
+
     files = []
     readme = root / "README.md"
     if readme.exists():
@@ -97,7 +105,9 @@ def all_markdown_files() -> list[Path]:
 
     docs_dir = root / "docs"
     if docs_dir.exists():
-        files.extend(docs_dir.glob("*.md"))
+        for f in docs_dir.glob("*.md"):
+            if f.name not in skip_files:
+                files.append(f)
 
     return files
 

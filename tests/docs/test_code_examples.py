@@ -61,8 +61,20 @@ def is_example_only_code(code: str) -> bool:
         return True
 
     # Constructor signature examples like: use_case = AsyncCreateAccount(uow: AsyncUnitOfWork)
-    if any('use_case =' in line and '(uow:' in line for line in lines):
+    if any('use_case =' in line and ('(uow:' in line or 'uow:' in line) for line in lines):
         return True
+
+    # Method signature without body (ends with ) -> ReturnType)
+    # This is common in API documentation
+    stripped = code.strip()
+    if stripped.startswith(('async def', 'def')) and stripped.count('\n') <= 15:
+        # Check if it ends with ") -> Something" pattern (no body after)
+        if ') ->' in code:
+            # Find last line
+            last_line = lines[-1].strip()
+            # If last line is return type annotation, it's signature-only
+            if last_line.startswith(')') or '->' in last_line:
+                return True
 
     # Signature-only blocks (function/method signatures without body)
     if len(lines) <= 10:
@@ -94,6 +106,10 @@ def is_example_only_code(code: str) -> bool:
         # If first line doesn't start with typical code patterns, it's probably text
         if not any(c in first_line for c in ['=', '(', '{', '[']):
             return True
+
+    # Skip comparison examples (# ❌ / # ✅)
+    if '# ❌' in code or '# ✅' in code:
+        return True
 
     return False
 
