@@ -1,10 +1,23 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    version: "1.1.0-S3"
+    version: "1.1.0-S4"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
     last_updated: "2025-11-25"
     changelog:
+      - version: "1.1.0-S4"
+        date: "2025-11-25"
+        changes:
+          - "DOC-S4: Создан API_REFERENCE.md — полный справочник публичного API (1500+ строк)"
+          - "DOC-S4: Задокументированы все 17 async use cases с детальными примерами и сигнатурами"
+          - "DOC-S4: Задокументированы все 6 protocols (Clock, AsyncUnitOfWork, AsyncCurrencyRepository, AsyncAccountRepository, AsyncTransactionRepository, AsyncExchangeRateEventsRepository)"
+          - "DOC-S4: Задокументированы 14 основных DTOs с полями и примерами использования"
+          - "DOC-S4: Добавлена карта API: таблицы use cases, protocols, DTOs"
+          - "DOC-S4: Добавлен раздел Migration Guide (sync → async)"
+          - "DOC-S4: Создан инструмент generate_api_docs.py для автоматизации извлечения сигнатур"
+          - "DOC-S4: Создан валидатор extract_and_validate_code_examples.py для проверки синтаксиса примеров"
+          - "DOC-S4: Обновлён docs/INDEX.md со ссылкой на API_REFERENCE.md"
+          - "DOC-S4: Обновлён README.md с секцией Documentation и ссылкой на API Reference"
       - version: "1.1.0-S3"
         date: "2025-11-25"
         changes:

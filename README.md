@@ -382,6 +382,28 @@ def make_uow_factory(url: str) -> Callable[[], UnitOfWorkProtocol]:
 Документация согласована с кодом: `application/use_cases/ledger.py`,
 `application/use_cases_async/*`, `application/ports.py`.
 
+## 📚 Documentation
+
+### API Reference
+
+**[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** — Complete API reference for integrators:
+- 17 async use cases with examples
+- 6 protocols (ports) for implementation
+- 14 DTOs (Data Transfer Objects)
+- Migration guide: sync → async API
+- Version 1.1.0-S4 (2025-11-25)
+
+### Integration Guides
+
+- **[docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md)** — Integration patterns and examples
+- **[docs/INTEGRATION_GUIDE_AIOGRAM.md](docs/INTEGRATION_GUIDE_AIOGRAM.md)** — Telegram bot with aiogram
+- **[examples/fastapi_basic/](examples/fastapi_basic/)** — FastAPI REST API example
+- **[examples/cli_basic/](examples/cli_basic/)** — CLI application example
+
+### Full Documentation Index
+
+See **[docs/INDEX.md](docs/INDEX.md)** for complete documentation index.
+
 ## Архитектура слоёв
 
 ![Architecture Overview](docs/ARCHITECTURE_OVERVIEW.svg)
