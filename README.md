@@ -403,34 +403,20 @@ def make_uow_factory(url: str) -> Callable[[], UnitOfWorkProtocol]:
 ### Complete Index
 
 - **[Documentation Index](docs/INDEX.md)** — Complete documentation catalog
-- **[CHANGELOG](docs/CHANGELOG.md)** — Documentation changelog
-- **[Final Report](docs/DOCUMENTATION_UPDATE_REPORT.md)** — Complete documentation update report
+- **[CHANGELOG](docs/CHANGELOG.md)** — Project changelog
 
 ---
 
 ## ✅ Documentation Quality
 
-Our documentation is automatically tested and validated:
+Our documentation is automatically tested:
 
 ```bash
-# Run documentation tests
 poetry run pytest tests/docs/ -v
-# Expected: 18 passed in ~0.3s ✅
+# 18 tests validate: code syntax, links, imports, config
 ```
 
-**Coverage**:
-- ✅ 100% of async use cases documented (17/17)
-- ✅ 100% of protocols documented (6/6)
-- ✅ 100% of DTOs documented (14/14)
-- ✅ 100% of config variables documented (27/27)
-- ✅ 3 full-featured examples (FastAPI, CLI, Telegram)
-
-**Tests validate**:
-- Python syntax in 60+ code examples
-- 50+ internal documentation links
-- 20+ py_accountant imports
-- Configuration sync (code ↔ docs)
-
+**Coverage**: 100% (17 use cases, 6 protocols, 14 DTOs, 27 config vars)  
 See **[tests/docs/README.md](tests/docs/README.md)** for details.
 
 ---

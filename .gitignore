@@ -103,3 +103,6 @@ ipython_config.py
 .ruff_cache/
 /prompts/
 /docs/audit/
+
+# Documentation audit materials (local only)
+docs/audit/
