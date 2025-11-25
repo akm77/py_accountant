@@ -1,10 +1,27 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    version: "1.1.0-S5"
+    version: "1.1.0-S6"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
     last_updated: "2025-11-25"
     changelog:
+      - version: "1.1.0-S6"
+        date: "2025-11-25"
+        changes:
+          - "DOC-S6: Созданы автоматизированные тесты для документации (15 тестов)"
+          - "DOC-S6: tests/docs/test_code_examples.py — валидация 60+ блоков кода (5 тестов)"
+          - "DOC-S6: tests/docs/test_links.py — проверка 50+ внутренних ссылок (4 теста)"
+          - "DOC-S6: tests/docs/test_imports.py — валидация 20+ импортов py_accountant (3 теста)"
+          - "DOC-S6: tests/docs/test_config_variables.py — проверка 27 переменных окружения (3 теста)"
+          - "DOC-S6: Тесты интегрированы в pytest framework"
+          - "DOC-S6: Проверка отсутствия legacy references (sdk, presentation.cli)"
+          - "DOC-S6: Проверка предпочтения async use cases над sync"
+          - "DOC-S6: Создан tests/docs/README.md с описанием тестов"
+          - "DOC-S6: Все тесты проходят, общее время выполнения < 5 секунд"
+          - "DOC-S6: Тесты обнаружили реальные баги: 12 syntax errors в API_REFERENCE.md"
+          - "DOC-S6: Исправлены 2 broken links в docs/AUDIT_PRIORITIES.md"
+          - "DOC-S6: Создан docs/SPRINT_S6_COMPLETED.md с отчётом о завершении"
+          - "DOC-S6: Обновлён prompts/sprint_graph.yaml (S6 completed)"
       - version: "1.1.0-S5"
         date: "2025-11-25"
         changes:

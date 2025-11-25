@@ -336,7 +336,7 @@ asyncio.run(main())
 
 ## Документация
 
-Детальное руководство по интеграции см. в [INTEGRATION_GUIDE_AIOGRAM.md](../../docs/INTEGRATION_GUIDE_AIOGRAM.md).
+Детальное руководство по интеграции см. в [INTEGRATION_GUIDE_AIOGRAM.md](INTEGRATION_GUIDE_AIOGRAM.md).
 
 ## Структура
 
@@ -363,7 +363,7 @@ asyncio.run(main())
    poetry run python -m examples.telegram_bot.main
    ```
 
-См. [полную документацию](../../docs/INTEGRATION_GUIDE_AIOGRAM.md) для деталей.
+См. [полную документацию](INTEGRATION_GUIDE_AIOGRAM.md) для деталей.
 ```
 
 **Оценка**: 1 час  
