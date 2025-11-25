@@ -1,15 +1,14 @@
 """UnitOfWork factory for telegram bot."""
 from __future__ import annotations
 
-from typing import Callable
-
-from py_accountant.application.ports import AsyncUnitOfWork
-from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from collections.abc import Callable
 
 from config import settings
 
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
-def create_uow_factory() -> Callable[[], AsyncUnitOfWork]:
+
+def create_uow_factory() -> Callable[[], AsyncSqlAlchemyUnitOfWork]:
     """Create UoW factory for dependency injection.
 
     Returns:
@@ -26,7 +25,7 @@ def create_uow_factory() -> Callable[[], AsyncUnitOfWork]:
         ...     await uow.commit()
     """
 
-    def factory() -> AsyncUnitOfWork:
+    def factory() -> AsyncSqlAlchemyUnitOfWork:
         return AsyncSqlAlchemyUnitOfWork(
             url=settings.pyacc_database_url_async,
             echo=False,  # Disable SQL echo in production

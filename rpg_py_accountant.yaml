@@ -1,10 +1,35 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    version: "1.0.0"
+    version: "1.1.0-S1"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
-    last_updated: "2025-11-24"
+    last_updated: "2025-11-25"
     changelog:
+      - version: "1.1.0-S1"
+        date: "2025-11-25"
+        changes:
+          - "DOC-S1: Проведён полный аудит документации (Спринт S1)"
+          - "DOC-S1: Создана инвентаризация 16 документов (docs/AUDIT_INVENTORY.md)"
+          - "DOC-S1: Найдено 11 упоминаний удалённых компонентов в 5 файлах (docs/AUDIT_REMOVED_COMPONENTS.md)"
+          - "DOC-S1: Создана матрица соответствия документация↔код (docs/AUDIT_CODE_MAPPING.md)"
+          - "DOC-S1: Приоритизировано 42 проблемы: P0=6, P1=8, P2=15, P3=13 (docs/AUDIT_PRIORITIES.md)"
+          - "DOC-S1: Выявлено покрытие документацией: use cases 44%, protocols 33%, DTOs 30%"
+          - "DOC-S1: Критические находки: 4 неработающих CLI примера, 6 ссылок на presentation.cli"
+      - version: "1.0.2"
+        date: "2025-11-25"
+        changes:
+          - "DOC-GRAPH: Создан граф спринтов для обновления документации (prompts/sprint_graph.yaml)"
+          - "DOC-GRAPH: Созданы детальные промпты для 8 спринтов (prompts/sprint_*.md)"
+          - "DOC-GRAPH: Каждый промпт следует методологии RPG с явными критериями успеха"
+          - "DOC-GRAPH: Промпты разбиты для работы в пределах контекста LLM"
+          - "DOC-GRAPH: Запланировано устранение 50+ упоминаний удалённых компонентов"
+      - version: "1.0.1"
+        date: "2025-11-24"
+        changes:
+          - "DOC-PLAN: Создан план исправления документации (DOCUMENTATION_FIX_PROPOSAL.md)"
+          - "DOC-PLAN: Выявлено 10 проблем в документации после миграции на core-only"
+          - "DOC-PLAN: Предложено 3-фазное решение с автоматизацией и тестами"
+          - "DOC-PLAN: Добавлен узел 'documentation' в RPG-граф"
       - version: "1.0.0"
         date: "2025-11-24"
         changes:
@@ -202,6 +227,22 @@ rpg:
       - name: "src/py_accountant/infrastructure/utils/asyncio_utils.py"
         parent_module: "infrastructure"
         description: "run_sync(coro): запрет nested loop, корректное закрытие корутины при ошибке."
+      - name: "documentation"
+        path: "docs/"
+        description: "Документация проекта и планы улучшения: интеграция, архитектура, обработка ошибок."
+        sub_modules:
+          - name: "DOCUMENTATION_FIX_PROPOSAL.md"
+            description: "Детальный план исправления документации (11 страниц): анализ проблем, 3-фазное решение, метрики успеха."
+          - name: "DOCUMENTATION_FIX_SUMMARY.md"
+            description: "Краткая сводка предложения по исправлению документации: ключевые исправления, план действий."
+          - name: "INTEGRATION_GUIDE.md"
+            description: "Руководство по интеграции py_accountant в проекты: setup, примеры, dual-URL. Требует обновления (см. DOCUMENTATION_FIX_PROPOSAL)."
+          - name: "ARCHITECTURE_OVERVIEW.md"
+            description: "Обзор архитектуры проекта: слои Domain/Application/Infrastructure, диаграммы."
+          - name: "ACCOUNTING_CHEATSHEET.md"
+            description: "Шпаргалка по бухгалтерским концепциям: дебет/кредит, проводки, балансы."
+          - name: "PERFORMANCE.md"
+            description: "Документация по производительности: индексы, оптимизации, агрегаты."
 
   notes:
     - title: "Installed package vs local source"
@@ -371,3 +412,19 @@ rpg:
         Интеграция продолжается через domain/application/ports; внешние проекты импортируют py_accountant.*.
         RPG-граф обновлён: пути узлов указывают на src/py_accountant/...; SDK-узлы и требования удалены или помечены как исторические в документации.
         Интеграторы по-прежнему реализуют свой UnitOfWork и репозитории по контрактам py_accountant.application.ports.
+    - id: "DOC-SPRINTS"
+      title: "Обновление документации проекта (8 спринтов)"
+      status: "planned"
+      notes: |
+        Запланировано 8 спринтов по приведению документации к факту после миграции core-only:
+        - S1: Аудит и инвентаризация (2-3 дня)
+        - S2: Исправление критических несоответствий (3-4 дня)
+        - S3: Обновление примеров кода (4-5 дней)
+        - S4: Документация API и портов (3-4 дня)
+        - S5: Документация окружения (2-3 дня)
+        - S6: Автотесты для документации (3-4 дня)
+        - S7: Финальная сверка и индекс (2-3 дня)
+        - S8: Визуализация и отчёт (2-3 дня)
+        
+        Детали: prompts/sprint_graph.yaml, prompts/sprint_*.md
+        Целевая версия после завершения: 1.1.0
