@@ -1,10 +1,21 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    version: "1.1.0-S6"
+    version: "1.1.0-S7"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
     last_updated: "2025-11-25"
     changelog:
+      - version: "1.1.0-S7"
+        date: "2025-11-25"
+        changes:
+          - "DOC-S7: Исправлены все оставшиеся проблемы, обнаруженные тестами документации"
+          - "DOC-S7: Исправлен broken link в FINAL_REPORT.md (пример markdown-ссылки)"
+          - "DOC-S7: Исправлен malformed code block в examples/cli_basic/README.md"
+          - "DOC-S7: Все тесты документации теперь проходят (18 passed, 0 failed) ✅"
+          - "DOC-S7: Документация полностью валидна: code examples, links, imports, config"
+          - "DOC-S7: Создан docs/SPRINT_S7_COMPLETED.md с отчётом о завершении"
+          - "DOC-S7: Обновлён prompts/sprint_graph.yaml (S7 completed)"
+          - "DOC-S7: Большинство syntax errors было исправлено в процессе S6"
       - version: "1.1.0-S6"
         date: "2025-11-25"
         changes:

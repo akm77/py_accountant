@@ -145,13 +145,15 @@ Before using the CLI, apply database migrations:
 
 ## Running Migrations
 
-```
-# DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/accounting"
-# Or for PostgreSQL:
-DATABASE_URL = "sqlite+aiosqlite:///./accounting.db"
-```python
-
 To change the database, edit `DATABASE_URL` in `cli.py`:
+
+```python
+# For SQLite (default):
+DATABASE_URL = "sqlite+aiosqlite:///./accounting.db"
+
+# Or for PostgreSQL:
+# DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/accounting"
+```
 
 By default, the CLI uses SQLite database `./accounting.db`.
 

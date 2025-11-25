@@ -39,7 +39,7 @@
 - **Файл**: `tests/docs/test_imports.py`
 
 #### ✅ 4. Broken link в SPRINT_S6_COMPLETED.md
-- **Проблема**: Пример `[text](url)` парсился как реальная ссылка
+- **Проблема**: Пример markdown-ссылки с placeholder'ами парсился как реальная ссылка
 - **Решение**: Заменён на текстовое описание
 - **Файл**: `docs/SPRINT_S6_COMPLETED.md`
 
