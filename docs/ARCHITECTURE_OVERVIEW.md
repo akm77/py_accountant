@@ -127,16 +127,19 @@
 
 ## Навигация по исходникам (источники истины)
 
-- CLI: `src/presentation/cli/main.py`, `src/presentation/cli/*.py`
 - Domain: `src/py_accountant/domain/quantize.py`, `src/py_accountant/domain/trading_balance.py`
 - Use cases (async): `src/py_accountant/application/use_cases_async/trading_balance.py`, `src/py_accountant/application/use_cases_async/fx_audit_ttl.py`
 - Ports: `src/py_accountant/application/ports.py`
-- (Planned) CLI/Presentation: `src/presentation/cli/main.py`, `src/presentation/cli/*.py` — этот слой описан в архитектуре как возможное будущее HTTP/CLI API и может отсутствовать в текущей версии репозитория; интеграторы работают через core-пакет `py_accountant`.
+- Infrastructure: `src/py_accountant/infrastructure/persistence/sqlalchemy/`
+
+**Примечание об архитектуре**: Presentation/CLI layer был удалён в версии 1.0.0 в пользу core-only архитектуры. Интеграторы (Telegram bots, FastAPI apps, etc.) создают собственный presentation layer и работают напрямую через `py_accountant.application` (use cases и порты).
+
+Пример: `examples/telegram_bot/` показывает интеграцию через aiogram 3.x.
 
 ## Ключевые тезисы (TL;DR)
 
 - Async-only: все публичные пути — асинхронные. Sync UoW/репозитории удалены.
 - Domain чистый, без I/O и кешей. Квантизация: money=2dp, rate=6dp, ROUND_HALF_EVEN.
 - Trading Detailed: base обязателен; `used_rate=1` только для базовой; для небазовой без положительного курса — ValidationError.
-- FX TTL: CLI — только план (`ttl-plan`); исполнение — через use case/SDK воркер (`AsyncExecuteFxAuditTTL`).
+- FX TTL: планирование через `AsyncPlanFxAuditTTL`; исполнение — через фоновый воркер с `AsyncExecuteFxAuditTTL`.
 - Alembic использует только sync‑драйверы и применяется лишь для миграций.

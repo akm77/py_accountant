@@ -8,6 +8,14 @@
 - Линт/формат: Ruff
 - Зависимости: Poetry
 
+## ⚠️ Важно: Async-first Architecture
+
+**Версия 1.0.0+** использует async-first подход:
+- ✅ **Рекомендуется**: `AsyncUnitOfWork` и `use_cases_async.*`
+- ⚠️ **Deprecated**: Sync `UnitOfWork` и `use_cases.*` (сохранены для обратной совместимости)
+
+Все новые проекты должны использовать async API. Sync API будет удалён в версии 2.0.0.
+
 ## Важное замечание про опубликованный пакет и локальную разработку
 
 В репозитории хранится "core-only" реализация (Domain / Application / Infrastructure). В прошлом в пакете публиковался отдельный SDK-слой (`py_accountant.sdk.*`). На некоторых окружениях (например, в venv проектов, которые устанавливали старую версию) в `site-packages` может присутствовать установленный `py-accountant` с модулем `py_accountant.sdk` — это внешняя опубликованная версия пакета и она не обновляется автоматически из локального репозитория.
@@ -292,13 +300,14 @@ git+https://github.com/akm77/py_accountant.git
 ### 1. Подключение ядра в вашем проекте
 
 ```python
+# ⚠️ Sync API (deprecated, для обратной совместимости)
 from application.use_cases.ledger import PostTransaction, GetBalance
-from application.interfaces.ports import UnitOfWork  # legacy sync UnitOfWork protocol (preferred: use AsyncUnitOfWork from application.ports for async)
+from application.interfaces.ports import UnitOfWork  # legacy sync UnitOfWork protocol
 
 
 def post_deposit(uow_factory, clock, lines, meta):
     # uow_factory: Callable[[], UnitOfWork]
-    with uow_factory() as uow:  # sync или async контекст в зависимости от реализации
+    with uow_factory() as uow:
         use_case = PostTransaction(uow, clock)
         # фактический контракт: __call__, а не execute
         return use_case(lines=lines, memo="Deposit", meta=meta)
@@ -308,6 +317,28 @@ def get_balance(uow_factory, clock, account_name: str):
     with uow_factory() as uow:
         use_case = GetBalance(uow, clock)
         return use_case(account_full_name=account_name)
+```
+
+```python
+# ✅ Async API (рекомендуется)
+from py_accountant.application.use_cases_async.ledger import (
+    AsyncPostTransaction,
+    AsyncGetAccountBalance
+)
+from py_accountant.application.ports import AsyncUnitOfWork
+
+
+async def post_deposit_async(uow_factory, clock, lines, meta):
+    # uow_factory: Callable[[], AsyncUnitOfWork]
+    async with uow_factory() as uow:
+        use_case = AsyncPostTransaction(uow, clock)
+        return await use_case(lines=lines, memo="Deposit", meta=meta)
+
+
+async def get_balance_async(uow_factory, clock, account_name: str):
+    async with uow_factory() as uow:
+        use_case = AsyncGetAccountBalance(uow, clock)
+        return await use_case(account_full_name=account_name)
 ```
 
 Интегратор реализует свой `uow_factory` и репозитории по контрактам из

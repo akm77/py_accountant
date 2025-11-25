@@ -12,7 +12,7 @@
 
 ### Сводная статистика
 - **Всего проблем**: 42
-- **P0 (Критические)**: 6 проблем — ~12 часов
+- **P0 (Критические)**: ✅ 6 проблем — ЗАВЕРШЕНО в Sprint S2 (2025-11-25)
 - **P1 (Высокие)**: 8 проблем — ~16 часов
 - **P2 (Средние)**: 15 проблем — ~24 часа
 - **P3 (Низкие)**: 13 проблем — ~10 часов
@@ -21,205 +21,132 @@
 
 ---
 
-## P0 - Критические (блокеры для пользователей)
+## P0 - Критические (блокеры для пользователей) — ✅ ЗАВЕРШЕНО
 
-Проблемы, которые **полностью блокируют** использование описанного функционала.
+**Статус**: Все 6 проблем P0 исправлены в Sprint S2 (2025-11-25)
+
+Проблемы, которые **полностью блокировали** использование описанного функционала.
 
 ---
 
-### 1. docs/FX_AUDIT.md — удалить ссылки на presentation.cli
+### 1. ✅ docs/FX_AUDIT.md — удалить ссылки на presentation.cli
 
-**Проблема**: Документ описывает CLI-команды для FX audit, которые ссылаются на несуществующий модуль `presentation.cli.main`.
+**Статус**: ✅ ЗАВЕРШЕНО (2025-11-25, Sprint S2)
+
+**Проблема**: Документ описывал CLI-команды для FX audit, которые ссылались на несуществующий модуль `presentation.cli.main`.
 
 **Файлы**: `docs/FX_AUDIT.md`
 
-**Конкретные строки**:
-- Строка 53: `CLI-группа: fx (см. src/presentation/cli/fx_audit.py)`
-- Строка 59: `poetry run python -m presentation.cli.main fx add-event CODE RATE`
-
-**Влияние**: Пользователи не могут выполнить описанные команды → полный блокер для FX audit функционала
-
-**Решение**:
-1. Заменить секцию "CLI Commands" на "Python API Usage"
-2. Добавить примеры использования `AsyncAddExchangeRateEvent` и `AsyncListExchangeRateEvents`
-3. Показать код инициализации UoW и вызова use cases
-
-**Пример замены**:
-```python
-from py_accountant.application.use_cases_async.fx_audit import (
-    AsyncAddExchangeRateEvent,
-    AsyncListExchangeRateEvents
-)
-from decimal import Decimal
-from datetime import datetime, UTC
-
-# Добавление события курса
-async with uow_factory() as uow:
-    use_case = AsyncAddExchangeRateEvent(uow, clock)
-    await use_case(
-        currency_code="USD",
-        rate=Decimal("75.50"),
-        occurred_at=datetime.now(UTC),
-        source="manual"
-    )
-```
+**Выполненные изменения**:
+- ✅ Секция "CLI Commands" заменена на "Python API Usage"
+- ✅ Добавлены примеры `AsyncAddExchangeRateEvent`, `AsyncListExchangeRateEvents`
+- ✅ Добавлен пример `AsyncPlanFxAuditTTL` для TTL планирования
+- ✅ Обновлено введение: "через Python API" вместо "через CLI"
+- ✅ Удалены все упоминания `presentation.cli.main`
 
 **Оценка**: 3 часа  
-**Спринт**: S2  
-**Зависимости**: Нет
+**Фактически**: ~1 час  
+**Спринт**: S2
 
 ---
 
-### 2. docs/RUNNING_MIGRATIONS.md — заменить CLI пример на API
+### 2. ✅ docs/RUNNING_MIGRATIONS.md — заменить CLI пример на API
 
-**Проблема**: Строка 88 содержит пример CLI-команды `poetry run python -m presentation.cli.main trading detailed --base USD`
+**Статус**: ✅ ЗАВЕРШЕНО (2025-11-25, Sprint S2)
+
+**Проблема**: Строка 88 содержала пример CLI-команды `poetry run python -m presentation.cli.main trading detailed --base USD`
 
 **Файлы**: `docs/RUNNING_MIGRATIONS.md:88`
 
-**Влияние**: Пользователи, следующие документации по миграциям, получат ошибку при попытке проверить trading balance
-
-**Решение**: Заменить CLI команду на Python API пример
-
-```python
-from py_accountant.application.use_cases_async.trading_balance import (
-    AsyncGetTradingBalanceDetailed
-)
-
-async with uow_factory() as uow:
-    use_case = AsyncGetTradingBalanceDetailed(uow, clock)
-    result = await use_case(base_currency="USD")
-    
-    print(f"Total in {result.base_currency}: {result.total_in_base}")
-    for item in result.items:
-        print(f"  {item.account_name}: {item.balance} {item.currency_code}")
-```
+**Выполненные изменения**:
+- ✅ CLI команда заменена на Python API пример с `AsyncGetTradingBalanceDetailed`
+- ✅ Добавлен рабочий пример с выводом результатов
+- ✅ Пример интегрирован в секцию проверки после миграций
 
 **Оценка**: 1 час  
-**Спринт**: S2  
-**Зависимости**: Нет
+**Фактически**: ~15 минут  
+**Спринт**: S2
 
 ---
 
-### 3. docs/TRADING_WINDOWS.md — заменить CLI примеры на API
+### 3. ✅ docs/TRADING_WINDOWS.md — заменить CLI примеры на API
 
-**Проблема**: Строки 56 и 60 содержат примеры CLI-команд `poetry run python -m presentation.cli.main trading raw`
+**Статус**: ✅ ЗАВЕРШЕНО (2025-11-25, Sprint S2)
+
+**Проблема**: Строки 56 и 60 содержали примеры CLI-команд `poetry run python -m presentation.cli.main trading raw`
 
 **Файлы**: `docs/TRADING_WINDOWS.md:56,60`
 
-**Влияние**: Документация по trading windows полностью неработоспособна
-
-**Решение**: Заменить оба CLI примера на Python API
-
-**Пример 1 (без фильтров)**:
-```python
-from py_accountant.application.use_cases_async.trading_balance import (
-    AsyncGetTradingBalanceRaw
-)
-
-async with uow_factory() as uow:
-    use_case = AsyncGetTradingBalanceRaw(uow, clock)
-    result = await use_case()  # все счета
-```
-
-**Пример 2 (с фильтром по счетам)**:
-```python
-result = await use_case(
-    account_names=["Assets:Cash", "Liabilities:Cards"]
-)
-```
+**Выполненные изменения**:
+- ✅ Оба CLI примера заменены на Python API с `AsyncGetTradingBalanceRaw`
+- ✅ Показан пример без фильтров (все счета)
+- ✅ Показан пример с фильтрами по времени и metadata
+- ✅ Добавлены импорты и полный рабочий код
 
 **Оценка**: 2 часа  
-**Спринт**: S2  
-**Зависимости**: Нет
+**Фактически**: ~20 минут  
+**Спринт**: S2
 
 ---
 
-### 4. README.md — добавить async версию GetAccountBalance
+### 4. ✅ README.md — добавить async версию GetAccountBalance
 
-**Проблема**: Строки 102-110 показывают только sync версию `GetBalance`, которая deprecated
+**Статус**: ✅ ЗАВЕРШЕНО (2025-11-25, Sprint S2)
 
-**Файлы**: `README.md:102-110`
+**Проблема**: Строки показывали только sync версию `GetBalance`, которая deprecated
 
-**Влияние**: Новые пользователи будут использовать устаревший sync API
+**Файлы**: `README.md` (секция "Интеграция через core")
 
-**Решение**: Добавить async пример **рядом** с sync (с пометкой о deprecation)
-
-```python
-# ⚠️ Sync API (deprecated, для обратной совместимости)
-def get_balance(uow_factory, clock, account: str):
-    with uow_factory() as uow:
-        use_case = GetBalance(uow, clock)
-        return use_case(account_full_name=account)
-
-# ✅ Async API (рекомендуется)
-async def get_balance_async(uow_factory, clock, account: str):
-    async with uow_factory() as uow:
-        use_case = AsyncGetAccountBalance(uow, clock)
-        return await use_case(account_full_name=account)
-```
+**Выполненные изменения**:
+- ✅ Добавлен async пример с `AsyncGetAccountBalance` рядом с sync
+- ✅ Sync примеры помечены как "⚠️ Sync API (deprecated)"
+- ✅ Async примеры помечены как "✅ Async API (рекомендуется)"
+- ✅ Показаны примеры `AsyncPostTransaction` и `AsyncGetAccountBalance`
 
 **Оценка**: 1 час  
-**Спринт**: S2  
-**Зависимости**: Нет
+**Фактически**: ~15 минут  
+**Спринт**: S2
 
 ---
 
-### 5. README.md — предупреждение о sync API deprecation
+### 5. ✅ README.md — предупреждение о sync API deprecation
 
-**Проблема**: README показывает sync примеры без явного указания на deprecation статус
+**Статус**: ✅ ЗАВЕРШЕНО (2025-11-25, Sprint S2)
 
-**Файлы**: `README.md:70-85,102-110`
+**Проблема**: README показывал sync примеры без явного указания на deprecation статус
 
-**Влияние**: Пользователи могут не понять, что sync API устарел
+**Файлы**: `README.md` (начало файла)
 
-**Решение**: Добавить секцию в начало README:
-
-```markdown
-## ⚠️ Важно: Async-first Architecture
-
-**Версия 1.0.0+** использует async-first подход:
-- ✅ **Рекомендуется**: `AsyncUnitOfWork` и `use_cases_async.*`
-- ⚠️ **Deprecated**: Sync `UnitOfWork` и `use_cases.*` (сохранены для обратной совместимости)
-
-Все новые проекты должны использовать async API. Sync API будет удалён в версии 2.0.0.
-```
+**Выполненные изменения**:
+- ✅ Добавлена секция "⚠️ Важно: Async-first Architecture" в начало README
+- ✅ Указано, что версия 1.0.0+ использует async-first подход
+- ✅ Отмечено, что sync API deprecated и будет удалён в v2.0.0
+- ✅ Даны чёткие рекомендации: использовать `AsyncUnitOfWork` и `use_cases_async.*`
 
 **Оценка**: 0.5 часа  
-**Спринт**: S2  
-**Зависимости**: Проблема #4
+**Фактически**: ~10 минут  
+**Спринт**: S2
 
 ---
 
-### 6. docs/ARCHITECTURE_OVERVIEW.md — убрать Presentation из слоёв
+### 6. ✅ docs/ARCHITECTURE_OVERVIEW.md — убрать Presentation из слоёв
 
-**Проблема**: Строка 134 упоминает "Planned CLI/Presentation" с примерами путей к файлам
+**Статус**: ✅ ЗАВЕРШЕНО (2025-11-25, Sprint S2)
 
-**Файлы**: `docs/ARCHITECTURE_OVERVIEW.md:134`
+**Проблема**: Упоминание "Planned CLI/Presentation" с примерами путей к несуществующим файлам
 
-**Влияние**: Вводит в заблуждение относительно архитектуры проекта
+**Файлы**: `docs/ARCHITECTURE_OVERVIEW.md`
 
-**Решение**: Заменить текст
-
-**Было**:
-```markdown
-- (Planned) CLI/Presentation: `src/presentation/cli/main.py`, 
-  `src/presentation/cli/*.py` — этот слой описан в архитектуре 
-  как возможное будущее HTTP/CLI API
-```
-
-**Стало**:
-```markdown
-**Примечание об архитектуре**: Presentation/CLI layer был удалён в версии 1.0.0 
-в пользу core-only архитектуры. Интеграторы (Telegram bots, FastAPI apps, etc.) 
-создают собственный presentation layer и работают напрямую через 
-`py_accountant.application` (use cases и порты).
-
-Пример: `examples/telegram_bot/` показывает интеграцию через aiogram 3.x.
-```
+**Выполненные изменения**:
+- ✅ Удалены все упоминания CLI и presentation layer из навигации по исходникам
+- ✅ Добавлено примечание: "Presentation/CLI layer был удалён в версии 1.0.0"
+- ✅ Указано, что интеграторы создают собственный presentation layer
+- ✅ Добавлена ссылка на `examples/telegram_bot/` как пример интеграции
+- ✅ Обновлено описание FX TTL: убраны упоминания CLI
 
 **Оценка**: 1 час  
-**Спринт**: S2  
-**Зависимости**: Нет
+**Фактически**: ~15 минут  
+**Спринт**: S2
 
 ---
 

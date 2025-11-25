@@ -50,18 +50,30 @@ CLI — async-only: команды вызывают асинхронные use c
 Формат JSON (список объектов):
 - currency_code, debit, credit, net — все значения как строки; деньги с 2 знаками.
 
-Примеры:
-- Все операции до текущего момента в JSON:
-  ```bash
-  poetry run python -m presentation.cli.main trading raw --json
-  ```
-- Явный интервал и фильтр по meta:
-  ```bash
-  poetry run python -m presentation.cli.main trading raw \
-    --start 2025-11-10T10:00:00Z --end 2025-11-10T12:00:00Z \
-    --meta source=exchange --meta user=alice \
-    --json
-  ```
+Примеры через Python API:
+
+```python
+from py_accountant.application.use_cases_async.trading_balance import (
+    AsyncGetTradingBalanceRaw
+)
+from datetime import datetime, UTC
+
+async with uow_factory() as uow:
+    use_case = AsyncGetTradingBalanceRaw(uow, clock)
+    
+    # Все операции до текущего момента
+    result = await use_case()
+    
+    # Явный интервал и фильтр по meta
+    result = await use_case(
+        start=datetime(2025, 11, 10, 10, 0, 0, tzinfo=UTC),
+        end=datetime(2025, 11, 10, 12, 0, 0, tzinfo=UTC),
+        meta={"source": "exchange", "user": "alice"}
+    )
+    
+    for line in result:
+        print(f"{line.currency_code}: debit={line.debit}, credit={line.credit}, net={line.net}")
+```
 
 ## Команда: trading detailed
 Агрегация и конверсия в базовую валюту. Требуется валидная base.

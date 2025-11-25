@@ -1,13 +1,13 @@
 # FX Audit (Async)
 
-Документ описывает аудит курсов валют: какие события хранятся, как их добавлять и читать из CLI, и как планировать TTL. Архитектура async-only: работа ведётся через async use cases.
+Документ описывает аудит курсов валют: какие события хранятся, как их добавлять и читать через Python API, и как планировать TTL. Архитектура async-only: работа ведётся через async use cases.
 
 ## Назначение
 FX Audit фиксирует «события курса» (exchange rate event) — точечные значения курса в момент времени. Это нужно для воспроизводимости расчётов, диагностики и аналитики.
 
-- События добавляются явно (CLI или SDK) и не изменяются задним числом.
+- События добавляются явно через Python API и не изменяются задним числом.
 - Чтение событий поддерживает фильтры и пагинацию.
-- Политики хранения (TTL) планируются из CLI; исполнение — фоновым воркером/SDK.
+- Политики хранения (TTL) планируются через Python API; исполнение — фоновым воркером.
 
 ## Таблицы (schema summary)
 Основная таблица: `exchange_rate_events` (см. Alembic ревизию `0004_add_exchange_rate_events`).
@@ -49,85 +49,130 @@ FX Audit фиксирует «события курса» (exchange rate event) 
 - Правило: 6 дробных знаков, ROUND_HALF_EVEN.
 - В БД хранится точность как введена; на выводе — 6 знаков.
 
-## Команды CLI
-CLI-группа: `fx` (см. `src/presentation/cli/fx_audit.py`). Все команды async, JSON-вывод включается флагом `--json`.
+## Python API Usage
 
-### add-event — добавить событие
-Добавляет новое событие курса (append-only).
+**Важно**: Presentation/CLI layer был удалён в версии 1.0.0. Используйте Python API напрямую через async use cases.
 
-Синтаксис:
-- `poetry run python -m presentation.cli.main fx add-event CODE RATE [--occurred-at ISO] [--source TEXT] [--json]`
+### Добавление события курса
 
-Правила/валидация:
-- `CODE` нормализуется к верхнему регистру; пустой код — ошибка.
-- `RATE` парсится как Decimal, должен быть > 0.
-- `--occurred-at` — ISO8601; если дата без таймзоны, считается UTC; по умолчанию — текущее UTC.
-- `policy_applied` устанавливается как `manual`.
-- `source` — произвольный тег; по умолчанию `cli`.
+Use case: `AsyncAddExchangeRateEvent` из `py_accountant.application.use_cases_async.fx_audit`
 
-JSON-ответ (событие):
-```
-{
-  "id": 42,
-  "code": "EUR",
-  "rate": "1.123400",
-  "occurred_at": "2025-11-12T10:15:30+00:00",
-  "policy_applied": "manual",
-  "source": "cli"
-}
-```
+```python
+from py_accountant.application.use_cases_async.fx_audit import AsyncAddExchangeRateEvent
+from decimal import Decimal
+from datetime import datetime, UTC
 
-### list — список событий
-Возвращает список событий с фильтрами и пагинацией.
-
-Синтаксис и параметры:
-- `--code CODE` — фильтр по валюте (опционально)
-- `--start ISO` — начало окна (включительно, опционально)
-- `--end ISO` — конец окна (включительно, опционально)
-- `--offset N` — смещение (>= 0; по умолчанию 0)
-- `--limit N` — максимум записей (None = без ограничений; 0 = пустой список)
-- `--order ASC|DESC` — порядок по `occurred_at` (ASC по умолчанию)
-- `--json` — вывод в JSON
-
-Формат JSON:
-- Массив объектов события (как в примере для add-event).
-- Поля:
-  - `rate` — строка с 6 знаками после запятой.
-  - `occurred_at` — ISO8601 в UTC (`+00:00`).
-
-Примечания:
-- При `limit` не задано список может быть большим — осторожно с памятью.
-- `limit=0` вернёт пустой массив без обращения к БД.
-
-### ttl-plan — план TTL
-Команда только планирует действия по TTL. Никаких изменений данных не выполняется.
-
-Синтаксис и параметры:
-- `--mode MODE` — `none|delete|archive` (по умолчанию `none`)
-- `--retention-days D` — окно хранения в днях (>= 0; по умолчанию 90)
-- `--batch-size N` — размер батча (> 0; по умолчанию 1000)
-- `--limit N` — ограничить количество candidate ID (>= 0; опционально)
-- `--dry-run/--no-dry-run` — сухой прогон (по умолчанию `--dry-run`)
-- `--json` — вывод плана в JSON
-
-JSON-ответ (план):
-```
-{
-  "cutoff": "2025-11-12T00:00:00+00:00",
-  "mode": "archive",
-  "retention_days": 90,
-  "batch_size": 1000,
-  "dry_run": true,
-  "total_old": 12345,
-  "batches": [{"offset": 0, "limit": 1000}],
-  "old_event_ids": [1, 2, 3]
-}
+# Инициализация use case
+async with uow_factory() as uow:
+    use_case = AsyncAddExchangeRateEvent(uow)
+    
+    # Добавление события курса
+    event = await use_case(
+        code="USD",
+        rate=Decimal("75.50"),
+        occurred_at=datetime.now(UTC),
+        policy_applied="manual",
+        source="manual"  # опционально
+    )
+    
+    print(f"Событие добавлено: ID={event.id}, код={event.code}, курс={event.rate}")
 ```
 
-Подсказка: для машинной обработки всегда добавляйте `--json`.
+**Правила/валидация**:
+- `code` — код валюты (нормализуется к верхнему регистру); пустой код → ошибка
+- `rate` — Decimal, должен быть > 0
+- `occurred_at` — datetime с таймзоной (UTC рекомендуется)
+- `policy_applied` — строка, описывающая применённую политику (обычно `"manual"`)
+- `source` — опциональный тег источника (по умолчанию `None`)
 
-## TTL исполнение (execute) — вне CLI
-Исполнение TTL из CLI недоступно. Выполнение делает фоновый воркер/SDK через use case `AsyncExecuteFxAuditTTL` (см. `src/application/use_cases_async/fx_audit_ttl.py`).
+**Возвращает**: `ExchangeRateEventDTO` с полями:
+- `id` — идентификатор события
+- `code` — код валюты
+- `rate` — курс (Decimal)
+- `occurred_at` — время события (datetime)
+- `policy_applied` — применённая политика
+- `source` — источник (или None)
+
+### Получение списка событий
+
+Use case: `AsyncListExchangeRateEvents` из `py_accountant.application.use_cases_async.fx_audit`
+
+```python
+from py_accountant.application.use_cases_async.fx_audit import AsyncListExchangeRateEvents
+
+async with uow_factory() as uow:
+    use_case = AsyncListExchangeRateEvents(uow)
+    
+    # Все события
+    events = await use_case()
+    
+    # Фильтр по валюте
+    usd_events = await use_case(code="USD")
+    
+    # Ограничение количества (последние N событий)
+    recent_events = await use_case(code="EUR", limit=10)
+    
+    for event in events:
+        print(f"{event.code}: {event.rate} at {event.occurred_at}")
+```
+
+**Параметры**:
+- `code` (опционально) — фильтр по коду валюты
+- `limit` (опционально) — максимальное количество событий (None = без ограничений)
+
+**Возвращает**: `list[ExchangeRateEventDTO]` (упорядочен по времени, новые сначала)
+
+**Примечания**:
+- При `limit=None` может вернуть большой список — используйте осторожно
+- События отсортированы по `occurred_at` в обратном порядке (новые первые)
+
+### Планирование TTL для событий курсов
+
+Use case: `AsyncPlanFxAuditTTL` из `py_accountant.application.use_cases_async.fx_audit_ttl`
+
+```python
+from py_accountant.application.use_cases_async.fx_audit_ttl import AsyncPlanFxAuditTTL
+
+async with uow_factory() as uow:
+    use_case = AsyncPlanFxAuditTTL(uow, clock)
+    
+    # Планирование архивации старых событий (90 дней)
+    plan = await use_case(
+        retention_days=90,
+        batch_size=1000,
+        mode="archive",  # "none", "delete" или "archive"
+        limit=None,      # опционально: ограничить количество событий
+        dry_run=True     # True = только планирование, без выполнения
+    )
+    
+    print(f"Cutoff date: {plan.cutoff}")
+    print(f"События для архивации: {plan.total_old}")
+    print(f"Batches: {len(plan.batches)}")
+    print(f"Old event IDs (sample): {plan.old_event_ids[:10]}")
+```
+
+**Параметры**:
+- `retention_days` — окно хранения в днях (>= 0; 0 = удалить все)
+- `batch_size` — размер батча для обработки (> 0)
+- `mode` — режим: `"none"` (ничего не делать), `"delete"` (удалить), `"archive"` (архивировать и удалить)
+- `limit` (опционально) — ограничить количество candidate IDs (None = без ограничений)
+- `dry_run` — если `True`, выполнение не изменит данные
+
+**Возвращает**: `FxAuditTTLPlanDTO` с полями:
+- `cutoff` — дата отсечки (datetime)
+- `mode` — выбранный режим
+- `retention_days` — окно хранения
+- `batch_size` — размер батча
+- `dry_run` — флаг сухого прогона
+- `total_old` — общее количество старых событий
+- `batches` — список батчей для обработки
+- `old_event_ids` — список ID старых событий
+
+### Исполнение TTL
+
+Use case: `AsyncExecuteFxAuditTTL` из `py_accountant.application.use_cases_async.fx_audit_ttl`
+
+**Важно**: Исполнение TTL выполняется фоновым воркером, а не через CLI.
 
 Поведение:
 - `mode=none` — никаких действий.
@@ -140,15 +185,13 @@ JSON-ответ (план):
 - `batch_size > 0`; `total_old >= 0`.
 
 ## Ошибки и валидация (типичные случаи)
-CLI и use cases проверяют входные данные. Частые ошибки:
-- Неверная ставка: `rate <= 0` или не парсится — ошибка "Invalid rate".
-- Неверная дата: плохой ISO-формат — "Invalid datetime".
-- Окно времени: `start > end` — ошибка.
-- Порядок: `--order` не из `ASC|DESC` — ошибка.
-- Пагинация: `offset < 0`, `limit < 0` — ошибка.
-- TTL режим: неизвестный `--mode` — ошибка.
-- TTL параметры: `retention_days < 0`, `batch_size <= 0` — ошибка.
-- TTL план/execute (SDK): пустые IDs при `delete|archive`; покрытие `batches` не равно `total_old`.
+Use cases проверяют входные данные. Частые ошибки:
+- Неверная ставка: `rate <= 0` или не является Decimal — ValidationError.
+- Неверная дата: отсутствие таймзоны или некорректный datetime — ошибка.
+- Пагинация: `limit < 0` — ValidationError.
+- TTL режим: неизвестный `mode` (не "none"/"delete"/"archive") — ValidationError.
+- TTL параметры: `retention_days < 0`, `batch_size <= 0` — ValidationError.
+- TTL план/execute: пустые IDs при `delete|archive`; покрытие `batches` не равно `total_old`.
 
 ## Примеры JSON
 Событие:
@@ -214,13 +257,13 @@ CLI и use cases проверяют входные данные. Частые о
 
 ---
 Мини-чеклист (внутренний):
-- [x] Нет упоминаний устаревших команд.
-- [x] Раздел TTL: план в CLI, исполнение — вне CLI.
+- [x] Нет упоминаний устаревших команд CLI.
+- [x] Раздел TTL: план через Python API, исполнение — фоновым воркером.
 - [x] Примеры JSON содержат нужные поля и форматы (6dp, ISO8601 UTC).
 - [x] Зафиксированы режимы TTL: none, delete, archive, и правила ошибок.
 
 ## TTL Архитектура
-TTL реализуется в два шага: планирование (CLI `fx ttl-plan`) и исполнение (воркер/SDK). Репозиторий предоставляет только примитивы TTL; оркестрация находится в домене и use cases.
+TTL реализуется в два шага: планирование (через `AsyncPlanFxAuditTTL`) и исполнение (через `AsyncExecuteFxAuditTTL` в фоновом воркере). Репозиторий предоставляет только примитивы TTL; оркестрация находится в домене и use cases.
 
 Слои:
 - Примитивы TTL репозитория: `list_old_events(cutoff)`, `archive_events(rows)`, `delete_events_by_ids(ids)`.
@@ -258,9 +301,9 @@ for batch in plan.batches:
 
 Рекомендуемый безопасный запуск:
 1. `FX_TTL_MODE=archive` и `FX_TTL_DRY_RUN=true`.
-2. CLI: `fx ttl-plan --retention-days 90 --batch-size 1000 --mode archive --json`.
+2. Python API: создать план через `AsyncPlanFxAuditTTL(retention_days=90, batch_size=1000, mode="archive", dry_run=True)`.
 3. Проверить `total_old`, `batches`, `old_event_ids`.
-4. Запустить исполнение воркером с `FX_TTL_DRY_RUN=false`.
+4. Запустить исполнение воркером с `FX_TTL_DRY_RUN=false` через `AsyncExecuteFxAuditTTL`.
 
 ## Глоссарий (TTL)
 - retention_cutoff — `now() - retention_days` (UTC).

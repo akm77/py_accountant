@@ -85,7 +85,22 @@ export DATABASE_URL=sqlite+pysqlite:///./dev.db
 poetry run alembic upgrade head
 # Запуск приложения (если есть async runtime)
 export DATABASE_URL_ASYNC=sqlite+aiosqlite:///./dev.db
-poetry run python -m presentation.cli.main trading detailed --base USD
+```
+
+После миграций можно проверить trading balance через Python API:
+
+```python
+from py_accountant.application.use_cases_async.trading_balance import (
+    AsyncGetTradingBalanceDetailed
+)
+
+async with uow_factory() as uow:
+    use_case = AsyncGetTradingBalanceDetailed(uow, clock)
+    result = await use_case(base_currency="USD")
+    
+    print(f"Total in {result[0].currency_code if result else 'N/A'}")
+    for item in result:
+        print(f"  {item.currency_code}: debit={item.debit}, credit={item.credit}, net={item.net}")
 ```
 
 ## 6. Проверка на misconfiguration
