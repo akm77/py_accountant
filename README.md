@@ -448,6 +448,15 @@ See **[docs/INDEX.md](docs/INDEX.md)** for complete documentation index.
 - docs/ACCOUNTING_CHEATSHEET.md — шпаргалка по проводкам
 - docs/PERFORMANCE.md — производительность и оптимизации
 
+### API и конфигурация
+- **docs/API_REFERENCE.md** — полный справочник публичного API (use cases, protocols, DTOs) ⭐
+- **docs/CONFIG_REFERENCE.md** — полный справочник по конфигурации окружения ⭐ ✨ **NEW**
+  - 27 переменных окружения
+  - Dual-URL architecture
+  - Примеры для dev/staging/production
+  - Secrets management (AWS, K8s, Vault)
+  - Troubleshooting guide
+
 ### Интеграция
 - **docs/INTEGRATION_GUIDE.md** — базовое руководство по встраиванию (core-only)
 - **docs/INTEGRATION_GUIDE_AIOGRAM.md** — детальное руководство по интеграции в Telegram Bot (aiogram 3.x) ⭐

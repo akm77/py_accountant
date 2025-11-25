@@ -1,40 +1,88 @@
+# py_accountant Docker Compose Configuration
+# Purpose: Local development and testing environment with PostgreSQL
+# Documentation: docs/CONFIG_REFERENCE.md
+#
+# Usage:
+#   docker-compose up -d          # Start services in background
+#   docker-compose logs -f        # View logs
+#   docker-compose down           # Stop services
+#   docker-compose down -v        # Stop and remove volumes
+
 version: "3.9"
 
 services:
+  # PostgreSQL database service
+  # Latest stable version with alpine for smaller image size
   postgres:
     image: postgres:16
     container_name: py_accountant_postgres
     restart: unless-stopped
+
+    # Environment variables for PostgreSQL initialization
+    # ⚠️ Change these values for production deployments!
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: py_accountant
+      POSTGRES_USER: postgres          # Database superuser
+      POSTGRES_PASSWORD: postgres      # ⚠️ CHANGE IN PRODUCTION!
+      POSTGRES_DB: py_accountant       # Default database name
+
+    # Expose PostgreSQL port to host
+    # Format: "host_port:container_port"
     ports:
-      - "5432:5432"  # expose to host
+      - "5432:5432"
+
+    # Persist database data across container restarts
     volumes:
       - db-data:/var/lib/postgresql/data
+
+    # Health check to ensure database is ready before starting dependent services
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 10s      # Check every 10 seconds
+      timeout: 5s        # Timeout after 5 seconds
+      retries: 5         # Retry 5 times before marking unhealthy
 
+  # pgAdmin web interface for database administration
+  # Access at http://localhost:8080
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: py_accountant_pgadmin
     restart: unless-stopped
+
+    # pgAdmin configuration
+    # ⚠️ Change these credentials for production!
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: admin@example.com    # Login email
+      PGADMIN_DEFAULT_PASSWORD: admin             # ⚠️ CHANGE IN PRODUCTION!
+
+    # Expose pgAdmin web interface
     ports:
-      - "8080:80"  # expose to host
+      - "8080:80"
+
+    # Persist pgAdmin configuration and saved servers
     volumes:
       - pgadmin-data:/var/lib/pgadmin
+
+    # Wait for PostgreSQL to be healthy before starting
     depends_on:
       postgres:
         condition: service_healthy
 
+# Named volumes for data persistence
+# Data persists across container restarts
+# Remove with: docker-compose down -v
 volumes:
-  db-data:
-  pgadmin-data:
+  db-data:           # PostgreSQL data
+  pgadmin-data:      # pgAdmin configuration
+
+# Network configuration
+# All services are on the same default network
+# They can communicate using service names (e.g., postgres:5432)
+#
+# Example connection strings:
+#   Sync:  postgresql+psycopg://postgres:postgres@postgres:5432/py_accountant
+#   Async: postgresql+asyncpg://postgres:postgres@postgres:5432/py_accountant
+#
+# From host machine:
+#   Sync:  postgresql+psycopg://postgres:postgres@localhost:5432/py_accountant
+#   Async: postgresql+asyncpg://postgres:postgres@localhost:5432/py_accountant
 

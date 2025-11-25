@@ -126,3 +126,275 @@ def get_balance(uow_factory, clock, account: str):
   - Тестирование (unit, integration, e2e)
   - Production checklist с мониторингом и безопасностью
 
+---
+
+## Configuration Deep Dive
+
+### Dual-URL Architecture
+
+py_accountant использует **dual-URL architecture** для разделения миграций и runtime операций:
+
+1. **DATABASE_URL** (sync) — для Alembic миграций
+   - Использует sync драйверы: `psycopg` (PostgreSQL), `pysqlite` (SQLite)
+   - Alembic требует sync connection
+   - Читается из `alembic/env.py`
+
+2. **DATABASE_URL_ASYNC** (async) — для runtime операций
+   - Использует async драйверы: `asyncpg` (PostgreSQL), `aiosqlite` (SQLite)
+   - AsyncUnitOfWork требует async connection
+   - Читается из `infrastructure.persistence.sqlalchemy.async_engine`
+
+**Почему два URL?**
+- Alembic не поддерживает async операции
+- Runtime использует async для лучшей конкурентности
+- Позволяет использовать разные параметры подключения (pooling, timeouts)
+
+**Migration Flow**:
+```
+DATABASE_URL (sync) → Alembic → Schema changes → Database
+                                                      ↓
+DATABASE_URL_ASYNC (async) → AsyncUnitOfWork → Runtime operations
+```
+
+**Пример настройки**:
+```python
+# alembic/env.py (sync)
+from os import getenv
+DATABASE_URL = getenv("DATABASE_URL")
+# Использует psycopg driver
+
+# infrastructure/persistence/sqlalchemy/async_engine.py (async)
+from os import getenv
+DATABASE_URL_ASYNC = getenv("DATABASE_URL_ASYNC")
+# Использует asyncpg driver
+```
+
+### Environment-Specific Configuration
+
+#### Development (.env.dev)
+```bash
+DATABASE_URL=sqlite+pysqlite:///./dev.db
+DATABASE_URL_ASYNC=sqlite+aiosqlite:///./dev.db
+LOG_LEVEL=DEBUG
+LOGGING_ENABLED=true
+JSON_LOGS=false
+FX_TTL_MODE=none
+```
+
+**Преимущества**: Простая настройка, нет внешних зависимостей  
+**Недостатки**: Не для production, ограниченная конкурентность
+
+#### Staging (.env.staging)
+```bash
+DATABASE_URL=postgresql+psycopg://user:pass@staging-db:5432/ledger
+DATABASE_URL_ASYNC=postgresql+asyncpg://user:pass@staging-db:5432/ledger
+LOG_LEVEL=INFO
+JSON_LOGS=true
+LOG_FILE=/var/log/py_accountant_staging.json
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+FX_TTL_MODE=archive
+FX_TTL_RETENTION_DAYS=30
+FX_TTL_DRY_RUN=true
+```
+
+**Преимущества**: Отражает production, позволяет тестирование  
+**Недостатки**: Требует PostgreSQL instance
+
+#### Production (.env.prod или Secrets Manager)
+```bash
+DATABASE_URL=postgresql+psycopg://user:${DB_PASSWORD}@prod-db:5432/ledger
+DATABASE_URL_ASYNC=postgresql+asyncpg://user:${DB_PASSWORD}@prod-db:5432/ledger
+LOG_LEVEL=WARNING
+LOGGING_ENABLED=false
+JSON_LOGS=true
+DB_POOL_SIZE=20
+DB_MAX_OVERFLOW=40
+DB_POOL_RECYCLE_SEC=3600
+FX_TTL_MODE=archive
+FX_TTL_RETENTION_DAYS=90
+FX_TTL_BATCH_SIZE=1000
+```
+
+**Best Practices**:
+- Используйте secrets manager (не .env файл)
+- Отключите internal logging (используйте внешнюю систему)
+- Настройте connection pooling
+- Включите structured logging (JSON)
+
+### Connection Pooling Strategy
+
+**Default Pool Settings**:
+```python
+DB_POOL_SIZE=5        # Core connections
+DB_MAX_OVERFLOW=10    # Additional connections under load
+DB_POOL_TIMEOUT=30    # Wait time before error
+DB_POOL_RECYCLE_SEC=1800  # Recycle stale connections (30 min)
+```
+
+**Sizing Guidelines**:
+```
+pool_size = concurrent_requests * avg_request_duration
+
+Пример:
+- 100 req/sec
+- 0.05 sec avg duration
+- pool_size = 100 * 0.05 = 5 connections
+```
+
+**Load Testing**:
+```bash
+# Test with different pool sizes
+for size in 5 10 20; do
+  export DB_POOL_SIZE=$size
+  poetry run locust -f tests/load/test_ledger.py --users 100 --spawn-rate 10
+done
+```
+
+### FX Audit TTL Configuration
+
+**Use Case**: Автоматическая очистка старых exchange rate events.
+
+**Modes**:
+1. **none** — Только ручная очистка
+2. **delete** — Постоянное удаление
+3. **archive** — Архивация в отдельную таблицу, затем удаление
+
+**Configuration**:
+```bash
+FX_TTL_MODE=archive
+FX_TTL_RETENTION_DAYS=90
+FX_TTL_BATCH_SIZE=1000
+FX_TTL_DRY_RUN=false
+```
+
+**Worker Implementation**:
+```python
+import asyncio
+from datetime import UTC, datetime
+from py_accountant.application.use_cases_async.fx_audit_ttl import (
+    AsyncPlanFxAuditTTL,
+    AsyncExecuteFxAuditTTL,
+)
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.infrastructure.persistence.inmemory.clock import SystemClock
+
+async def fx_ttl_worker(session_factory):
+    """Background worker for FX TTL."""
+    uow = AsyncSqlAlchemyUnitOfWork(session_factory)
+    clock = SystemClock()
+    
+    plan_ttl = AsyncPlanFxAuditTTL(uow=uow, clock=clock)
+    execute_ttl = AsyncExecuteFxAuditTTL(uow=uow, clock=clock)
+    
+    while True:
+        async with uow:
+            # Plan TTL
+            plan = await plan_ttl(
+                retention_days=90,
+                batch_size=1000,
+                mode="archive",
+                dry_run=False
+            )
+            
+            # Execute TTL
+            result = await execute_ttl(plan=plan)
+            await uow.commit()
+            
+            print(f"TTL: archived={result.archived_count}, deleted={result.deleted_count}")
+        
+        # Sleep until next run
+        await asyncio.sleep(86400)  # 24 hours
+
+# In main.py
+asyncio.create_task(fx_ttl_worker(session_factory))
+```
+
+### Secrets Management
+
+#### AWS Secrets Manager
+```python
+import boto3
+import json
+import os
+
+def load_secrets():
+    client = boto3.client('secretsmanager', region_name='us-east-1')
+    response = client.get_secret_value(SecretId='py_accountant/prod')
+    secrets = json.loads(response['SecretString'])
+    
+    os.environ['DATABASE_URL'] = secrets['database_url']
+    os.environ['DATABASE_URL_ASYNC'] = secrets['database_url_async']
+
+# Call before initializing UoW
+load_secrets()
+```
+
+#### Kubernetes Secrets
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: py-accountant-secrets
+type: Opaque
+stringData:
+  DATABASE_URL: postgresql+psycopg://user:pass@db:5432/ledger
+  DATABASE_URL_ASYNC: postgresql+asyncpg://user:pass@db:5432/ledger
+```
+
+```yaml
+# deployment.yaml
+env:
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: py-accountant-secrets
+        key: DATABASE_URL
+  - name: DATABASE_URL_ASYNC
+    valueFrom:
+      secretKeyRef:
+        name: py-accountant-secrets
+        key: DATABASE_URL_ASYNC
+```
+
+#### HashiCorp Vault
+```python
+import hvac
+import os
+
+def load_from_vault():
+    client = hvac.Client(url='https://vault.example.com')
+    client.auth.approle.login(role_id=ROLE_ID, secret_id=SECRET_ID)
+    
+    secrets = client.secrets.kv.v2.read_secret_version(path='py_accountant/prod')
+    data = secrets['data']['data']
+    
+    os.environ['DATABASE_URL'] = data['database_url']
+    os.environ['DATABASE_URL_ASYNC'] = data['database_url_async']
+
+load_from_vault()
+```
+
+### Configuration Validation
+
+Используйте validation script перед деплоем:
+
+```bash
+python tools/validate_config.py
+```
+
+Expected output:
+```
+✅ Valid database URL: postgresql://localhost
+✅ Valid async database URL: postgresql+asyncpg://localhost
+✅ LOG_LEVEL is valid: INFO
+✅ FX_TTL_MODE is valid: archive
+
+✅ Configuration validation passed!
+```
+
+**См. также**:
+- [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md) — Полный справочник переменных окружения
+- [FX_AUDIT.md](FX_AUDIT.md) — FX audit TTL детали
+- [RUNNING_MIGRATIONS.md](RUNNING_MIGRATIONS.md) — Alembic migrations
+

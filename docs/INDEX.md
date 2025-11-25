@@ -33,13 +33,24 @@
   - Миграция с sync на async API
   - Версия 1.1.0-S4 (2025-11-25)
 
+- **[CONFIG_REFERENCE.md](CONFIG_REFERENCE.md)** — 📘 Полный справочник по конфигурации окружения ✨ **NEW**
+  - 27 переменных окружения с детальным описанием
+  - Dual-URL architecture (DATABASE_URL + DATABASE_URL_ASYNC)
+  - Примеры для dev/staging/production
+  - Connection pooling и retry настройки
+  - FX TTL конфигурация
+  - Secrets management (AWS, K8s, Vault)
+  - Troubleshooting guide
+  - Версия 1.1.0-S5 (2025-11-25)
+
 ### Руководства по интеграции
 
 - **[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)** — Как использовать py_accountant в вашем проекте
-  - ⚠️ **Внимание:** Требует обновления (см. DOCUMENTATION_FIX_PROPOSAL.md)
   - Dual-URL setup (sync для миграций, async для runtime)
+  - Configuration Deep Dive ✨ **NEW**
   - Примеры реализации UoW
   - Вызов use cases
+  - Secrets management patterns
 
 - **[ACCOUNTING_CHEATSHEET.md](ACCOUNTING_CHEATSHEET.md)** — Шпаргалка по бухгалтерии
   - Основы двойной записи

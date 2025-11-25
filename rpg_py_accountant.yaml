@@ -1,10 +1,26 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    version: "1.1.0-S4"
+    version: "1.1.0-S5"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
     last_updated: "2025-11-25"
     changelog:
+      - version: "1.1.0-S5"
+        date: "2025-11-25"
+        changes:
+          - "DOC-S5: Создан CONFIG_REFERENCE.md — полный справочник по конфигурации (2000+ строк)"
+          - "DOC-S5: Документированы все 27 переменных окружения с примерами и валидацией"
+          - "DOC-S5: Добавлен раздел Configuration Deep Dive в INTEGRATION_GUIDE.md"
+          - "DOC-S5: Объяснена dual-URL architecture (DATABASE_URL + DATABASE_URL_ASYNC)"
+          - "DOC-S5: Документирован docker-compose.yml с детальными комментариями"
+          - "DOC-S5: Создан .env.docker для Docker окружения"
+          - "DOC-S5: Создан tools/validate_config.py для валидации конфигурации"
+          - "DOC-S5: Добавлены примеры для dev/staging/prod окружений"
+          - "DOC-S5: Документированы FX TTL modes (none/delete/archive)"
+          - "DOC-S5: Добавлены secrets management примеры (AWS, K8s, Vault)"
+          - "DOC-S5: Добавлен Troubleshooting раздел с типичными проблемами"
+          - "DOC-S5: Обновлён docs/INDEX.md со ссылкой на CONFIG_REFERENCE.md"
+          - "DOC-S5: Обновлён README.md с секцией API и конфигурация"
       - version: "1.1.0-S4"
         date: "2025-11-25"
         changes:
