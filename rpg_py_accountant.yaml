@@ -1,10 +1,21 @@
 rpg:
   metadata:
     project_name: "py_accountant"
-    version: "1.1.0-S2"
+    version: "1.1.0-S3"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
     last_updated: "2025-11-25"
     changelog:
+      - version: "1.1.0-S3"
+        date: "2025-11-25"
+        changes:
+          - "DOC-S3: Создан CHANGELOG.md для telegram_bot example (подтверждена совместимость с async API)"
+          - "DOC-S3: Создан полнофункциональный пример FastAPI REST API (examples/fastapi_basic/)"
+          - "DOC-S3: Создан полнофункциональный пример CLI с Typer (examples/cli_basic/)"
+          - "DOC-S3: Добавлены примеры интеграции FastAPI и CLI в INTEGRATION_GUIDE.md"
+          - "DOC-S3: Обновлён examples/__init__.py с документацией всех примеров"
+          - "DOC-S3: Все примеры используют async-first API и AsyncSqlAlchemyUnitOfWork"
+          - "DOC-S3: Все примеры имеют README.md, requirements.txt и рабочий код"
+          - "DOC-S3: Проверен синтаксис Python для всех новых файлов"
       - version: "1.1.0-S2"
         date: "2025-11-25"
         changes:
