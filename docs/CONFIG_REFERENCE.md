@@ -1297,6 +1297,17 @@ Expected output:
 
 ---
 
+## Навигация
+
+📚 **[← Назад к INDEX](INDEX.md)** | **[API Reference →](API_REFERENCE.md)** | **[Integration Guide →](INTEGRATION_GUIDE.md)**
+
+**См. также**:
+- [Tools: validate_config.py](../tools/validate_config.py) — Валидация конфигурации
+- [docker-compose.yml](../docker-compose.yml) — Docker setup
+- [Tests Documentation](../tests/docs/README.md) — Как тестируется эта документация
+
+---
+
 **Document Version**: 1.1.0-S5  
 **Last Updated**: 2025-11-25  
 **Maintainer**: py_accountant project team

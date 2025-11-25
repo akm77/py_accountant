@@ -1498,4 +1498,15 @@ assert clock.now() == datetime(2025, 1, 15, 10, 30, tzinfo=UTC)
 
 ---
 
+## Навигация
+
+📚 **[← Назад к INDEX](INDEX.md)** | **[Integration Guide →](INTEGRATION_GUIDE.md)** | **[Config Reference →](CONFIG_REFERENCE.md)**
+
+**См. также**:
+- [Examples](../examples/) — Готовые примеры кода
+- [Architecture Overview](ARCHITECTURE_OVERVIEW.md) — Архитектура проекта
+- [Tests Documentation](../tests/docs/README.md) — Как тестируется эта документация
+
+---
+
 

@@ -398,3 +398,14 @@ Expected output:
 - [FX_AUDIT.md](FX_AUDIT.md) — FX audit TTL детали
 - [RUNNING_MIGRATIONS.md](RUNNING_MIGRATIONS.md) — Alembic migrations
 
+---
+
+## Навигация
+
+📚 **[← Назад к INDEX](INDEX.md)** | **[API Reference →](API_REFERENCE.md)** | **[Config Reference →](CONFIG_REFERENCE.md)**
+
+**См. также**:
+- [Examples](../examples/) — Готовые примеры интеграции
+- [Architecture Overview](ARCHITECTURE_OVERVIEW.md) — Понимание архитектуры
+- [Tests Documentation](../tests/docs/README.md) — Валидация документации
+

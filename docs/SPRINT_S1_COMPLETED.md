@@ -338,3 +338,13 @@ prompts/sprint_graph.yaml        (обновлён: S1 completed) ✅
 
 **Следующий промпт**: `prompts/sprint_02_critical_fixes.md`
 
+
+---
+
+## Навигация
+
+📚 **[← Назад к INDEX](INDEX.md)** | **[CHANGELOG →](CHANGELOG.md)** | **[Final Report →](DOCUMENTATION_UPDATE_REPORT.md)**
+
+**См. также**:
+- [Sprint Graph](../prompts/sprint_graph.yaml) — Граф всех спринтов
+- [Tests Documentation](../tests/docs/README.md) — Автоматизированные тесты

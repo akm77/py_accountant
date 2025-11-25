@@ -200,6 +200,7 @@ class TestDocumentationLinks:
             'AUDIT_CODE_MAPPING.md',
             'AUDIT_INVENTORY.md',
             'CHANGELOG.md',  # telegram bot changelog documents migration
+            'DOCUMENTATION_UPDATE_REPORT.md',  # Final report documenting what was removed
         }
 
         for md_file in all_markdown_files:

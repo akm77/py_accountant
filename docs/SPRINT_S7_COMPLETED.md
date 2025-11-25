@@ -288,6 +288,16 @@ poetry run pytest tests/docs/test_docs_sections_present.py -v
 
 ---
 
+## Навигация
+
+📚 **[← Назад к INDEX](INDEX.md)** | **[CHANGELOG →](CHANGELOG.md)** | **[Final Report →](DOCUMENTATION_UPDATE_REPORT.md)**
+
+**См. также**:
+- [Sprint Graph](../prompts/sprint_graph.yaml) — Граф всех спринтов
+- [Tests Documentation](../tests/docs/README.md) — Автоматизированные тесты
+
+---
+
 **Создано**: 2025-11-25  
 **Автор**: Technical Writer & QA Engineer  
 **Версия**: 1.0.0  

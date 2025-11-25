@@ -266,3 +266,13 @@ Sprint S2 выполнен **успешно и досрочно**. Все кри
 **Версия**: 1.0  
 **Статус**: Final
 
+
+---
+
+## Навигация
+
+📚 **[← Назад к INDEX](INDEX.md)** | **[CHANGELOG →](CHANGELOG.md)** | **[Final Report →](DOCUMENTATION_UPDATE_REPORT.md)**
+
+**См. также**:
+- [Sprint Graph](../prompts/sprint_graph.yaml) — Граф всех спринтов
+- [Tests Documentation](../tests/docs/README.md) — Автоматизированные тесты
