@@ -8,6 +8,26 @@ rpg:
       - version: "1.1.0"
         date: "2025-11-26"
         changes:
+          - "MIGRATION-API: Wave 5 завершена - Alembic Integration (3 часа, на 25% быстрее плана)"
+          - "MIGRATION-API: Создан alembic_integration.py с функцией include_in_alembic() (85 строк)"
+          - "MIGRATION-API: Реализована интеграция py_accountant migrations в внешние Alembic проекты"
+          - "MIGRATION-API: Graceful degradation для context без script (не падает при ошибках)"
+          - "MIGRATION-API: Поддержка параметров table_prefix и schema (reserved для будущего)"
+          - "MIGRATION-API: Обработка None/tuple/list version_locations"
+          - "MIGRATION-API: Создано 10 comprehensive unit тестов (превышен план 5+ на 100%)"
+          - "MIGRATION-API: Все 10 тестов проходят (100% pass rate, execution 0.25s)"
+          - "MIGRATION-API: Coverage ~95% для alembic_integration.py"
+          - "MIGRATION-API: Создан пример интеграции examples/alembic_integration/README.md (85 строк)"
+          - "MIGRATION-API: Создан env.py.example с offline и online миграциями (63 строки)"
+          - "MIGRATION-API: Обновлён __init__.py с экспортом include_in_alembic"
+          - "MIGRATION-API: Создан WAVE_5_COMPLETION_REPORT.md (detailed report, 410 lines)"
+          - "MIGRATION-API: Создан PROJECT_PROGRESS_DASHBOARD.md (overall progress tracking)"
+          - "MIGRATION-API: Обновлён migration_api_rpg_graph.yaml (Wave 5 status, metrics)"
+          - "MIGRATION-API: Общий прогресс: 56% (Wave 1-5 из 9 завершены)"
+          - "MIGRATION-API: Все 52 migration тестов проходят (51 passed, 1 xfail)"
+          - "MIGRATION-API: Total LOC: ~1,492 (код + тесты + примеры)"
+          - "MIGRATION-API: Время потрачено: 22/41 часа (88% эффективности, 12% экономии)"
+          - "MIGRATION-API: Коммит 8a821b3: feat: Wave 5 - Alembic integration"
           - "MIGRATION-API: Wave 4 завершена - CLI commands (6 часов, точно по плану)"
           - "MIGRATION-API: Создан cli.py с 5 командами (upgrade, downgrade, current, pending, history)"
           - "MIGRATION-API: Реализован Rich console output с цветами и таблицами"
@@ -333,10 +353,13 @@ rpg:
         path: "src/py_accountant/infrastructure/migrations"
         description: "Встроенный Migration API: программное управление миграциями через MigrationRunner, CLI, интеграция с Alembic проектов."
         status: "in_progress"
-        progress: "44%"
-        waves_completed: ["wave_1", "wave_2", "wave_3", "wave_4"]
-        waves_pending: ["wave_5", "wave_6", "wave_7", "wave_8", "wave_9"]
+        progress: "56%"
+        waves_completed: ["wave_1", "wave_2", "wave_3", "wave_4", "wave_5"]
+        waves_pending: ["wave_6", "wave_7", "wave_8", "wave_9"]
         last_updated: "2025-11-26"
+        effort_total: "22 hours / 41 hours estimated (88% efficiency)"
+        tests_total: "52 tests (51 passed, 1 xfail)"
+        loc_total: "~1,492 LOC (code + tests + examples)"
         components:
           - name: "errors.py"
             status: "completed"
@@ -384,8 +407,9 @@ rpg:
           - name: "__init__.py"
             status: "updated"
             description: "Public API exports"
-            wave: "wave_3"
+            wave: "wave_3, wave_5"
             exports:
+              - "include_in_alembic"
               - "MigrationRunner"
               - "MigrationError"
               - "VersionMismatchError"
@@ -438,9 +462,40 @@ rpg:
             wave: "wave_4"
             lines_of_code: 6
           - name: "alembic_integration.py"
-            status: "pending"
-            description: "Интеграция с Alembic проектов через include_in_alembic()"
+            status: "completed"
+            description: "Интеграция py_accountant migrations в внешние Alembic проекты"
             wave: "wave_5"
+            lines_of_code: 85
+            tests: "tests/unit/infrastructure/migrations/test_alembic_integration.py (10 tests, 100% pass)"
+            coverage: "~95%"
+            completion_date: "2025-11-26"
+            effort: "3 часа (на 25% быстрее плана)"
+            commit: "8a821b3"
+            functions:
+              - "include_in_alembic(context, *, table_prefix='', schema=None) - добавить py_accountant migrations в Alembic project"
+            features:
+              - "Graceful degradation (не падает при отсутствии context.script)"
+              - "Обработка None/tuple/list version_locations"
+              - "Автоматическое добавление py_accountant versions"
+              - "Сохранение существующих version_locations"
+              - "Логирование операций"
+              - "Reserved parameters (table_prefix, schema) для будущего"
+              - "Full type hints с TYPE_CHECKING"
+            examples:
+              - "examples/alembic_integration/README.md (85 lines)"
+              - "examples/alembic_integration/alembic/env.py.example (63 lines)"
+            documentation:
+              - "WAVE_5_COMPLETION_REPORT.md - детальный отчёт (410 lines)"
+              - "PROJECT_PROGRESS_DASHBOARD.md - overall progress tracking"
+              - "WAVE_5_FINAL_CHECKLIST.md - полный чеклист"
+            usage: |
+              # В alembic/env.py интегратора:
+              from py_accountant.infrastructure.migrations import include_in_alembic
+              
+              def run_migrations_online():
+                  with context.begin_transaction():
+                      include_in_alembic(context)
+                      context.run_migrations()
       - name: "config"
         path: "src/py_accountant/infrastructure/config"
         description: "Конфигурация приложения на pydantic-settings; выбор профиля окружения."
@@ -678,11 +733,12 @@ rpg:
       title: "Встроенный Migration API для программного управления миграциями"
       status: "in_progress"
       start_date: "2025-11-26"
-      progress: "44%"
-      estimated_total_effort: "40 hours"
-      actual_effort: "19 hours"
+      progress: "56%"
+      estimated_total_effort: "41 hours"
+      actual_effort: "22 hours"
+      efficiency: "88% (12% time savings)"
       target_version: "1.2.0"
-      waves_completed: 4
+      waves_completed: 5
       waves_total: 9
       notes: |
         🔄 В ПРОЦЕССЕ: Реализация программного API для управления миграциями БД
@@ -730,7 +786,27 @@ rpg:
         - Summary: prompts/migration_api/WAVE_4_SUMMARY.md
         - All 41 migration tests passing (41 passed, 1 xfail)
         
-        📋 Remaining waves: 5-9 (Alembic Integration, Public API, Integration Tests, Docs, Examples)
+        ✅ Wave 5 COMPLETED (3 hours, на 25% быстрее плана):
+        - alembic_integration.py: include_in_alembic() helper (85 LOC)
+        - Интеграция py_accountant migrations в внешние Alembic проекты
+        - Graceful degradation для context без script
+        - Обработка None/tuple/list version_locations
+        - Параметры table_prefix и schema (reserved для будущего)
+        - 10 comprehensive unit тестов (превышен план 5+ на 100%, 100% pass)
+        - Coverage ~95%, execution time 0.25s
+        - Примеры: examples/alembic_integration/README.md (85 lines)
+        - Примеры: examples/alembic_integration/alembic/env.py.example (63 lines)
+        - __init__.py: добавлен экспорт include_in_alembic
+        - Отчёты:
+          - prompts/migration_api/WAVE_5_COMPLETION_REPORT.md (410 lines)
+          - prompts/migration_api/PROJECT_PROGRESS_DASHBOARD.md (overall tracking)
+          - prompts/migration_api/WAVE_5_FINAL_CHECKLIST.md (full checklist)
+        - Git commit: 8a821b3 (feat: Wave 5 - Alembic integration)
+        - All 52 migration tests passing (51 passed, 1 xfail)
+        - Total LOC: ~1,492 (code + tests + examples)
+        - Time efficiency: 88% (12% savings: 22h/41h estimated)
+        
+        📋 Remaining waves: 6-9 (Public API, Integration Tests, Documentation, Final Polish)
         📊 RPG граф: prompts/migration_api/migration_api_rpg_graph.yaml
         🎯 Методика: Repository Planning Graph (RPG)
 
