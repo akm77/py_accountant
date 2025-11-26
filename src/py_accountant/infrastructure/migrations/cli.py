@@ -4,7 +4,6 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Annotated
 
 import typer
 from alembic import command
@@ -40,8 +39,10 @@ def upgrade(
     """Apply migrations."""
 
     url = get_database_url()
-    engine = create_async_engine(url, echo=echo)
-    runner = MigrationRunner(engine, echo=echo)
+    # Ensure echo is boolean (typer may pass string from env vars)
+    echo_bool = bool(echo) if not isinstance(echo, bool) else echo
+    engine = create_async_engine(url, echo=echo_bool)
+    runner = MigrationRunner(engine, echo=echo_bool)
 
     console.print(f"[blue]Upgrading to {revision}...[/blue]")
     if revision == "head":
@@ -62,8 +63,10 @@ def downgrade(
         revision: Target revision or -N (e.g., -1, -2, or base)
     """
     url = get_database_url()
-    engine = create_async_engine(url, echo=echo)
-    runner = MigrationRunner(engine, echo=echo)
+    # Ensure echo is boolean (typer may pass string from env vars)
+    echo_bool = bool(echo) if not isinstance(echo, bool) else echo
+    engine = create_async_engine(url, echo=echo_bool)
+    runner = MigrationRunner(engine, echo=echo_bool)
 
     console.print(f"[yellow]Downgrading to {revision}...[/yellow]")
     asyncio.run(runner.downgrade(target=revision))
@@ -75,8 +78,10 @@ def current(echo: bool = typer.Option(False, "--echo")):
     """Show current schema version."""
 
     url = get_database_url()
-    engine = create_async_engine(url, echo=echo)
-    runner = MigrationRunner(engine, echo=echo)
+    # Ensure echo is boolean (typer may pass string from env vars)
+    echo_bool = bool(echo) if not isinstance(echo, bool) else echo
+    engine = create_async_engine(url, echo=echo_bool)
+    runner = MigrationRunner(engine, echo=echo_bool)
 
     current_version = asyncio.run(runner.get_current_version())
 
@@ -91,8 +96,10 @@ def pending(echo: bool = typer.Option(False, "--echo")):
     """Show pending migrations."""
 
     url = get_database_url()
-    engine = create_async_engine(url, echo=echo)
-    runner = MigrationRunner(engine, echo=echo)
+    # Ensure echo is boolean (typer may pass string from env vars)
+    echo_bool = bool(echo) if not isinstance(echo, bool) else echo
+    engine = create_async_engine(url, echo=echo_bool)
+    runner = MigrationRunner(engine, echo=echo_bool)
 
     pending_migrations = asyncio.run(runner.get_pending_migrations())
 
