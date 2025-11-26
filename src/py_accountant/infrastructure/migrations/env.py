@@ -139,15 +139,11 @@ def run_migrations_online() -> None:
             context.run_migrations()
 
 
-if __name__ == "__main__" or hasattr(context, "config"):
-    # Only execute when running as Alembic script or when context is available
-    try:
-        _initialize()
-        if context.is_offline_mode():
-            run_migrations_offline()
-        else:
-            run_migrations_online()
-    except AttributeError:
-        # context.config not available - likely being imported for testing
-        pass
+if __name__ == "__main__":
+    # Only execute when running as Alembic script
+    _initialize()
+    if context.is_offline_mode():
+        run_migrations_offline()
+    else:
+        run_migrations_online()
 

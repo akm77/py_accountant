@@ -72,6 +72,10 @@ class MigrationRunner:
         url_str = url_str.replace("postgresql+asyncpg", "postgresql+psycopg")
         config.set_main_option("sqlalchemy.url", url_str)
 
+        # Set echo parameter properly (Alembic expects string "true"/"false")
+        if self.echo:
+            config.set_main_option("sqlalchemy.echo", "true")
+
         return config
 
     async def upgrade_to_head(self) -> None:
