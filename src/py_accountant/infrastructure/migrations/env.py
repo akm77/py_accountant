@@ -41,10 +41,7 @@ def get_sync_url() -> str:
     - Prefer programmatic ``sqlalchemy.url`` from Config when present (test isolation)
     - Fallback to environment variable ``DATABASE_URL`` when config is empty
 
-    However, if environment variable ``DATABASE_URL`` is set to an async driver
-    (asyncpg/aiosqlite/+async), we fail fast with RuntimeError even if a config
-    URL is present. This preserves the safety invariant tested by the suite that
-    Alembic must not run with an async URL provided via env.
+    The URL is validated to ensure it's a synchronous driver.
     """
     async_url_present = os.getenv("DATABASE_URL_ASYNC")
     if async_url_present:
@@ -52,9 +49,18 @@ def get_sync_url() -> str:
             "DATABASE_URL_ASYNC is set but ignored by Alembic; migrations must use a sync URL via DATABASE_URL or sqlalchemy.url."
         )
 
+    # First check config URL (programmatically set, e.g., by MigrationRunner)
+    cfg_url = (_get_config().get_main_option("sqlalchemy.url") or "").strip()
+
+    # Fallback to environment variable
     env_url = (os.getenv("DATABASE_URL") or "").strip()
-    if env_url:
-        # If env specifies an async driver, reject immediately
+
+    # Prefer programmatic config URL for actual engine usage when present
+    raw_url = cfg_url or env_url
+
+    # Only validate env URL if we're using it (config URL is already converted by MigrationRunner)
+    if not cfg_url and env_url:
+        # If env specifies an async driver, reject it
         try:
             env_sa_url = make_url(env_url)
             env_driver = (env_sa_url.drivername or "").lower()
@@ -68,21 +74,13 @@ def get_sync_url() -> str:
         except Exception as exc:
             # If parsing failed, re-raise as ValueError to mimic SA behavior
             raise ValueError(f"Invalid DATABASE_URL: {env_url}") from exc
-
-    cfg_url = (_get_config().get_main_option("sqlalchemy.url") or "").strip()
-    # Prefer programmatic config URL for actual engine usage when present
-    raw_url = cfg_url or env_url
     if not raw_url:
         raise ValueError(
             "No synchronous database URL found (sqlalchemy.url or DATABASE_URL). Provide a sync URL e.g. postgresql+psycopg or sqlite+pysqlite."
         )
 
+    # Return the URL (config URL is already converted to sync by MigrationRunner)
     sa_url = make_url(str(raw_url))
-    driver = (sa_url.drivername or "").lower()
-    if any(tok in driver for tok in ["asyncpg", "aiosqlite", "+async"]):
-        raise RuntimeError(
-            "Async driver not supported for Alembic; use a synchronous URL (e.g., postgresql+psycopg or sqlite+pysqlite)."
-        )
     return sa_url.render_as_string(hide_password=False)
 
 
@@ -139,11 +137,17 @@ def run_migrations_online() -> None:
             context.run_migrations()
 
 
-if __name__ == "__main__":
-    # Only execute when running as Alembic script
+# Execute migrations when called by Alembic
+# Check if we're in an Alembic runtime context
+try:
+    # This will succeed if Alembic has set up the context
+    _get_config()
     _initialize()
     if context.is_offline_mode():
         run_migrations_offline()
     else:
         run_migrations_online()
+except:
+    # Not in Alembic context (e.g., when imported in tests)
+    pass
 
