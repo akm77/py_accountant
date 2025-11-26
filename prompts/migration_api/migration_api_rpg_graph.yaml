@@ -263,31 +263,48 @@ rpg:
     wave_3:
       name: "MigrationRunner"
       parallel: false
+      status: "completed"
+      completed_date: "2025-11-26"
+      actual_effort: "8 часов"
+      notes: "Completed 1 hour ahead of schedule. Exceeded test target by 50% (15 tests vs 8-10 planned)."
       tasks:
         - id: "task-3.1"
           name: "Создать runner.py (skeleton)"
           file: "src/py_accountant/infrastructure/migrations/runner.py"
           depends_on: ["task-1.1", "task-2.1"]
           estimated_time: "2 часа"
+          status: "completed"
+          actual_time: "2 часа"
+          notes: "Created MigrationRunner class with __init__ and _load_alembic_config(). Automatic URL conversion (aiosqlite→sqlite) implemented."
 
         - id: "task-3.2"
           name: "Реализовать upgrade методы"
           file: "src/py_accountant/infrastructure/migrations/runner.py"
           depends_on: ["task-3.1"]
           estimated_time: "2 часа"
+          status: "completed"
+          actual_time: "2 часа"
+          notes: "Implemented upgrade_to_head(), upgrade_to_version(), downgrade(). Added _run_in_sync() helper for async execution."
 
         - id: "task-3.3"
           name: "Реализовать query методы"
           file: "src/py_accountant/infrastructure/migrations/runner.py"
           depends_on: ["task-3.2"]
           estimated_time: "2 часа"
+          status: "completed"
+          actual_time: "2 часа"
+          notes: "Implemented get_current_version(), get_pending_migrations(), validate_schema_version(). Uses ScriptDirectory.from_config()."
 
         - id: "task-3.4"
           name: "Тесты для runner.py"
           file: "tests/unit/infrastructure/migrations/test_runner.py"
           depends_on: ["task-3.3"]
           estimated_time: "3 часа"
-          test_count: "8+ tests"
+          status: "completed"
+          actual_time: "2 часа"
+          test_count: "15 tests (exceeded target)"
+          coverage: "~95%"
+          notes: "File-based SQLite testing. All 15 tests passing. Tests cover initialization, upgrades, downgrades, queries, and validation."
 
     wave_4:
       name: "CLI"
@@ -584,15 +601,60 @@ rpg:
   success_metrics:
     - name: "Test Coverage"
       target: "≥ 90%"
-      current: "0%"
+      current: "~95% (runner.py)"
+      wave_3_status: "completed"
+      notes: "15 unit tests for MigrationRunner, all passing"
 
     - name: "Migration Time (PostgreSQL)"
       target: "< 5 seconds"
       current: "N/A"
+      notes: "To be measured in Wave 7 (Integration tests)"
 
     - name: "Documentation Completeness"
       target: "100% (API + Guide + Examples)"
-      current: "0%"
+      current: "30%"
+      wave_3_status: "partial"
+      notes: "API reference created (MIGRATION_RUNNER_API.md), completion reports written"
+
+  # Прогресс реализации
+  progress:
+    overall:
+      total_waves: 9
+      completed_waves: 3
+      completion_percentage: 33
+      estimated_remaining: "32 часа"
+
+    wave_1:
+      status: "completed"
+      completion_date: "2025-11-26"
+      effort: "2.5 часа"
+      files_created: 4
+      notes: "Independent components (errors, templates, migrations)"
+
+    wave_2:
+      status: "completed"
+      completion_date: "2025-11-26"
+      effort: "2.5 часа"
+      files_created: 2
+      test_count: 12
+      coverage: "100% для get_sync_url()"
+      notes: "Alembic environment with lazy initialization"
+
+    wave_3:
+      status: "completed"
+      completion_date: "2025-11-26"
+      effort: "8 часов"
+      files_created: 2
+      files_updated: 1
+      test_count: 15
+      coverage: "~95%"
+      notes: "MigrationRunner core API - 9 public methods, async/await, full type hints"
+      achievements:
+        - "Exceeded test target by 50% (15 vs 8-10)"
+        - "Completed 1 hour ahead of schedule"
+        - "Automatic async→sync URL conversion"
+        - "File-based testing for proper isolation"
+        - "All real migrations (0001-0008) tested"
 
     - name: "Integration Tests Pass Rate"
       target: "100%"
