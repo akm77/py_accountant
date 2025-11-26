@@ -8,6 +8,21 @@ rpg:
       - version: "1.1.0"
         date: "2025-11-26"
         changes:
+          - "MIGRATION-API: Wave 2 завершена - Alembic environment (env.py)"
+          - "MIGRATION-API: Создан env.py с критической валидацией драйверов (150 строк)"
+          - "MIGRATION-API: Реализована lazy initialization для поддержки тестирования"
+          - "MIGRATION-API: Добавлена функция get_sync_url() с dual-URL архитектурой"
+          - "MIGRATION-API: Реализованы run_migrations_offline() и run_migrations_online()"
+          - "MIGRATION-API: Создано 12 comprehensive тестов для env.py (100% pass)"
+          - "MIGRATION-API: Coverage ≥95% для модуля env.py"
+          - "MIGRATION-API: Wave 1 завершена - Структура и шаблоны"
+          - "MIGRATION-API: Созданы errors.py (MigrationError, VersionMismatchError)"
+          - "MIGRATION-API: Создан alembic.ini.template с русскими комментариями"
+          - "MIGRATION-API: Создан script.py.mako с типизацией и docstrings"
+          - "MIGRATION-API: Скопированы 8 миграций в src/py_accountant/infrastructure/migrations/versions/"
+          - "MIGRATION-API: Создано 5 тестов для errors.py (100% pass)"
+          - "MIGRATION-API: Обновлён prompts/migration_api/migration_api_rpg_graph.yaml"
+          - "MIGRATION-API: Общий прогресс: 25% (Wave 1-2 из 8 завершены)"
           - "DOC-REORG: Реорганизована структура документации"
           - "DOC-REORG: Создана папка docs/audit/ (gitignored) для audit материалов"
           - "DOC-REORG: Перемещены 20 файлов в docs/audit/ (AUDIT_*, SPRINT_*, DOCUMENTATION_*, FINAL_REPORT)"
@@ -284,6 +299,56 @@ rpg:
       - name: "infrastructure"
         path: "src/py_accountant/infrastructure"
         description: "Адаптеры: SQLAlchemy, миграции Alembic, внешние сервисы, реализация портов."
+      - name: "migrations"
+        path: "src/py_accountant/infrastructure/migrations"
+        description: "Встроенный Migration API: программное управление миграциями через MigrationRunner, CLI, интеграция с Alembic проектов."
+        status: "in_progress"
+        progress: "25%"
+        waves_completed: ["wave_1", "wave_2"]
+        waves_pending: ["wave_3", "wave_4", "wave_5", "wave_6", "wave_7", "wave_8"]
+        components:
+          - name: "errors.py"
+            status: "completed"
+            description: "Exceptions: MigrationError, VersionMismatchError"
+            wave: "wave_1"
+            tests: "tests/unit/infrastructure/migrations/test_errors.py (5 tests, 100% pass)"
+          - name: "env.py"
+            status: "completed"
+            description: "Alembic environment с критической валидацией sync/async драйверов"
+            wave: "wave_2"
+            lines_of_code: 150
+            tests: "tests/unit/infrastructure/migrations/test_env.py (12 tests, 100% pass)"
+            features:
+              - "Lazy initialization для тестирования"
+              - "get_sync_url() с dual-URL архитектурой"
+              - "run_migrations_offline() и run_migrations_online()"
+              - "Валидация asyncpg/aiosqlite/+async драйверов"
+          - name: "alembic.ini.template"
+            status: "completed"
+            description: "Шаблон конфигурации Alembic с русскими комментариями"
+            wave: "wave_1"
+          - name: "script.py.mako"
+            status: "completed"
+            description: "Шаблон миграций с типизацией и docstrings"
+            wave: "wave_1"
+          - name: "versions/"
+            status: "completed"
+            description: "8 миграций схемы БД (0001-0008)"
+            wave: "wave_1"
+            migrations_count: 8
+          - name: "runner.py"
+            status: "pending"
+            description: "MigrationRunner класс для программного управления миграциями"
+            wave: "wave_3"
+            estimated_effort: "8 hours"
+          - name: "cli.py"
+            status: "pending"
+            description: "CLI команды для управления миграциями"
+            wave: "wave_4"
+          - name: "alembic_integration.py"
+            status: "pending"
+            description: "Интеграция с Alembic проектов через include_in_alembic()"
+            wave: "wave_5"
       - name: "config"
         path: "src/py_accountant/infrastructure/config"
         description: "Конфигурация приложения на pydantic-settings; выбор профиля окружения."
@@ -517,6 +582,44 @@ rpg:
         Интеграция продолжается через domain/application/ports; внешние проекты импортируют py_accountant.*.
         RPG-граф обновлён: пути узлов указывают на src/py_accountant/...; SDK-узлы и требования удалены или помечены как исторические в документации.
         Интеграторы по-прежнему реализуют свой UnitOfWork и репозитории по контрактам py_accountant.application.ports.
+    - id: "MIGRATION-API"
+      title: "Встроенный Migration API для программного управления миграциями"
+      status: "in_progress"
+      start_date: "2025-11-26"
+      progress: "25%"
+      estimated_total_effort: "40 hours"
+      actual_effort: "3.5 hours"
+      target_version: "1.2.0"
+      waves_completed: 2
+      waves_total: 8
+      notes: |
+        🔄 В ПРОЦЕССЕ: Реализация программного API для управления миграциями БД
+        
+        ✅ Wave 1 COMPLETED (1 hour):
+        - Создана структура src/py_accountant/infrastructure/migrations/
+        - errors.py: MigrationError, VersionMismatchError (5 tests ✅)
+        - alembic.ini.template: шаблон конфигурации
+        - script.py.mako: шаблон миграций с типизацией
+        - Скопировано 8 миграций в versions/
+        - Отчёт: prompts/migration_api/WAVE_1_COMPLETION_REPORT.md
+        
+        ✅ Wave 2 COMPLETED (2.5 hours):
+        - env.py: Alembic environment (150 LOC)
+        - Lazy initialization для тестирования
+        - get_sync_url(): dual-URL архитектура, валидация драйверов
+        - run_migrations_offline/online(): offline/online режимы
+        - 12 comprehensive тестов (100% pass, ~95% coverage)
+        - Отчёт: prompts/migration_api/WAVE_2_COMPLETION_REPORT.md
+        
+        ⏳ Wave 3 PENDING (8 hours):
+        - runner.py: MigrationRunner класс
+        - Async API: upgrade/downgrade/get_current/get_pending
+        - 8+ тестов
+        
+        📋 Remaining waves: 4-8 (CLI, Integration, Public API, Tests, Docs)
+        📊 RPG граф: prompts/migration_api/migration_api_rpg_graph.yaml
+        🎯 Методика: Repository Planning Graph (RPG)
+
     - id: "DOC-SPRINTS"
       title: "Обновление документации проекта (8 спринтов)"
       status: "completed"
