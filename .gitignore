@@ -101,6 +101,7 @@ ipython_config.py
 
 # Ruff
 .ruff_cache/
+prompts/
 /prompts/
 /docs/audit/
 
