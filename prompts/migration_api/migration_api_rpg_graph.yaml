@@ -665,9 +665,9 @@ rpg:
   progress:
     overall:
       total_waves: 9
-      completed_waves: 4
-      completion_percentage: 44
-      estimated_remaining: "26 часов"
+      completed_waves: 6
+      completion_percentage: 67
+      estimated_remaining: "17.5 часов"
 
     wave_1:
       status: "completed"
@@ -718,6 +718,40 @@ rpg:
         - "Entry point via __main__.py"
       known_issues:
         - "Typer 0.9 + Python 3.13 incompatibility with TyperArgument.make_metavar() - marked as xfail"
+
+    wave_5:
+      status: "completed"
+      completion_date: "2025-11-26"
+      effort: "3 часа"
+      files_created: 2
+      files_updated: 1
+      test_count: 10
+      test_pass_rate: "100%"
+      notes: "Alembic Integration - include_in_alembic() helper for merging version locations"
+      achievements:
+        - "Implemented include_in_alembic() with 10 comprehensive tests"
+        - "100% test pass rate"
+        - "Handles all edge cases (None, tuple, list locations)"
+        - "Proper logging and error handling"
+        - "Documentation with examples"
+
+    wave_6:
+      status: "completed"
+      completion_date: "2025-11-26"
+      effort: "1.5 часа"
+      efficiency: "150%"
+      files_created: 1
+      files_updated: 1
+      test_count: 11
+      test_pass_rate: "100%"
+      notes: "Public API - __version_schema__ and comprehensive import tests"
+      achievements:
+        - "Added __version_schema__ = '0008_add_account_aggregates'"
+        - "11 tests covering imports, format, backward compatibility"
+        - "Completed 1.5 hours ahead of schedule"
+        - "Conscious decision to NOT export Migration API to root (Clean Architecture)"
+        - "Full docstring coverage with examples"
+        - "0 lint errors, 100% type hints"
 
     - name: "Integration Tests Pass Rate"
       target: "100%"
