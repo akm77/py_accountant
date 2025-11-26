@@ -1,2 +1,11 @@
-"""Migration API module (to be populated in Wave 6)."""
+"""Migration API module."""
+
+from .errors import MigrationError, VersionMismatchError
+from .runner import MigrationRunner
+
+__all__ = [
+    "MigrationError",
+    "MigrationRunner",
+    "VersionMismatchError",
+]
 
