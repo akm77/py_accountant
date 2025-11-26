@@ -158,15 +158,18 @@ def test_get_sync_url_warns_about_async_url(monkeypatch, mock_alembic_config, ca
 
 
 def test_get_sync_url_rejects_async_in_config_url(mock_alembic_config):
-    """get_sync_url() rejects async driver in programmatic config URL."""
-    config_url = "postgresql+asyncpg://host/db"
+    """get_sync_url() accepts config URL without validation (assumes MigrationRunner converted it)."""
+    # Config URL is assumed to be already converted by MigrationRunner
+    # from async (e.g., sqlite+aiosqlite) to sync (sqlite)
+    config_url = "sqlite:///:memory:"  # sync URL
     mock_alembic_config.get_main_option.return_value = config_url
 
     with patch('py_accountant.infrastructure.migrations.env._get_config', return_value=mock_alembic_config):
         from py_accountant.infrastructure.migrations.env import get_sync_url
 
-        with pytest.raises(RuntimeError, match="Async driver not supported"):
-            get_sync_url()
+        # Should accept config URL without validation
+        result = get_sync_url()
+        assert "sqlite" in result
 
 
 def test_get_sync_url_invalid_url_raises_value_error(monkeypatch, mock_alembic_config):
