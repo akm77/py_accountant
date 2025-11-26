@@ -770,6 +770,103 @@ async with uow:
 
 ---
 
+#### AsyncGetAccountBalance
+
+**Path**: `py_accountant.application.use_cases_async.ledger.AsyncGetAccountBalance`
+
+**Purpose**: Compute balance for an account at a point in time. Fast path uses aggregates.
+
+**Signature**:
+```python
+async def __call__(
+    self,
+    account_full_name: str,
+    as_of: datetime | None = None,
+) -> Decimal
+```
+
+**Parameters**:
+- `account_full_name` (str, required) — Full hierarchical account name (e.g., "Assets:Cash").
+- `as_of` (datetime | None, optional) — Timestamp for balance evaluation. Default: None (current balance).
+
+**Returns**: `Decimal` — Account balance at the specified time (or current balance if `as_of` is None).
+
+**Raises**:
+- `ValueError` — Invalid `account_full_name` format.
+
+**Business Rules**:
+- If `as_of` is None (current balance), uses aggregated `account_balances` table for fast lookup
+- If `as_of` is specified (historical balance), falls back to ledger scan from epoch to `as_of`
+- Balance calculated as: `sum(DEBIT amounts) - sum(CREDIT amounts)` for all transactions affecting the account
+- Returns `Decimal("0")` if account has no transactions or doesn't exist in aggregates
+
+**Performance Notes**:
+- **Fast path** (current balance): O(1) lookup from `account_balances` aggregate table
+- **Slow path** (historical balance): O(n) scan through ledger entries from epoch to `as_of`
+- For frequent historical queries, consider implementing balance snapshots
+
+**Dependencies** (constructor injection):
+- `uow: AsyncUnitOfWork` — Unit of Work for transaction management
+- `clock: Clock` — Time provider for default timestamp
+
+**Example** (Current Balance):
+```python
+from decimal import Decimal
+from py_accountant.application.use_cases_async.ledger import AsyncGetAccountBalance
+from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
+from py_accountant.infrastructure.persistence.inmemory.clock import SystemClock
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+# Setup
+engine = create_async_engine("sqlite+aiosqlite:///accounting.db")
+session_factory = async_sessionmaker(engine, expire_on_commit=False)
+uow = AsyncSqlAlchemyUnitOfWork(session_factory)
+clock = SystemClock()
+
+get_balance = AsyncGetAccountBalance(uow=uow, clock=clock)
+
+# Get current balance (fast path using aggregates)
+async with uow:
+    balance = await get_balance(account_full_name="Assets:Cash")
+
+print(f"Current balance: {balance}")  # e.g., Decimal("1500.00")
+```
+
+**Example** (Historical Balance):
+```python
+from datetime import datetime, UTC
+
+# Get balance at specific point in time (slow path using ledger scan)
+async with uow:
+    historical_balance = await get_balance(
+        account_full_name="Assets:Cash",
+        as_of=datetime(2025, 1, 1, tzinfo=UTC)
+    )
+
+print(f"Balance on 2025-01-01: {historical_balance}")
+```
+
+**Example** (Multiple Accounts):
+```python
+# Check balances for multiple accounts
+accounts = ["Assets:Cash", "Assets:Bank:Checking", "Liabilities:CreditCard"]
+
+async with uow:
+    balances = {}
+    for account in accounts:
+        balances[account] = await get_balance(account_full_name=account)
+
+for account, balance in balances.items():
+    print(f"{account}: {balance}")
+```
+
+**See Also**:
+- [AsyncGetLedger](#asyncgetledger) — Query ledger entries
+- [AsyncPostTransaction](#asyncposttransaction) — Create transactions
+- [AsyncGetAccountBalancesAtDate](#asyncgetaccountbalancesatdate) — Get balances for multiple accounts at once
+
+---
+
 ### Exchange Rate Events Module
 
 #### AsyncAddExchangeRateEvent
