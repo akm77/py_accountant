@@ -345,18 +345,50 @@ rpg:
     wave_5:
       name: "Alembic Integration"
       parallel: false
+      status: "completed"
+      completed_date: "2025-11-26"
+      actual_effort: "3 часа"
+      notes: "Alembic integration completed. Created include_in_alembic() helper with graceful degradation. 10 comprehensive tests covering all scenarios. Example integration created."
       tasks:
         - id: "task-5.1"
           name: "Создать alembic_integration.py"
           file: "src/py_accountant/infrastructure/migrations/alembic_integration.py"
           depends_on: ["task-1.4"]
           estimated_time: "2 часа"
+          status: "completed"
+          actual_time: "1.5 часа"
+          notes: "Created include_in_alembic() with support for table_prefix and schema parameters. Graceful degradation for contexts without script."
 
         - id: "task-5.2"
           name: "Тесты для интеграции"
           file: "tests/unit/infrastructure/migrations/test_alembic_integration.py"
           depends_on: ["task-5.1"]
           estimated_time: "2 часа"
+          status: "completed"
+          actual_time: "1 час"
+          test_count: "10 tests (100% passing)"
+          coverage: "~95%"
+          notes: "Comprehensive test coverage including edge cases: None locations, tuple locations, missing script, logging verification."
+
+        - id: "task-5.3"
+          name: "Обновить __init__.py"
+          file: "src/py_accountant/infrastructure/migrations/__init__.py"
+          depends_on: ["task-5.1"]
+          estimated_time: "15 минут"
+          status: "completed"
+          actual_time: "10 минут"
+          notes: "Added include_in_alembic to module exports."
+
+        - id: "task-5.4"
+          name: "Создать пример интеграции"
+          files:
+            - "examples/alembic_integration/README.md"
+            - "examples/alembic_integration/alembic/env.py.example"
+          depends_on: ["task-5.1"]
+          estimated_time: "45 минут"
+          status: "completed"
+          actual_time: "30 минут"
+          notes: "Created comprehensive README with setup instructions and example env.py showing both offline and online migration modes."
 
     wave_6:
       name: "Public API"
