@@ -237,19 +237,28 @@ rpg:
     wave_2:
       name: "Базовая функциональность"
       parallel: false
+      status: "completed"
+      completed_date: "2025-11-26"
+      actual_effort: "2.5 часа"
       tasks:
         - id: "task-2.1"
           name: "Создать env.py"
           file: "src/py_accountant/infrastructure/migrations/env.py"
           depends_on: ["task-1.4"]
           estimated_time: "2 часа"
-          notes: "Адаптировать из alembic/env.py, сохранить валидацию драйверов"
+          status: "completed"
+          actual_time: "1.5 часа"
+          notes: "Адаптировано из alembic/env.py, добавлена lazy initialization для тестирования"
 
         - id: "task-2.2"
           name: "Тесты для env.py"
           file: "tests/unit/infrastructure/migrations/test_env.py"
           depends_on: ["task-2.1"]
           estimated_time: "1 час"
+          status: "completed"
+          actual_time: "1 час"
+          test_count: "12 tests"
+          coverage: "100% для get_sync_url()"
 
     wave_3:
       name: "MigrationRunner"
