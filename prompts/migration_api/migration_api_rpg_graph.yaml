@@ -1,0 +1,601 @@
+# RPG Граф для реализации Migration API
+# Версия: 1.0.0
+# Дата: 2025-11-26
+# Целевая версия py_accountant: 1.2.0
+
+rpg:
+  metadata:
+    feature_name: "migration_api"
+    description: "Встроенные миграции с программным API для py_accountant"
+    version: "1.0.0"
+    target_package_version: "1.2.0"
+    estimated_effort: "40 часов"
+    priority: "high"
+
+  # Этап 1: Функциональная декомпозиция
+  capabilities:
+    - name: "programmatic_api"
+      description: "Программный API для управления миграциями"
+      components:
+        - "MigrationRunner class"
+        - "Async execution support"
+        - "Version management"
+        - "Validation helpers"
+
+    - name: "cli_interface"
+      description: "CLI команды для управления миграциями"
+      components:
+        - "upgrade command"
+        - "downgrade command"
+        - "current command"
+        - "pending command"
+        - "history command"
+
+    - name: "alembic_integration"
+      description: "Интеграция с Alembic проектов"
+      components:
+        - "include_in_alembic() helper"
+        - "Version locations merging"
+        - "Namespace isolation"
+
+    - name: "embedded_migrations"
+      description: "Встроенные миграции в пакет"
+      components:
+        - "Alembic environment"
+        - "Migration versions"
+        - "Configuration templates"
+
+    - name: "schema_versioning"
+      description: "Версионирование схемы БД"
+      components:
+        - "__version_schema__ in package"
+        - "Version validation in startup"
+
+  # Этап 2: Структура реализации
+  modules:
+    - name: "core"
+      path: "src/py_accountant/infrastructure/migrations"
+      description: "Корневой модуль миграций"
+      dependencies: []
+      files:
+        - name: "__init__.py"
+          description: "Public API exports"
+          depends_on: ["runner.py", "alembic_integration.py", "errors.py"]
+
+        - name: "__main__.py"
+          description: "CLI entry point"
+          depends_on: ["cli.py"]
+
+        - name: "errors.py"
+          description: "Exceptions (MigrationError, VersionMismatchError)"
+          depends_on: []
+
+        - name: "alembic.ini.template"
+          description: "Alembic config template"
+          depends_on: []
+
+        - name: "script.py.mako"
+          description: "Migration template"
+          depends_on: []
+
+    - name: "runner"
+      path: "src/py_accountant/infrastructure/migrations/runner.py"
+      description: "MigrationRunner - основной класс для управления миграциями"
+      dependencies: ["core"]
+      interface:
+        class: "MigrationRunner"
+        methods:
+          - name: "__init__"
+            params: ["engine: AsyncEngine", "alembic_config_path: str | None", "echo: bool"]
+            returns: "None"
+
+          - name: "upgrade_to_head"
+            params: []
+            returns: "None"
+            async: true
+
+          - name: "upgrade_to_version"
+            params: ["version: str"]
+            returns: "None"
+            async: true
+
+          - name: "downgrade"
+            params: ["steps: int", "target: str | None"]
+            returns: "None"
+            async: true
+
+          - name: "get_current_version"
+            params: []
+            returns: "str | None"
+            async: true
+
+          - name: "get_pending_migrations"
+            params: []
+            returns: "list[str]"
+            async: true
+
+          - name: "validate_schema_version"
+            params: ["expected: str"]
+            returns: "None"
+            async: true
+            raises: ["VersionMismatchError"]
+
+    - name: "cli"
+      path: "src/py_accountant/infrastructure/migrations/cli.py"
+      description: "CLI команды на Typer"
+      dependencies: ["runner"]
+      interface:
+        commands:
+          - name: "upgrade"
+            args: ["revision: str = 'head'"]
+            options: ["--echo"]
+
+          - name: "downgrade"
+            args: ["revision: str"]
+            options: ["--echo"]
+
+          - name: "current"
+            args: []
+            options: ["--echo"]
+
+          - name: "pending"
+            args: []
+            options: ["--echo"]
+
+          - name: "history"
+            args: []
+            options: ["--echo"]
+
+    - name: "alembic_integration"
+      path: "src/py_accountant/infrastructure/migrations/alembic_integration.py"
+      description: "Интеграция с Alembic проектов"
+      dependencies: ["core"]
+      interface:
+        functions:
+          - name: "include_in_alembic"
+            params: ["context: MigrationContext", "table_prefix: str", "schema: str | None"]
+            returns: "None"
+
+    - name: "env"
+      path: "src/py_accountant/infrastructure/migrations/env.py"
+      description: "Alembic environment (адаптирован из alembic/env.py)"
+      dependencies: ["core", "models"]
+      notes: "Сохраняет валидацию sync/async драйверов"
+
+    - name: "versions"
+      path: "src/py_accountant/infrastructure/migrations/versions/"
+      description: "Миграции (копия из alembic/versions/)"
+      dependencies: []
+      files:
+        - "0001_initial.py"
+        - "0002_add_is_base_currency.py"
+        - "0003_add_performance_indexes.py"
+        - "0004_add_exchange_rate_events.py"
+        - "0005_exchange_rate_events_archive.py"
+        - "0006_add_journal_idempotency_key.py"
+        - "0007_drop_balances_table.py"
+        - "0008_add_account_aggregates.py"
+
+    - name: "version_schema"
+      path: "src/py_accountant/__init__.py"
+      description: "Версионирование схемы"
+      dependencies: []
+      changes:
+        - "Добавить __version_schema__ = '0008_add_account_aggregates'"
+
+  # Этап 3: Топологический порядок реализации
+  implementation_order:
+    wave_1:
+      name: "Независимые компоненты"
+      parallel: true
+      status: "completed"
+      actual_time: "2.5 часа"
+      completed_date: "2025-11-26"
+      metrics:
+        lines_of_code: 95
+        test_count: 5
+        files_created: 14
+        migrations_copied: 8
+      tasks:
+        - id: "task-1.1"
+          name: "Создать errors.py"
+          file: "src/py_accountant/infrastructure/migrations/errors.py"
+          depends_on: []
+          estimated_time: "1 час"
+          status: "completed"
+          actual_time: "30 минут"
+          notes: "Created with MigrationError and VersionMismatchError"
+
+        - id: "task-1.2"
+          name: "Создать alembic.ini.template"
+          file: "src/py_accountant/infrastructure/migrations/alembic.ini.template"
+          depends_on: []
+          estimated_time: "1 час"
+          status: "completed"
+          actual_time: "45 минут"
+          notes: "Adapted from root alembic.ini with Russian comments"
+
+        - id: "task-1.3"
+          name: "Создать script.py.mako"
+          file: "src/py_accountant/infrastructure/migrations/script.py.mako"
+          depends_on: []
+          estimated_time: "30 минут"
+          status: "completed"
+          actual_time: "30 минут"
+          notes: "Added type hints and docstrings"
+
+        - id: "task-1.4"
+          name: "Скопировать миграции"
+          source: "alembic/versions/"
+          target: "src/py_accountant/infrastructure/migrations/versions/"
+          depends_on: []
+          estimated_time: "30 минут"
+          status: "completed"
+          actual_time: "15 минут"
+          notes: "All 8 migrations copied successfully"
+
+    wave_2:
+      name: "Базовая функциональность"
+      parallel: false
+      tasks:
+        - id: "task-2.1"
+          name: "Создать env.py"
+          file: "src/py_accountant/infrastructure/migrations/env.py"
+          depends_on: ["task-1.4"]
+          estimated_time: "2 часа"
+          notes: "Адаптировать из alembic/env.py, сохранить валидацию драйверов"
+
+        - id: "task-2.2"
+          name: "Тесты для env.py"
+          file: "tests/unit/infrastructure/migrations/test_env.py"
+          depends_on: ["task-2.1"]
+          estimated_time: "1 час"
+
+    wave_3:
+      name: "MigrationRunner"
+      parallel: false
+      tasks:
+        - id: "task-3.1"
+          name: "Создать runner.py (skeleton)"
+          file: "src/py_accountant/infrastructure/migrations/runner.py"
+          depends_on: ["task-1.1", "task-2.1"]
+          estimated_time: "2 часа"
+
+        - id: "task-3.2"
+          name: "Реализовать upgrade методы"
+          file: "src/py_accountant/infrastructure/migrations/runner.py"
+          depends_on: ["task-3.1"]
+          estimated_time: "2 часа"
+
+        - id: "task-3.3"
+          name: "Реализовать query методы"
+          file: "src/py_accountant/infrastructure/migrations/runner.py"
+          depends_on: ["task-3.2"]
+          estimated_time: "2 часа"
+
+        - id: "task-3.4"
+          name: "Тесты для runner.py"
+          file: "tests/unit/infrastructure/migrations/test_runner.py"
+          depends_on: ["task-3.3"]
+          estimated_time: "3 часа"
+          test_count: "8+ tests"
+
+    wave_4:
+      name: "CLI"
+      parallel: false
+      tasks:
+        - id: "task-4.1"
+          name: "Создать cli.py"
+          file: "src/py_accountant/infrastructure/migrations/cli.py"
+          depends_on: ["task-3.3"]
+          estimated_time: "3 часа"
+
+        - id: "task-4.2"
+          name: "Создать __main__.py"
+          file: "src/py_accountant/infrastructure/migrations/__main__.py"
+          depends_on: ["task-4.1"]
+          estimated_time: "30 минут"
+
+        - id: "task-4.3"
+          name: "Тесты для CLI"
+          file: "tests/unit/infrastructure/migrations/test_cli.py"
+          depends_on: ["task-4.1"]
+          estimated_time: "2 часа"
+          test_count: "5+ tests"
+
+    wave_5:
+      name: "Alembic Integration"
+      parallel: false
+      tasks:
+        - id: "task-5.1"
+          name: "Создать alembic_integration.py"
+          file: "src/py_accountant/infrastructure/migrations/alembic_integration.py"
+          depends_on: ["task-1.4"]
+          estimated_time: "2 часа"
+
+        - id: "task-5.2"
+          name: "Тесты для интеграции"
+          file: "tests/unit/infrastructure/migrations/test_alembic_integration.py"
+          depends_on: ["task-5.1"]
+          estimated_time: "2 часа"
+
+    wave_6:
+      name: "Public API"
+      parallel: false
+      tasks:
+        - id: "task-6.1"
+          name: "Создать __init__.py"
+          file: "src/py_accountant/infrastructure/migrations/__init__.py"
+          depends_on: ["task-3.3", "task-5.1", "task-1.1"]
+          estimated_time: "1 час"
+
+        - id: "task-6.2"
+          name: "Обновить package __init__.py"
+          file: "src/py_accountant/__init__.py"
+          depends_on: ["task-1.4"]
+          estimated_time: "30 минут"
+          changes: ["Добавить __version_schema__"]
+
+        - id: "task-6.3"
+          name: "Тесты для public API"
+          file: "tests/unit/infrastructure/migrations/test_public_api.py"
+          depends_on: ["task-6.1"]
+          estimated_time: "1 час"
+
+    wave_7:
+      name: "Integration тесты"
+      parallel: true
+      tasks:
+        - id: "task-7.1"
+          name: "Тесты для PostgreSQL"
+          file: "tests/integration/migrations/test_migrations_postgres.py"
+          depends_on: ["task-6.1"]
+          estimated_time: "3 часа"
+          test_count: "4+ tests"
+
+        - id: "task-7.2"
+          name: "Тесты для SQLite"
+          file: "tests/integration/migrations/test_migrations_sqlite.py"
+          depends_on: ["task-6.1"]
+          estimated_time: "2 часа"
+          test_count: "4+ tests"
+
+        - id: "task-7.3"
+          name: "E2E тесты"
+          file: "tests/e2e/test_migrations_workflow.py"
+          depends_on: ["task-4.1"]
+          estimated_time: "2 часа"
+
+    wave_8:
+      name: "Документация"
+      parallel: true
+      tasks:
+        - id: "task-8.1"
+          name: "Создать MIGRATIONS_API.md"
+          file: "docs/MIGRATIONS_API.md"
+          depends_on: ["task-6.1"]
+          estimated_time: "4 часа"
+          size: "1000+ строк"
+
+        - id: "task-8.2"
+          name: "Обновить INTEGRATION_GUIDE.md"
+          file: "docs/INTEGRATION_GUIDE.md"
+          depends_on: ["task-8.1"]
+          estimated_time: "1 час"
+
+        - id: "task-8.3"
+          name: "Обновить RUNNING_MIGRATIONS.md"
+          file: "docs/RUNNING_MIGRATIONS.md"
+          depends_on: ["task-8.1"]
+          estimated_time: "1 час"
+
+        - id: "task-8.4"
+          name: "Обновить примеры"
+          files:
+            - "examples/fastapi_basic/app/main.py"
+            - "examples/cli_basic/main.py"
+          depends_on: ["task-8.1"]
+          estimated_time: "2 часа"
+
+        - id: "task-8.5"
+          name: "Обновить README.md"
+          file: "README.md"
+          depends_on: ["task-8.1"]
+          estimated_time: "30 минут"
+
+    wave_9:
+      name: "Финализация"
+      parallel: false
+      tasks:
+        - id: "task-9.1"
+          name: "Обновить rpg_py_accountant.yaml"
+          file: "rpg_py_accountant.yaml"
+          depends_on: ["task-8.1"]
+          estimated_time: "1 час"
+
+        - id: "task-9.2"
+          name: "Обновить CHANGELOG.md"
+          file: "docs/CHANGELOG.md"
+          depends_on: ["task-9.1"]
+          estimated_time: "30 минут"
+
+        - id: "task-9.3"
+          name: "Запустить все тесты"
+          command: "pytest tests/ -v"
+          depends_on: ["task-7.1", "task-7.2", "task-7.3"]
+          estimated_time: "30 минут"
+
+        - id: "task-9.4"
+          name: "Проверить coverage"
+          command: "pytest --cov=py_accountant.infrastructure.migrations"
+          depends_on: ["task-9.3"]
+          estimated_time: "15 минут"
+          target: "≥ 90%"
+
+  # Критерии приемки
+  acceptance_criteria:
+    functional:
+      - id: "FR-1"
+        description: "MigrationRunner успешно применяет все 8 миграций на PostgreSQL"
+        test: "test_migrations_postgres.py::test_full_migration_cycle_postgres"
+
+      - id: "FR-2"
+        description: "MigrationRunner успешно применяет все 8 миграций на SQLite"
+        test: "test_migrations_sqlite.py::test_full_migration_cycle_sqlite"
+
+      - id: "FR-3"
+        description: "CLI команды работают"
+        test: "test_cli.py::test_*_command"
+
+      - id: "FR-4"
+        description: "include_in_alembic() корректно интегрируется"
+        test: "test_alembic_integration.py::test_include_in_alembic"
+
+      - id: "FR-5"
+        description: "__version_schema__ соответствует последней миграции"
+        test: "test_public_api.py::test_version_schema_matches_latest"
+
+      - id: "FR-6"
+        description: "validate_schema_version() корректно проверяет"
+        test: "test_runner.py::test_validate_schema_version_*"
+
+      - id: "FR-7"
+        description: "Downgrade корректно откатывает"
+        test: "test_runner.py::test_downgrade"
+
+      - id: "FR-8"
+        description: "Concurrent запуски не вызывают конфликтов"
+        test: "test_migrations_postgres.py::test_concurrent_migrations_postgres"
+
+    non_functional:
+      - id: "NFR-1"
+        description: "Unit tests покрытие ≥ 90%"
+        metric: "coverage"
+        target: "≥ 90%"
+
+      - id: "NFR-2"
+        description: "Integration tests для PostgreSQL и SQLite"
+        metric: "test_count"
+        target: "≥ 8 tests"
+
+      - id: "NFR-3"
+        description: "E2E тесты для CLI workflow"
+        metric: "test_count"
+        target: "≥ 2 tests"
+
+      - id: "NFR-4"
+        description: "Документация создана"
+        metric: "files"
+        target: "MIGRATIONS_API.md + updates"
+
+      - id: "NFR-5"
+        description: "Примеры обновлены"
+        metric: "files"
+        target: "fastapi_basic + cli_basic"
+
+      - id: "NFR-6"
+        description: "Время миграции < 5 секунд"
+        metric: "performance"
+        target: "< 5s on PostgreSQL"
+
+      - id: "NFR-7"
+        description: "Валидация sync/async драйверов"
+        metric: "behavior"
+        target: "Reject async drivers"
+
+      - id: "NFR-8"
+        description: "Rollback при ошибках"
+        metric: "behavior"
+        target: "Automatic rollback"
+
+  # Зависимости между модулями
+  edges:
+    - from: "errors.py"
+      to: "runner.py"
+      type: "import"
+      data: "MigrationError, VersionMismatchError"
+
+    - from: "runner.py"
+      to: "cli.py"
+      type: "import"
+      data: "MigrationRunner"
+
+    - from: "runner.py"
+      to: "__init__.py"
+      type: "export"
+      data: "MigrationRunner"
+
+    - from: "alembic_integration.py"
+      to: "__init__.py"
+      type: "export"
+      data: "include_in_alembic"
+
+    - from: "cli.py"
+      to: "__main__.py"
+      type: "import"
+      data: "app (Typer)"
+
+    - from: "env.py"
+      to: "models.py"
+      type: "import"
+      data: "Base.metadata"
+
+    - from: "versions/"
+      to: "env.py"
+      type: "reference"
+      data: "Migration scripts"
+
+  # Риски
+  risks:
+    - id: "RISK-1"
+      description: "Конфликт версий миграций при обновлении пакета"
+      probability: "medium"
+      impact: "high"
+      mitigation: "Строгое версионирование, проверка в startup"
+
+    - id: "RISK-2"
+      description: "Concurrent миграции вызывают deadlock"
+      probability: "low"
+      impact: "high"
+      mitigation: "PostgreSQL advisory locks, тестирование"
+
+    - id: "RISK-3"
+      description: "Миграции ломают существующие данные"
+      probability: "low"
+      impact: "critical"
+      mitigation: "Thorough testing, backward compatibility"
+
+    - id: "RISK-4"
+      description: "Alembic интеграция конфликтует с проектом"
+      probability: "medium"
+      impact: "medium"
+      mitigation: "Изолированный script_location, namespace"
+
+  # Метрики успеха
+  success_metrics:
+    - name: "Test Coverage"
+      target: "≥ 90%"
+      current: "0%"
+
+    - name: "Migration Time (PostgreSQL)"
+      target: "< 5 seconds"
+      current: "N/A"
+
+    - name: "Documentation Completeness"
+      target: "100% (API + Guide + Examples)"
+      current: "0%"
+
+    - name: "Integration Tests Pass Rate"
+      target: "100%"
+      current: "N/A"
+
+  # Версионирование
+  changelog:
+    - version: "1.0.0"
+      date: "2025-11-26"
+      changes:
+        - "Первая версия RPG графа для Migration API"
+        - "Декомпозиция на 9 волн реализации"
+        - "Определены 42+ задачи с зависимостями"
+        - "Оценка: 40 часов работы"
+

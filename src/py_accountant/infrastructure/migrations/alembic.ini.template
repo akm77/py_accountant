@@ -1,0 +1,65 @@
+# Шаблон конфигурации Alembic для embedded использования
+# Этот файл адаптирован для программного использования через Migration API
+
+[alembic]
+# Расположение скриптов миграций (будет переопределено программно)
+script_location = .
+
+# Шаблон имени файла миграции: YYYYMMDD_HHMM_revision_slug
+file_template = %%(year)d%%(month).2d%%(day).2d_%%(hour).2d%%(minute).2d_%%(rev)s_%%(slug)s
+
+# Разделитель для version_path (поддержка множественных директорий)
+version_path_separator = os
+
+# URL базы данных (будет переопределён программно через API)
+# Для миграций ВСЕГДА используется синхронный драйвер
+sqlalchemy.url = sqlite:///:memory:
+
+# Опции подключения
+[post_write_hooks]
+# Можно добавить хуки для автоформатирования сгенерированных миграций
+# hooks = black
+# black.type = console_scripts
+# black.entrypoint = black
+# black.options = -l 79
+
+# Конфигурация логирования
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARN
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+# Уровень логирования SQL запросов
+# WARN - только предупреждения и ошибки
+# INFO - все SQL запросы (для отладки)
+level = WARN
+handlers = console
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+# Уровень логирования операций миграций
+level = INFO
+handlers = console
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stdout,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+# Формат вывода: LEVEL [logger_name] message
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+
