@@ -70,6 +70,100 @@ PYTHONPATH=/path/to/py_accountant/src poetry run pytest
 
 ---
 
+## 🚀 Quick Start
+
+### 1. Установка
+
+```bash
+pip install py-accountant
+```
+
+Или установка из исходников:
+
+```bash
+poetry add git+https://github.com/akm77/py_accountant.git
+```
+
+### 2. Инициализация базы данных
+
+py_accountant требует инициализации схемы базы данных. Выберите один из трёх подходов:
+
+#### Подход A: Программный (Python код)
+
+Запустите миграции из вашего приложения:
+
+```python
+from py_accountant.infrastructure.migrations import MigrationRunner
+from sqlalchemy.ext.asyncio import create_async_engine
+
+# Создайте движок
+engine = create_async_engine("postgresql+asyncpg://localhost/mydb")
+
+# Запустите миграции
+runner = MigrationRunner(engine)
+await runner.upgrade_to_head()
+```
+
+**Лучше всего для**: FastAPI, Django, Flask, Telegram боты, и т.д.
+
+#### Подход B: CLI
+
+Запустите миграции через командную строку:
+
+```bash
+export DATABASE_URL="postgresql+psycopg://localhost/mydb"
+python -m py_accountant.infrastructure.migrations upgrade head
+```
+
+**Лучше всего для**: Docker, CI/CD, DevOps workflows.
+
+#### Подход C: Интеграция с Alembic
+
+Интегрируйтесь с существующим Alembic проектом:
+
+```python
+# В вашем alembic/env.py
+from py_accountant.infrastructure.migrations import include_in_alembic
+
+def run_migrations_online():
+    # ... ваш код ...
+    include_in_alembic(context)
+    # ... остальной код ...
+```
+
+**Лучше всего для**: Проекты, уже использующие Alembic.
+
+**Полное руководство**: [Документация Migration API](docs/MIGRATIONS_API.md)
+
+### 3. Использование py_accountant
+
+```python
+from py_accountant.application.use_cases_async.accounts import AsyncCreateAccount
+from py_accountant.application.use_cases_async.ledger import AsyncPostTransaction
+
+# Создайте счёт
+use_case = AsyncCreateAccount(account_repo, currency_repo, uow)
+async with uow:
+    account = await use_case(full_name="Assets:Cash", currency_code="USD")
+    await uow.commit()
+
+# Создайте проводку
+use_case = AsyncPostTransaction(ledger_repo, account_repo, uow)
+async with uow:
+    entry = await use_case(
+        lines=[
+            {"account_id": cash.id, "debit": 10000, "credit": 0},
+            {"account_id": equity.id, "debit": 0, "credit": 10000},
+        ],
+        description="Initial investment"
+    )
+    await uow.commit()
+```
+
+См. [Integration Guide](docs/INTEGRATION_GUIDE.md) для полных примеров.
+
+---
+
 ## Контракты (реальные, на которые полагаются интеграторы)
 
 Ниже — минимальная, реальная спецификация API/контрактов, которые ожидают use case'ы и интеграторы. Приведённые контракты отражают текущую реализацию в `application`/`application/use_cases_async` и `application/ports`.
@@ -383,6 +477,23 @@ def make_uow_factory(url: str) -> Callable[[], UnitOfWorkProtocol]:
 `application/use_cases_async/*`, `application/ports.py`.
 
 ## 📚 Documentation
+
+### Основные руководства
+
+- 📘 **[Migration API Guide](docs/MIGRATIONS_API.md)** - **NEW** Полное руководство по миграциям базы данных
+- 📗 [Integration Guide](docs/INTEGRATION_GUIDE.md) - Как интегрировать py_accountant
+- 📕 [API Reference](docs/API_REFERENCE.md) - Полная API документация
+- 📙 [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md) - Архитектура системы
+- 📓 [Accounting Cheatsheet](docs/ACCOUNTING_CHEATSHEET.md) - Введение в двойную запись
+- 📔 [Performance Guide](docs/PERFORMANCE.md) - Оптимизация производительности
+- 📂 [Examples](examples/) - Примеры кода (FastAPI, CLI, Telegram bot)
+
+### Quick Links
+
+- [Quick Start - Migrations](docs/MIGRATIONS_API.md#quick-start)
+- [Troubleshooting](docs/MIGRATIONS_API.md#troubleshooting)
+- [Best Practices](docs/MIGRATIONS_API.md#best-practices)
+- [CLI Reference](docs/MIGRATIONS_API.md#cli-reference)
 
 ### API Reference
 

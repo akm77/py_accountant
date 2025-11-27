@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import asyncio
 from decimal import Decimal
-from typing import Optional
+from typing import Annotated
 
 import typer
-from typing_extensions import Annotated
+from rich.console import Console
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from py_accountant import __version_schema__
 from py_accountant.application.use_cases_async.accounts import (
     AsyncCreateAccount,
     AsyncGetAccount,
@@ -24,13 +26,16 @@ from py_accountant.application.use_cases_async.currencies import (
 from py_accountant.application.use_cases_async.ledger import (
     AsyncPostTransaction,
 )
+from py_accountant.infrastructure.migrations import MigrationError, MigrationRunner
 from py_accountant.infrastructure.persistence.sqlalchemy.repositories_async import (
     AsyncSqlAlchemyAccountRepository,
     AsyncSqlAlchemyCurrencyRepository,
     AsyncSqlAlchemyLedgerRepository,
 )
 from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+# Rich console for beautiful output
+console = Console()
 
 # Create Typer app
 app = typer.Typer(
@@ -58,6 +63,81 @@ def get_dependencies():
     ledger_repo = AsyncSqlAlchemyLedgerRepository()
 
     return uow, account_repo, currency_repo, ledger_repo
+
+
+# ============================================================================
+# Database Migration Commands
+# ============================================================================
+
+@app.command("init-db")
+def init_db():
+    """Initialize database schema (run migrations)."""
+    async def _init():
+        console.print("[blue]Initializing database...[/blue]")
+
+        # Create engine for migrations
+        engine = create_async_engine(DATABASE_URL, echo=False)
+        runner = MigrationRunner(engine, echo=True)
+
+        try:
+            # Check current state
+            current = await runner.get_current_version()
+            if current:
+                console.print(f"Current version: [yellow]{current}[/yellow]")
+            else:
+                console.print("No migrations applied yet")
+
+            # Run migrations
+            console.print("[blue]Running migrations...[/blue]")
+            await runner.upgrade_to_head()
+
+            # Confirm success
+            new_version = await runner.get_current_version()
+            console.print(f"[green]✓[/green] Database initialized (version: {new_version})")
+
+            # Check if version matches expected
+            if new_version != __version_schema__:
+                console.print("[yellow]Warning: Schema version mismatch[/yellow]")
+                console.print(f"  Current: {new_version}")
+                console.print(f"  Expected: {__version_schema__}")
+            else:
+                console.print(f"[green]✓[/green] Schema version validated: {new_version}")
+
+        except MigrationError as e:
+            console.print(f"[red]✗ Migration failed: {e}[/red]")
+            raise typer.Abort()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_init())
+
+
+@app.command("check-db")
+def check_db():
+    """Check database migration status."""
+    async def _check():
+        engine = create_async_engine(DATABASE_URL, echo=False)
+        runner = MigrationRunner(engine)
+
+        try:
+            current = await runner.get_current_version()
+            pending = await runner.get_pending_migrations()
+
+            console.print(f"Current version: [cyan]{current or 'None'}[/cyan]")
+            console.print(f"Expected version: [cyan]{__version_schema__}[/cyan]")
+
+            if pending:
+                console.print(f"Pending migrations: [yellow]{len(pending)}[/yellow]")
+                for migration in pending:
+                    console.print(f"  • {migration}")
+                console.print("\n[yellow]Run 'init-db' to apply pending migrations[/yellow]")
+            else:
+                console.print("[green]✓[/green] All migrations applied")
+
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_check())
 
 
 # ============================================================================
@@ -155,7 +235,7 @@ def get_account_cmd(
             typer.echo(f"❌ Account {account_id} not found.")
             raise typer.Exit(1)
 
-        typer.echo(f"\n📋 Account Details:")
+        typer.echo("\n📋 Account Details:")
         typer.echo("-" * 40)
         typer.echo(f"  ID: {account.id}")
         typer.echo(f"  Name: {account.full_name}")

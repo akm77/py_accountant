@@ -1,149 +1,34 @@
 # CLI Basic Example
-- [Typer Documentation](https://typer.tiangolo.com/) — Typer framework docs
-- [py_accountant Documentation](../../docs/INDEX.md) — Full documentation
-- [Integration Guide](../../docs/INTEGRATION_GUIDE.md) — Integration patterns
 
-## See Also
+Command-line interface для управления учётом с использованием `py_accountant` и `Typer`.
 
-```
-Display result (typer.echo)
-  ↓
-    await uow.commit()
-    result = await uc.execute(...)
-async with uow:
-  ↓
-Use Case (e.g., AsyncPostTransaction)
-  ↓
-get_dependencies() → UoW, Repositories
-  ↓
-asyncio.run() wrapper
-  ↓
-CLI Command (Typer)
-```
+## Features
 
-## Architecture
+- ✅ Async-first архитектура
+- ✅ Простой CLI интерфейс с Typer
+- ✅ Управление валютами, счетами и транзакциями
+- ✅ Database migration commands (init-db, check-db)
+- ✅ Автоматическая генерация help документации
+- ✅ Type hints и валидация
 
-```
-python cli.py post-transaction --help
-python cli.py create-account --help
+## Prerequisites
+
+- Python 3.11+
+- SQLite или PostgreSQL (async)
+- py_accountant library
+
+## Installation
+
 ```bash
+cd examples/cli_basic
 
-Get help for any command:
-
-## Command Help
-
-- `post-transaction --from ID --to ID AMOUNT [--desc TEXT]` — Post a transaction
-### Transaction Commands
-
-- `list-accounts` — List all accounts
-- `get-account ID` — Get account details
-- `create-account FULL_NAME CURRENCY` — Create a new account
-### Account Commands
-
-- `list-currencies` — List all currencies
-- `create-currency CODE [--base]` — Create a new currency
-### Currency Commands
-
-## Available Commands
-
+# Install dependencies
+pip install -r requirements.txt
 ```
-   Description: Save to bank
-   3000 from account 1 to account 2
-✅ Transaction posted (Entry ID: 2)
-$ python cli.py post-transaction --from 1 --to 2 3000 --desc "Save to bank"
-# 5. Transfer to bank
 
-   Description: Monthly salary
-   5000 from account 3 to account 1
-✅ Transaction posted (Entry ID: 1)
-$ python cli.py post-transaction --from 3 --to 1 5000 --desc "Monthly salary"
-# 4. Post salary transaction
+## Configuration
 
-Total: 3 accounts
-------------------------------------------------------------
-  [  3] Income:Salary                  (USD)
-  [  2] Assets:Bank                    (USD)
-  [  1] Assets:Cash                    (USD)
-------------------------------------------------------------
-📊 Accounts:
-
-$ python cli.py list-accounts
-# 3. List accounts
-
-✅ Account created: Income:Salary [USD] (ID: 3)
-$ python cli.py create-account "Income:Salary" USD
-
-✅ Account created: Assets:Bank [USD] (ID: 2)
-$ python cli.py create-account "Assets:Bank" USD
-
-✅ Account created: Assets:Cash [USD] (ID: 1)
-$ python cli.py create-account "Assets:Cash" USD
-# 2. Create accounts
-
-✅ Currency created: USD (base currency)
-$ python cli.py create-currency USD --base
-# 1. Setup: Create base currency
-```bash
-
-## Example Session
-
-```
-python cli.py post-transaction --from 3 --to 1 5000 --desc "Salary payment"
-# Post another transaction
-
-python cli.py post-transaction --from 1 --to 2 100.50 --desc "Transfer to bank"
-# Post a transaction
-```bash
-
-### Transaction Commands
-
-```
-python cli.py list-accounts
-# List all accounts
-
-python cli.py get-account 1
-# Get account details
-
-python cli.py create-account "Income:Salary" USD
-python cli.py create-account "Assets:Bank" USD
-python cli.py create-account "Assets:Cash" USD
-# Create accounts
-```bash
-
-### Account Commands
-
-```
-python cli.py list-currencies
-# List all currencies
-
-python cli.py create-currency EUR
-# Create another currency
-
-python cli.py create-currency USD --base
-# Create a currency
-```bash
-
-### Currency Commands
-
-```
-python cli.py --help
-```bash
-
-### General Help
-
-## Usage
-
-```
-alembic upgrade head
-# Run migrations
-
-export PYACC__DATABASE_URL=sqlite+pysqlite:///./accounting.db
-# For SQLite:
-```bash
-
-Before using the CLI, apply database migrations:
-
-## Running Migrations
+By default, the CLI uses SQLite database `./accounting.db`.
 
 To change the database, edit `DATABASE_URL` in `cli.py`:
 
@@ -155,33 +40,185 @@ DATABASE_URL = "sqlite+aiosqlite:///./accounting.db"
 # DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/accounting"
 ```
 
-By default, the CLI uses SQLite database `./accounting.db`.
+## Database Setup
 
-## Configuration
+### Initialize Database
+
+Run migrations to create tables:
+
+```bash
+python cli.py init-db
+```
+
+Output:
+```
+Initializing database...
+No migrations applied yet
+Running migrations...
+✓ Database initialized (version: 0008)
+✓ Schema version validated: 0008
+```
+
+### Check Migration Status
+
+```bash
+python cli.py check-db
+```
+
+Output:
+```
+Current version: 0008
+Expected version: 0008
+✓ All migrations applied
+```
+
+### Alternative: Use Migration CLI
+
+You can also use py_accountant's built-in CLI:
+
+```bash
+export DATABASE_URL="sqlite+pysqlite:///./accounting.db"
+python -m py_accountant.infrastructure.migrations upgrade head
+```
+
+See [Migration API Guide](../../docs/MIGRATIONS_API.md#cli-reference) for all commands.
+
+## Usage
+
+### General Help
+
+```bash
+python cli.py --help
+```
+
+## Available Commands
+
+### Database Commands
+
+- `init-db` — Initialize database schema (run migrations)
+- `check-db` — Check migration status
+
+### Currency Commands
+
+```bash
+# Create a currency
+python cli.py create-currency USD --base
+
+# Create another currency
+python cli.py create-currency EUR
+
+# List all currencies
+python cli.py list-currencies
+```
+
+### Account Commands
+
+```bash
+# Create accounts
+python cli.py create-account "Assets:Cash" USD
+python cli.py create-account "Assets:Bank" USD
+python cli.py create-account "Income:Salary" USD
+
+# Get account details
+python cli.py get-account 1
+
+# List all accounts
+python cli.py list-accounts
+```
+
+### Transaction Commands
+
+```bash
+# Post a transaction
+python cli.py post-transaction --from 1 --to 2 100.50 --desc "Transfer to bank"
+
+# Post another transaction
+python cli.py post-transaction --from 3 --to 1 5000 --desc "Salary payment"
+```
+
+## Example Session
+
+```bash
+# 1. Setup: Initialize database
+$ python cli.py init-db
+Initializing database...
+✓ Database initialized (version: 0008)
+
+# 2. Create base currency
+$ python cli.py create-currency USD --base
+✅ Currency created: USD (base currency)
+
+# 3. Create accounts
+$ python cli.py create-account "Assets:Cash" USD
+✅ Account created: Assets:Cash [USD] (ID: 1)
+
+$ python cli.py create-account "Assets:Bank" USD
+✅ Account created: Assets:Bank [USD] (ID: 2)
+
+$ python cli.py create-account "Income:Salary" USD
+✅ Account created: Income:Salary [USD] (ID: 3)
+
+# 4. List accounts
+$ python cli.py list-accounts
+
+📊 Accounts:
+------------------------------------------------------------
+  [  1] Assets:Cash                    (USD)
+  [  2] Assets:Bank                    (USD)
+  [  3] Income:Salary                  (USD)
+------------------------------------------------------------
+Total: 3 accounts
+
+# 5. Post salary transaction
+$ python cli.py post-transaction --from 3 --to 1 5000 --desc "Monthly salary"
+✅ Transaction posted (Entry ID: 1)
+   5000 from account 3 to account 1
+   Description: Monthly salary
+
+# 6. Transfer to bank
+$ python cli.py post-transaction --from 1 --to 2 3000 --desc "Save to bank"
+✅ Transaction posted (Entry ID: 2)
+   3000 from account 1 to account 2
+   Description: Save to bank
+```
+
+## Command Help
+
+Get help for any command:
+
+```bash
+python cli.py create-account --help
+python cli.py post-transaction --help
+```
+
+## Architecture
 
 ```
-pip install -r requirements.txt
-# Install dependencies
+CLI Command (Typer)
+  ↓
+asyncio.run() wrapper
+  ↓
+get_dependencies() → UoW, Repositories
+  ↓
+Use Case (e.g., AsyncPostTransaction)
+  ↓
+async with uow:
+    result = await uc.execute(...)
+    await uow.commit()
+  ↓
+Display result (typer.echo)
+```
 
-cd examples/cli_basic
-```bash
+## Learn More
 
-## Installation
+- [Migration API Guide](../../docs/MIGRATIONS_API.md) - Complete migration documentation
+- [Integration Guide](../../docs/INTEGRATION_GUIDE.md) - Integration patterns
+- [Typer Documentation](https://typer.tiangolo.com/) — Typer framework docs
+- [py_accountant Documentation](../../docs/INDEX.md) — Full documentation
 
-- py_accountant library
-- SQLite или PostgreSQL (async)
-- Python 3.11+
+## See Also
 
-## Prerequisites
-
-- ✅ Type hints и валидация
-- ✅ Автоматическая генерация help документации
-- ✅ Управление валютами, счетами и транзакциями
-- ✅ Простой CLI интерфейс с Typer
-- ✅ Async-first архитектура
-
-## Features
-
-Command-line interface для управления учётом с использованием `py_accountant` и `Typer`.
-
+- [FastAPI Example](../fastapi_basic/) — REST API example
+- [Telegram Bot Example](../telegram_bot/) — Bot integration example
+- [Integration Guide](../../docs/INTEGRATION_GUIDE.md) — Integration patterns
 
