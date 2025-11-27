@@ -251,6 +251,147 @@ for size in 5 10 20; do
 done
 ```
 
+---
+
+## Database Initialization
+
+py_accountant requires database schema initialization before use. Choose one of three approaches:
+
+### Approach A: Programmatic API (Recommended for Applications)
+
+Run migrations programmatically from your application code.
+
+**FastAPI Example**:
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from py_accountant.infrastructure.migrations import MigrationRunner
+from sqlalchemy.ext.asyncio import create_async_engine
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: run migrations
+    engine = create_async_engine("postgresql+asyncpg://user:pass@localhost/mydb")
+    runner = MigrationRunner(engine)
+    await runner.upgrade_to_head()
+    
+    yield
+    
+    # Shutdown: cleanup
+    await engine.dispose()
+
+app = FastAPI(lifespan=lifespan)
+```
+
+**aiogram (Telegram Bot) Example**:
+```python
+from aiogram import Bot, Dispatcher
+from py_accountant.infrastructure.migrations import MigrationRunner
+from sqlalchemy.ext.asyncio import create_async_engine
+
+async def on_startup():
+    engine = create_async_engine("postgresql+asyncpg://user:pass@localhost/mydb")
+    runner = MigrationRunner(engine)
+    await runner.upgrade_to_head()
+    await engine.dispose()
+
+dp = Dispatcher()
+dp.startup.register(on_startup)
+```
+
+### Approach B: CLI Commands (Recommended for CI/CD)
+
+Run migrations via command-line interface.
+
+**Docker Entrypoint**:
+```bash
+#!/bin/bash
+# entrypoint.sh
+
+# Run migrations
+python -m py_accountant.infrastructure.migrations upgrade head
+
+# Start application
+exec python app.py
+```
+
+**docker-compose.yml**:
+```yaml
+services:
+  app:
+    build: .
+    command: >
+      sh -c "python -m py_accountant.infrastructure.migrations upgrade head &&
+             python app.py"
+    environment:
+      DATABASE_URL: postgresql+psycopg://user:pass@db:5432/mydb
+```
+
+**GitHub Actions**:
+```yaml
+- name: Run migrations
+  env:
+    DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  run: python -m py_accountant.infrastructure.migrations upgrade head
+```
+
+### Approach C: Alembic Integration (For Existing Alembic Projects)
+
+Integrate py_accountant migrations into your existing Alembic setup.
+
+**Modify `alembic/env.py`**:
+```python
+from alembic import context
+from py_accountant.infrastructure.migrations import include_in_alembic
+
+def run_migrations_online():
+    # ... your existing code ...
+    
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata
+        )
+        
+        # ← Add this line
+        include_in_alembic(context)
+        
+        with context.begin_transaction():
+            context.run_migrations()
+```
+
+Then run Alembic as usual:
+```bash
+alembic upgrade head
+```
+
+### Validation
+
+Validate schema version at application startup:
+
+```python
+from py_accountant import __version_schema__
+from py_accountant.infrastructure.migrations import MigrationRunner, VersionMismatchError
+
+async def validate_schema():
+    runner = MigrationRunner(engine)
+    try:
+        await runner.validate_schema_version(__version_schema__)
+    except VersionMismatchError as e:
+        logger.error(f"Schema mismatch: {e}")
+        # Decide: fail fast or auto-upgrade
+        raise
+```
+
+### Learn More
+
+For comprehensive migration documentation, see:
+- [Migration API Reference](MIGRATIONS_API.md) - Complete guide
+- [Troubleshooting](MIGRATIONS_API.md#troubleshooting) - Common issues
+- [Best Practices](MIGRATIONS_API.md#best-practices) - Production recommendations
+
+---
+
 ### FX Audit TTL Configuration
 
 **Use Case**: Автоматическая очистка старых exchange rate events.

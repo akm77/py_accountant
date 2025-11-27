@@ -2,6 +2,18 @@
 
 > Helper-документ для запуска Alembic миграций в CI/CD и локально. Цель: гарантировать безопасное разделение синхронного пути миграций и асинхронного runtime.
 
+## ⚠️ Audience Note
+
+This document describes the **internal migration workflow** for **py_accountant developers**.
+
+**If you are an integrator** (using py_accountant in your application), see:
+- [Migration API Guide](MIGRATIONS_API.md) - Complete integration guide
+- [Integration Guide](INTEGRATION_GUIDE.md) - Application integration
+
+---
+
+## For py_accountant Developers
+
 ## 1. Ключевой принцип
 
 Миграции всегда выполняются на SYNCHRONOUS драйвере.
@@ -158,4 +170,37 @@ print("Migration URL OK; runtime URL OK")
 - `README.md` — краткое перечисление переменных окружения
 
 ---
+
+## For Integrators
+
+### Quick Links
+
+- **Programmatic API**: [MIGRATIONS_API.md - Programmatic API](MIGRATIONS_API.md#programmatic-api)
+- **CLI Commands**: [MIGRATIONS_API.md - CLI Reference](MIGRATIONS_API.md#cli-reference)
+- **Alembic Integration**: [MIGRATIONS_API.md - Alembic Integration](MIGRATIONS_API.md#alembic-integration)
+- **Troubleshooting**: [MIGRATIONS_API.md - Troubleshooting](MIGRATIONS_API.md#troubleshooting)
+- **Best Practices**: [MIGRATIONS_API.md - Best Practices](MIGRATIONS_API.md#best-practices)
+
+### Three Integration Approaches
+
+1. **Programmatic API** (Python code)
+   - Run migrations from your application
+   - Automatic on startup
+   - See [Quick Start - Programmatic](MIGRATIONS_API.md#quick-start)
+
+2. **CLI Commands** (Terminal)
+   - Run migrations via command-line
+   - CI/CD integration
+   - See [Quick Start - CLI](MIGRATIONS_API.md#quick-start)
+
+3. **Alembic Integration** (Existing Alembic projects)
+   - Merge py_accountant migrations with yours
+   - See [Quick Start - Alembic](MIGRATIONS_API.md#quick-start)
+
+### Need Help?
+
+See [Troubleshooting](MIGRATIONS_API.md#troubleshooting) for common issues and solutions.
+
+---
+
 Поддерживается в рамках итерации ASYNC-04.
