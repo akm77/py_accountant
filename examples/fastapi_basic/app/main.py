@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
 
     except MigrationError as e:
         logger.error(f"Migration failed: {e}")
-        raise RuntimeError(f"Failed to initialize database: {e}")
+        raise RuntimeError(f"Failed to initialize database: {e}") from e
 
     logger.info("Application started successfully")
 

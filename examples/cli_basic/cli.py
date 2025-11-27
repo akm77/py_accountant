@@ -14,6 +14,7 @@ from rich.console import Console
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from py_accountant import __version_schema__
+from py_accountant.application.dto.models import EntryLineDTO
 from py_accountant.application.use_cases_async.accounts import (
     AsyncCreateAccount,
     AsyncGetAccount,
@@ -22,16 +23,11 @@ from py_accountant.application.use_cases_async.accounts import (
 from py_accountant.application.use_cases_async.currencies import (
     AsyncCreateCurrency,
     AsyncListCurrencies,
+    AsyncSetBaseCurrency,
 )
-from py_accountant.application.use_cases_async.ledger import (
-    AsyncPostTransaction,
-)
+from py_accountant.application.use_cases_async.ledger import AsyncPostTransaction
 from py_accountant.infrastructure.migrations import MigrationError, MigrationRunner
-from py_accountant.infrastructure.persistence.sqlalchemy.repositories_async import (
-    AsyncSqlAlchemyAccountRepository,
-    AsyncSqlAlchemyCurrencyRepository,
-    AsyncSqlAlchemyLedgerRepository,
-)
+from py_accountant.infrastructure.persistence.inmemory.clock import SystemClock
 from py_accountant.infrastructure.persistence.sqlalchemy.uow import AsyncSqlAlchemyUnitOfWork
 
 # Rich console for beautiful output
@@ -50,19 +46,6 @@ DATABASE_URL = "sqlite+aiosqlite:///./accounting.db"
 engine = create_async_engine(DATABASE_URL, echo=False)
 session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
-
-def get_dependencies():
-    """Create dependencies for use cases.
-
-    Returns:
-        Tuple of (uow, account_repo, currency_repo, ledger_repo)
-    """
-    uow = AsyncSqlAlchemyUnitOfWork(session_factory)
-    account_repo = AsyncSqlAlchemyAccountRepository()
-    currency_repo = AsyncSqlAlchemyCurrencyRepository()
-    ledger_repo = AsyncSqlAlchemyLedgerRepository()
-
-    return uow, account_repo, currency_repo, ledger_repo
 
 
 # ============================================================================
@@ -105,7 +88,7 @@ def init_db():
 
         except MigrationError as e:
             console.print(f"[red]✗ Migration failed: {e}[/red]")
-            raise typer.Abort()
+            raise typer.Abort() from e
         finally:
             await engine.dispose()
 
@@ -151,11 +134,18 @@ def create_currency_cmd(
 ):
     """Create a new currency."""
     async def _create():
-        uow, _, currency_repo, _ = get_dependencies()
-        uc = AsyncCreateCurrency(currency_repo=currency_repo, uow=uow)
+        uow = AsyncSqlAlchemyUnitOfWork(session_factory)
 
         async with uow:
-            currency = await uc.execute(code=code, is_base=is_base)
+            # Create currency
+            create_uc = AsyncCreateCurrency(uow=uow)
+            currency = await create_uc(code=code)
+
+            # Set as base if requested
+            if is_base:
+                set_base_uc = AsyncSetBaseCurrency(uow=uow)
+                await set_base_uc(code=code)
+
             await uow.commit()
 
         typer.echo(f"✅ Currency created: {currency.code}" +
@@ -168,11 +158,11 @@ def create_currency_cmd(
 def list_currencies_cmd():
     """List all currencies."""
     async def _list():
-        uow, _, currency_repo, _ = get_dependencies()
-        uc = AsyncListCurrencies(currency_repo=currency_repo, uow=uow)
+        uow = AsyncSqlAlchemyUnitOfWork(session_factory)
 
         async with uow:
-            currencies = await uc.execute()
+            uc = AsyncListCurrencies(uow=uow)
+            currencies = await uc()
 
         if not currencies:
             typer.echo("No currencies found.")
@@ -200,15 +190,11 @@ def create_account_cmd(
 ):
     """Create a new account."""
     async def _create():
-        uow, account_repo, currency_repo, _ = get_dependencies()
-        uc = AsyncCreateAccount(
-            account_repo=account_repo,
-            currency_repo=currency_repo,
-            uow=uow,
-        )
+        uow = AsyncSqlAlchemyUnitOfWork(session_factory)
 
         async with uow:
-            account = await uc.execute(
+            uc = AsyncCreateAccount(uow=uow)
+            account = await uc(
                 full_name=full_name,
                 currency_code=currency,
             )
@@ -221,18 +207,18 @@ def create_account_cmd(
 
 @app.command("get-account")
 def get_account_cmd(
-    account_id: Annotated[int, typer.Argument(help="Account ID")],
+    full_name: Annotated[str, typer.Argument(help="Account full name (e.g., Assets:Cash)")],
 ):
-    """Get account details by ID."""
+    """Get account details by full name."""
     async def _get():
-        uow, account_repo, _, _ = get_dependencies()
-        uc = AsyncGetAccount(account_repo=account_repo, uow=uow)
+        uow = AsyncSqlAlchemyUnitOfWork(session_factory)
 
         async with uow:
-            account = await uc.execute(account_id=account_id)
+            uc = AsyncGetAccount(uow=uow)
+            account = await uc(full_name=full_name)
 
         if not account:
-            typer.echo(f"❌ Account {account_id} not found.")
+            typer.echo(f"❌ Account '{full_name}' not found.")
             raise typer.Exit(1)
 
         typer.echo("\n📋 Account Details:")
@@ -249,11 +235,11 @@ def get_account_cmd(
 def list_accounts_cmd():
     """List all accounts."""
     async def _list():
-        uow, account_repo, _, _ = get_dependencies()
-        uc = AsyncListAccounts(account_repo=account_repo, uow=uow)
+        uow = AsyncSqlAlchemyUnitOfWork(session_factory)
+        uc = AsyncListAccounts(uow=uow)
 
         async with uow:
-            accounts = await uc.execute()
+            accounts = await uc()
 
         if not accounts:
             typer.echo("No accounts found.")
@@ -275,36 +261,47 @@ def list_accounts_cmd():
 
 @app.command("post-transaction")
 def post_transaction_cmd(
-    from_account: Annotated[int, typer.Option("--from", help="Debit account ID")],
-    to_account: Annotated[int, typer.Option("--to", help="Credit account ID")],
+    from_account: Annotated[str, typer.Option("--from", help="Debit account name (e.g., Assets:Cash)")],
+    to_account: Annotated[str, typer.Option("--to", help="Credit account name (e.g., Income:Salary)")],
     amount: Annotated[Decimal, typer.Argument(help="Transaction amount")],
+    currency: Annotated[str, typer.Option("--currency", help="Currency code")] = "USD",
     description: Annotated[str, typer.Option("--desc", help="Transaction description")] = "",
 ):
     """Post a transaction between two accounts.
 
     Example:
-        accounting-cli post-transaction --from 1 --to 2 100.50 --desc "Payment"
+        python cli.py post-transaction --from Assets:Cash --to Income:Salary 100.50 --desc "Payment"
     """
     async def _post():
-        uow, account_repo, _, ledger_repo = get_dependencies()
-        uc = AsyncPostTransaction(
-            ledger_repo=ledger_repo,
-            account_repo=account_repo,
-            uow=uow,
-        )
+        uow = AsyncSqlAlchemyUnitOfWork(session_factory)
+        clock = SystemClock()
+        uc = AsyncPostTransaction(uow=uow, clock=clock)
 
         async with uow:
-            entry = await uc.execute(
-                lines=[
-                    {"account_id": from_account, "debit": amount, "credit": Decimal("0")},
-                    {"account_id": to_account, "debit": Decimal("0"), "credit": amount},
-                ],
-                description=description or f"Transfer {amount}",
+            # Create entry lines with proper EntryLineDTO structure
+            lines = [
+                EntryLineDTO(
+                    side="DEBIT",
+                    account_full_name=from_account,
+                    amount=amount,
+                    currency_code=currency,
+                ),
+                EntryLineDTO(
+                    side="CREDIT",
+                    account_full_name=to_account,
+                    amount=amount,
+                    currency_code=currency,
+                ),
+            ]
+
+            tx = await uc(
+                lines=lines,
+                memo=description or f"Transfer {amount} {currency}",
             )
             await uow.commit()
 
-        typer.echo(f"✅ Transaction posted (Entry ID: {entry.id})")
-        typer.echo(f"   {amount} from account {from_account} to account {to_account}")
+        typer.echo(f"✅ Transaction posted (ID: {tx.id})")
+        typer.echo(f"   {amount} {currency} from {from_account} to {to_account}")
         if description:
             typer.echo(f"   Description: {description}")
 
