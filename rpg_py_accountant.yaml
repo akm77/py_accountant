@@ -3,8 +3,43 @@ rpg:
     project_name: "py_accountant"
     version: "1.1.0"
     description: "Монорепозиторий: домен/приложение/инфраструктура. Цель — Clean Architecture с core-only интеграцией через порты и use cases."
-    last_updated: "2025-11-26"
+    last_updated: "2025-11-27"
     changelog:
+      - version: "1.1.0-WAVE8-2"
+        date: "2025-11-27"
+        changes:
+          - "MIGRATION-API: Wave 8 - Part 2 завершена - MIGRATIONS_API.md (Разделы 6-10) + Related Docs"
+          - "MIGRATION-API: Завершён docs/MIGRATIONS_API.md (3,073 строки, 86 KB) - complete migration reference"
+          - "MIGRATION-API: Раздел 6: Best Practices (~534 строки) - Startup validation, error handling, CI/CD, production, testing"
+          - "MIGRATION-API: Раздел 7: Troubleshooting (~407 строк) - 8 Wave 7 issues с решениями + debug tips"
+          - "MIGRATION-API: Раздел 8: Advanced Topics (~245 строк) - Custom templates, multi-schema, hooks, offline, ORMs"
+          - "MIGRATION-API: Раздел 9: See Also (~46 строк) - Links to related documentation and external resources"
+          - "MIGRATION-API: Раздел 10: Appendix (~189 строк) - Migration files, schema, versions, terminology, env vars, benchmarks"
+          - "MIGRATION-API: Issue Summary Table - быстрая справка по 8 типичным проблемам"
+          - "MIGRATION-API: Все 8 Wave 7 багов задокументированы с workarounds и fixed versions"
+          - "MIGRATION-API: Debug tips: SQL echo, DATABASE_URL check, Alembic version table, manual SQL"
+          - "MIGRATION-API: Best Practices: Retry logic, rollback strategy, advisory locks, monitoring, atomic deployments"
+          - "MIGRATION-API: Production considerations: Downtime windows, backups, blue-green deployment"
+          - "MIGRATION-API: Advanced: Custom templates, multi-schema PostgreSQL, programmatic config, offline SQL generation"
+          - "MIGRATION-API: Appendix A-G: Migration reference table (0001-0008), full DB schema, version history, terminology"
+          - "MIGRATION-API: Обновлён docs/INTEGRATION_GUIDE.md (+130 строк, 552 строки total, 17 KB)"
+          - "MIGRATION-API: Добавлен раздел 'Database Initialization' в INTEGRATION_GUIDE.md"
+          - "MIGRATION-API: 3 подхода инициализации: Programmatic API, CLI Commands, Alembic Integration"
+          - "MIGRATION-API: Примеры для FastAPI, aiogram, Docker, docker-compose, GitHub Actions"
+          - "MIGRATION-API: Schema validation at startup с примерами"
+          - "MIGRATION-API: Обновлён docs/RUNNING_MIGRATIONS.md (+33 строки, 206 строк total, 8.4 KB)"
+          - "MIGRATION-API: Добавлен '⚠️ Audience Note' - clarifies document is for py_accountant developers"
+          - "MIGRATION-API: Добавлен 'For Integrators' section с quick links и 3 подходами"
+          - "MIGRATION-API: Cross-references to MIGRATIONS_API.md sections (API, CLI, Alembic, Troubleshooting)"
+          - "MIGRATION-API: Общий прирост документации: +1,570 строк (1,667 → 3,073 в MIGRATIONS_API.md + updates в других файлах)"
+          - "MIGRATION-API: Part 2 завершена за 2.5 часа (точно по плану)"
+          - "MIGRATION-API: Documentation progress: 85% (Part 2 of 3 completed)"
+          - "MIGRATION-API: Все внутренние ссылки проверены и работают"
+          - "MIGRATION-API: Обновлён prompts/migration_api/migration_api_rpg_graph.yaml (Wave 8 Part 2 status, metrics)"
+          - "MIGRATION-API: Обновлён rpg_py_accountant.yaml (версия 1.1.0-WAVE8-2)"
+          - "MIGRATION-API: Общий прогресс: 90% (Waves 1-7 completed, Wave 8 Part 2 of 3 completed)"
+          - "MIGRATION-API: Время потрачено: 31/41 часов (76%, эффективность ~125%)"
+          - "MIGRATION-API: Оставшиеся задачи: Part 3 - Examples и README updates (~3.5 часа)"
       - version: "1.1.0-WAVE8-1"
         date: "2025-11-27"
         changes:
@@ -768,23 +803,34 @@ rpg:
         description: "Документация проекта и планы улучшения: интеграция, архитектура, обработка ошибок."
         sub_modules:
           - name: "MIGRATIONS_API.md"
-            description: "Comprehensive Migration API Reference (1,667 строк): Introduction, Quick Start (3 подхода), API Reference (7 методов), CLI Reference (5 команд), Usage Examples (4 полных примера). Документация на русском языке для MigrationRunner, CLI, Alembic Integration."
-            wave: "wave_8_part_1"
+            description: "Complete Migration API Reference (3,073 строки, 86 KB): 10 полных разделов от Introduction до Appendix. Comprehensive guide для программного управления миграциями с MigrationRunner, CLI commands, Alembic Integration, Best Practices, Troubleshooting, Advanced Topics."
+            wave: "wave_8_part_2"
             status: "completed"
             completion_date: "2025-11-27"
             sections:
-              - "Раздел 1: Introduction (~85 строк) - обзор системы миграций, ключевые возможности"
-              - "Раздел 2: Quick Start (~195 строк) - Программный API, CLI, Alembic Integration"
-              - "Раздел 3: API Reference (~495 строк) - MigrationRunner методы, исключения"
-              - "Раздел 4: CLI Reference (~355 строк) - upgrade, downgrade, current, pending, history"
-              - "Раздел 5: Usage Examples (~527 строк) - FastAPI, CLI, Telegram, Docker+CI/CD"
+              part_1:
+                - "Раздел 1: Introduction (~85 строк) - обзор системы миграций, ключевые возможности"
+                - "Раздел 2: Quick Start (~195 строк) - Программный API, CLI, Alembic Integration"
+                - "Раздел 3: API Reference (~495 строк) - MigrationRunner методы, исключения"
+                - "Раздел 4: CLI Reference (~355 строк) - upgrade, downgrade, current, pending, history"
+                - "Раздел 5: Usage Examples (~527 строк) - FastAPI, CLI, Telegram, Docker+CI/CD"
+              part_2:
+                - "Раздел 6: Best Practices (~534 строки) - Startup validation, error handling, CI/CD, production, testing"
+                - "Раздел 7: Troubleshooting (~407 строк) - 8 Wave 7 issues с решениями, debug tips, Issue Summary Table"
+                - "Раздел 8: Advanced Topics (~245 строк) - Custom templates, multi-schema, hooks, offline, ORMs"
+                - "Раздел 9: See Also (~46 строк) - Links to related documentation and external resources"
+                - "Раздел 10: Appendix (~189 строк) - Migration files, schema, versions, terminology, env vars, benchmarks"
             metrics:
-              lines: 1667
-              code_blocks: 118
-              api_methods: 7
+              total_lines: 3073
+              part_1_lines: 1667
+              part_2_lines: 1406
+              code_blocks: 150
+              api_methods: 10
               cli_commands: 5
               examples: 4
+              issues_documented: 8
               language: "Русский"
+              file_size: "86 KB"
           - name: "DOCUMENTATION_FIX_PROPOSAL.md"
             description: "Детальный план исправления документации (11 страниц): анализ проблем, 3-фазное решение, метрики успеха."
           - name: "DOCUMENTATION_FIX_SUMMARY.md"
@@ -1169,7 +1215,7 @@ rpg:
       - from: "documentation.MIGRATIONS_API.md"
         to: "infrastructure.migrations"
         data_type: "Documentation → Migration API"
-        description: "Comprehensive документация Migration API (1,667 строк): Introduction, Quick Start, API Reference, CLI Reference, Usage Examples. Все примеры основаны на реальном коде из тестов."
+        description: "Complete Migration API Reference (3,073 строки, 86 KB): 10 полных разделов включая Introduction, Quick Start, API Reference, CLI Reference, Usage Examples, Best Practices, Troubleshooting (8 Wave 7 issues), Advanced Topics, See Also, Appendix. Все примеры основаны на реальном коде из тестов."
       - from: "documentation.MIGRATIONS_API.md"
         to: "infrastructure.migrations.runner"
         data_type: "Documentation → MigrationRunner"
@@ -1190,6 +1236,22 @@ rpg:
         to: "documentation.MIGRATIONS_API.md"
         data_type: "E2E tests → Documentation examples"
         description: "CLI примеры в документации основаны на E2E тестах (Docker entrypoint, GitHub Actions)."
+      - from: "documentation.INTEGRATION_GUIDE.md"
+        to: "documentation.MIGRATIONS_API.md"
+        data_type: "Guide → API Reference"
+        description: "INTEGRATION_GUIDE.md ссылается на MIGRATIONS_API.md для Database Initialization (3 подхода: Programmatic, CLI, Alembic)."
+      - from: "documentation.RUNNING_MIGRATIONS.md"
+        to: "documentation.MIGRATIONS_API.md"
+        data_type: "Internal docs → Public API docs"
+        description: "RUNNING_MIGRATIONS.md (для разработчиков) ссылается на MIGRATIONS_API.md (для интеграторов) с quick links к API, CLI, Troubleshooting."
+      - from: "documentation.MIGRATIONS_API.md"
+        to: "documentation.INTEGRATION_GUIDE.md"
+        data_type: "API Reference → Integration Guide"
+        description: "MIGRATIONS_API.md ссылается на INTEGRATION_GUIDE.md для общих вопросов интеграции и конфигурации."
+      - from: "documentation.MIGRATIONS_API.md"
+        to: "documentation.RUNNING_MIGRATIONS.md"
+        data_type: "Public API docs → Internal workflow"
+        description: "MIGRATIONS_API.md See Also section включает ссылку на RUNNING_MIGRATIONS.md для внутреннего workflow разработчиков."
 
   validation_matrix:
     requirement_to_test_map:
@@ -1233,12 +1295,12 @@ rpg:
       title: "Встроенный Migration API для программного управления миграциями"
       status: "in_progress"
       start_date: "2025-11-26"
-      progress: "78%"
+      progress: "90%"
       estimated_total_effort: "41 hours"
-      actual_effort: "24.0 hours"
-      efficiency: "127% (опережение на ~6 часов)"
+      actual_effort: "31.0 hours"
+      efficiency: "125% (опережение на ~5 часов)"
       target_version: "1.2.0"
-      waves_completed: "7 + Wave 8 Part 1"
+      waves_completed: "7 + Wave 8 Parts 1-2"
       waves_total: 9
       notes: |
         🔄 В ПРОЦЕССЕ: Реализация программного API для управления миграциями БД
@@ -1350,7 +1412,7 @@ rpg:
         - Total LOC: ~2,392 (+750 от Wave 7)
         - Production readiness: ~85% (было 75%)
         
-        🔄 Wave 8 - Part 1 IN PROGRESS (0.5 hours, на 240% быстрее плана 3 часов):
+        ✅ Wave 8 - Part 1 COMPLETED (0.5 hours, на 240% быстрее плана 3 часов):
         - docs/MIGRATIONS_API.md создан (1,667 строк, 51 KB)
         - Раздел 1: Introduction (~85 строк) - обзор системы миграций
         - Раздел 2: Quick Start (~195 строк) - 3 подхода (Программный API, CLI, Alembic)
@@ -1361,9 +1423,24 @@ rpg:
         - Документация на РУССКОМ языке в соответствии с требованиями
         - Все примеры основаны на реальном коде из тестов
         - Обновлены rpg_py_accountant.yaml и sprint_graph.yaml
-        - Следующий шаг: Wave 8 - Part 2 (Best Practices, Troubleshooting, Advanced Topics)
         
-        📋 Remaining: Wave 8 Part 2-3, Wave 9 (Final Polish)
+        ✅ Wave 8 - Part 2 COMPLETED (2.5 hours, точно по плану):
+        - docs/MIGRATIONS_API.md завершён (3,073 строки, 86 KB)
+        - Раздел 6: Best Practices (~534 строки) - Startup validation, error handling, CI/CD, production, testing
+        - Раздел 7: Troubleshooting (~407 строк) - 8 Wave 7 issues с решениями + debug tips + Issue Summary Table
+        - Раздел 8: Advanced Topics (~245 строк) - Custom templates, multi-schema, hooks, offline, ORMs
+        - Раздел 9: See Also (~46 строк) - Links to related docs and external resources
+        - Раздел 10: Appendix (~189 строк) - Migration files, schema, versions, terminology, env vars, benchmarks
+        - docs/INTEGRATION_GUIDE.md обновлён (+130 строк, 552 строки total)
+        - Добавлен раздел "Database Initialization" с 3 подходами
+        - docs/RUNNING_MIGRATIONS.md обновлён (+33 строки, 206 строк total)
+        - Добавлены "Audience Note" и "For Integrators" sections
+        - Все внутренние ссылки проверены и работают
+        - Обновлены migration_api_rpg_graph.yaml и rpg_py_accountant.yaml
+        - Total documentation: +1,570 строк в Part 2
+        - Documentation progress: 85% (Part 2 of 3 completed)
+        
+        📋 Remaining: Wave 8 Part 3 (Examples & README), Wave 9 (Final Polish)
         📊 RPG граф: prompts/migration_api/migration_api_rpg_graph.yaml
         🎯 Методика: Repository Planning Graph (RPG)
 
