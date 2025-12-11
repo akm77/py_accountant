@@ -1,0 +1,2864 @@
+rpg:
+  metadata:
+    project_name: py-accountant
+    version: 0.1.0
+    description: Async accounting ledger application
+    generated_at: '2025-11-28 13:39:46'
+    generator: rpg_generator.py v0.1.0
+  metrics:
+    total_directories: 17
+    total_files: 52
+    total_classes: 112
+    total_functions: 46
+    total_methods: 217
+    total_lines: 5926
+    avg_lines_per_file: 113
+    files_with_classes: 30
+    files_with_functions: 23
+  structure:
+    name: py-accountant
+    type: project
+    metadata:
+      total_modules: 52
+      total_lines: 5926
+    children:
+    - name: src
+      type: directory
+      path: src
+      children:
+      - name: __init__.py
+        type: file
+        path: src/__init__.py
+        metadata:
+          module_name: src
+          line_count: 13
+        dependencies: &id001
+        - py_accountant
+      - name: py_accountant
+        type: directory
+        path: src/py_accountant
+        children:
+        - name: __init__.py
+          type: file
+          path: src/py_accountant/__init__.py
+          metadata:
+            module_name: src.py_accountant
+            line_count: 30
+        - name: application
+          type: directory
+          path: src/py_accountant/application
+          children:
+          - name: __init__.py
+            type: file
+            path: src/py_accountant/application/__init__.py
+            metadata:
+              module_name: src.py_accountant.application
+              line_count: 0
+          - name: dto
+            type: directory
+            path: src/py_accountant/application/dto
+            children:
+            - name: models.py
+              type: file
+              path: src/py_accountant/application/dto/models.py
+              metadata:
+                module_name: src.py_accountant.application.dto.models
+                line_count: 233
+              children:
+              - name: CurrencyDTO
+                type: class
+                metadata:
+                  line_number: 32
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: AccountDTO
+                type: class
+                metadata:
+                  line_number: 46
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: EntryLineDTO
+                type: class
+                metadata:
+                  line_number: 57
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: TransactionDTO
+                type: class
+                metadata:
+                  line_number: 69
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: RichTransactionDTO
+                type: class
+                metadata:
+                  line_number: 80
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: RateUpdateInput
+                type: class
+                metadata:
+                  line_number: 92
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: ExchangeRateEventDTO
+                type: class
+                metadata:
+                  line_number: 100
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: TradingBalanceLineSimple
+                type: class
+                metadata:
+                  line_number: 113
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: TradingBalanceLineDetailed
+                type: class
+                metadata:
+                  line_number: 126
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: BatchDTO
+                type: class
+                metadata:
+                  line_number: 146
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: FxAuditTTLPlanDTO
+                type: class
+                metadata:
+                  line_number: 154
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: FxAuditTTLResultDTO
+                type: class
+                metadata:
+                  line_number: 172
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: ParityLineDTO
+                type: class
+                metadata:
+                  line_number: 189
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: ParityReportDTO
+                type: class
+                metadata:
+                  line_number: 206
+                  decorators:
+                  - dataclass
+                  method_count: 0
+              - name: TradingBalanceSnapshotDTO
+                type: class
+                metadata:
+                  line_number: 221
+                  decorators:
+                  - dataclass
+                  method_count: 0
+          - name: ports.py
+            type: file
+            path: src/py_accountant/application/ports.py
+            metadata:
+              module_name: src.py_accountant.application.ports
+              line_count: 218
+            dependencies: &id002
+            - py_accountant.application.dto.models
+            children:
+            - name: Clock
+              type: class
+              metadata:
+                line_number: 36
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 1
+              children:
+              - name: now
+                type: method
+                metadata:
+                  line_number: 42
+                  is_async: false
+            - name: SupportsCommitRollback
+              type: class
+              metadata:
+                line_number: 46
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 2
+              children:
+              - name: commit
+                type: method
+                metadata:
+                  line_number: 53
+                  is_async: false
+              - name: rollback
+                type: method
+                metadata:
+                  line_number: 54
+                  is_async: false
+            - name: AsyncCurrencyRepository
+              type: class
+              metadata:
+                line_number: 58
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 7
+              children:
+              - name: get_by_code
+                type: method
+                metadata:
+                  line_number: 61
+                  is_async: true
+              - name: upsert
+                type: method
+                metadata:
+                  line_number: 62
+                  is_async: true
+              - name: list_all
+                type: method
+                metadata:
+                  line_number: 63
+                  is_async: true
+              - name: get_base
+                type: method
+                metadata:
+                  line_number: 64
+                  is_async: true
+              - name: set_base
+                type: method
+                metadata:
+                  line_number: 65
+                  is_async: true
+              - name: clear_base
+                type: method
+                metadata:
+                  line_number: 66
+                  is_async: true
+              - name: bulk_upsert_rates
+                type: method
+                metadata:
+                  line_number: 67
+                  is_async: true
+            - name: AsyncAccountRepository
+              type: class
+              metadata:
+                line_number: 71
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 4
+              children:
+              - name: get_by_full_name
+                type: method
+                metadata:
+                  line_number: 74
+                  is_async: true
+              - name: create
+                type: method
+                metadata:
+                  line_number: 75
+                  is_async: true
+              - name: list
+                type: method
+                metadata:
+                  line_number: 76
+                  is_async: true
+              - name: get_balance
+                type: method
+                metadata:
+                  line_number: 78
+                  is_async: true
+            - name: AsyncTransactionRepository
+              type: class
+              metadata:
+                line_number: 82
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 3
+              children:
+              - name: add
+                type: method
+                metadata:
+                  line_number: 85
+                  is_async: true
+              - name: list_between
+                type: method
+                metadata:
+                  line_number: 86
+                  is_async: true
+              - name: ledger
+                type: method
+                metadata:
+                  line_number: 87
+                  is_async: true
+            - name: AsyncExchangeRateEventsRepository
+              type: class
+              metadata:
+                line_number: 101
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 5
+              children:
+              - name: add_event
+                type: method
+                metadata:
+                  line_number: 104
+                  is_async: true
+              - name: list_events
+                type: method
+                metadata:
+                  line_number: 107
+                  is_async: true
+              - name: list_old_events
+                type: method
+                metadata:
+                  line_number: 108
+                  is_async: true
+              - name: delete_events_by_ids
+                type: method
+                metadata:
+                  line_number: 109
+                  is_async: true
+              - name: archive_events
+                type: method
+                metadata:
+                  line_number: 110
+                  is_async: true
+            - name: AsyncUnitOfWork
+              type: class
+              metadata:
+                line_number: 114
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 9
+              children:
+              - name: __aenter__
+                type: method
+                metadata:
+                  line_number: 122
+                  is_async: true
+              - name: __aexit__
+                type: method
+                metadata:
+                  line_number: 123
+                  is_async: true
+              - name: commit
+                type: method
+                metadata:
+                  line_number: 125
+                  is_async: true
+              - name: rollback
+                type: method
+                metadata:
+                  line_number: 126
+                  is_async: true
+              - name: session
+                type: method
+                metadata:
+                  line_number: 129
+                  is_async: false
+                  decorators:
+                  - property
+              - name: accounts
+                type: method
+                metadata:
+                  line_number: 133
+                  is_async: false
+                  decorators:
+                  - property
+              - name: currencies
+                type: method
+                metadata:
+                  line_number: 136
+                  is_async: false
+                  decorators:
+                  - property
+              - name: transactions
+                type: method
+                metadata:
+                  line_number: 139
+                  is_async: false
+                  decorators:
+                  - property
+              - name: exchange_rate_events
+                type: method
+                metadata:
+                  line_number: 142
+                  is_async: false
+                  decorators:
+                  - property
+            - name: CurrencyRepository
+              type: class
+              metadata:
+                line_number: 149
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 7
+              children:
+              - name: get_by_code
+                type: method
+                metadata:
+                  line_number: 152
+                  is_async: false
+              - name: upsert
+                type: method
+                metadata:
+                  line_number: 153
+                  is_async: false
+              - name: list_all
+                type: method
+                metadata:
+                  line_number: 154
+                  is_async: false
+              - name: get_base
+                type: method
+                metadata:
+                  line_number: 155
+                  is_async: false
+              - name: set_base
+                type: method
+                metadata:
+                  line_number: 156
+                  is_async: false
+              - name: clear_base
+                type: method
+                metadata:
+                  line_number: 157
+                  is_async: false
+              - name: bulk_upsert_rates
+                type: method
+                metadata:
+                  line_number: 158
+                  is_async: false
+            - name: AccountRepository
+              type: class
+              metadata:
+                line_number: 162
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 3
+              children:
+              - name: get_by_full_name
+                type: method
+                metadata:
+                  line_number: 165
+                  is_async: false
+              - name: create
+                type: method
+                metadata:
+                  line_number: 166
+                  is_async: false
+              - name: list
+                type: method
+                metadata:
+                  line_number: 167
+                  is_async: false
+            - name: TransactionRepository
+              type: class
+              metadata:
+                line_number: 171
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 3
+              children:
+              - name: add
+                type: method
+                metadata:
+                  line_number: 174
+                  is_async: false
+              - name: list_between
+                type: method
+                metadata:
+                  line_number: 175
+                  is_async: false
+              - name: ledger
+                type: method
+                metadata:
+                  line_number: 176
+                  is_async: false
+            - name: ExchangeRateEventsRepository
+              type: class
+              metadata:
+                line_number: 190
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 5
+              children:
+              - name: add_event
+                type: method
+                metadata:
+                  line_number: 193
+                  is_async: false
+              - name: list_events
+                type: method
+                metadata:
+                  line_number: 194
+                  is_async: false
+              - name: list_old_events
+                type: method
+                metadata:
+                  line_number: 195
+                  is_async: false
+              - name: delete_events_by_ids
+                type: method
+                metadata:
+                  line_number: 196
+                  is_async: false
+              - name: archive_events
+                type: method
+                metadata:
+                  line_number: 197
+                  is_async: false
+            - name: UnitOfWork
+              type: class
+              metadata:
+                line_number: 201
+                base_classes:
+                - Protocol
+                decorators:
+                - runtime_checkable
+                method_count: 6
+              children:
+              - name: accounts
+                type: method
+                metadata:
+                  line_number: 205
+                  is_async: false
+                  decorators:
+                  - property
+              - name: currencies
+                type: method
+                metadata:
+                  line_number: 208
+                  is_async: false
+                  decorators:
+                  - property
+              - name: transactions
+                type: method
+                metadata:
+                  line_number: 211
+                  is_async: false
+                  decorators:
+                  - property
+              - name: exchange_rate_events
+                type: method
+                metadata:
+                  line_number: 214
+                  is_async: false
+                  decorators:
+                  - property
+              - name: commit
+                type: method
+                metadata:
+                  line_number: 216
+                  is_async: false
+              - name: rollback
+                type: method
+                metadata:
+                  line_number: 217
+                  is_async: false
+          - name: use_cases
+            type: directory
+            path: src/py_accountant/application/use_cases
+            children:
+            - name: exchange_rates.py
+              type: file
+              path: src/py_accountant/application/use_cases/exchange_rates.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases.exchange_rates
+                line_count: 63
+              dependencies: &id003
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain
+              - py_accountant.domain.quantize
+              children:
+              - name: UpdateExchangeRates
+                type: class
+                metadata:
+                  line_number: 14
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 18
+                    is_async: false
+            - name: ledger.py
+              type: file
+              path: src/py_accountant/application/use_cases/ledger.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases.ledger
+                line_count: 288
+              dependencies: &id004
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain
+              - py_accountant.domain.currencies
+              - py_accountant.domain.ledger
+              - py_accountant.domain.services.account_balance_service
+              - py_accountant.domain.services.exchange_rate_policy
+              - py_accountant.domain.trading_balance
+              children:
+              - name: CreateCurrency
+                type: class
+                metadata:
+                  line_number: 58
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 61
+                    is_async: false
+              - name: CreateAccount
+                type: class
+                metadata:
+                  line_number: 74
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 77
+                    is_async: false
+              - name: PostTransaction
+                type: class
+                metadata:
+                  line_number: 89
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 95
+                    is_async: false
+              - name: UpdateCurrenciesFromTransaction
+                type: class
+                metadata:
+                  line_number: 122
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 126
+                    is_async: false
+              - name: GetBalance
+                type: class
+                metadata:
+                  line_number: 139
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 144
+                    is_async: false
+              - name: GetLedger
+                type: class
+                metadata:
+                  line_number: 152
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 156
+                    is_async: false
+              - name: ListLedger
+                type: class
+                metadata:
+                  line_number: 163
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 171
+                    is_async: false
+              - name: GetTradingBalanceRawDTOs
+                type: class
+                metadata:
+                  line_number: 209
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 222
+                    is_async: false
+              - name: GetTradingBalanceDetailedDTOs
+                type: class
+                metadata:
+                  line_number: 243
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 257
+                    is_async: false
+              - name: map_account_vo_to_dto
+                type: function
+                metadata:
+                  line_number: 39
+                  is_async: false
+              - name: map_currency_vo_to_dto
+                type: function
+                metadata:
+                  line_number: 43
+                  is_async: false
+              - name: map_line_dto_to_vo
+                type: function
+                metadata:
+                  line_number: 47
+                  is_async: false
+            - name: recalculate.py
+              type: file
+              path: src/py_accountant/application/use_cases/recalculate.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases.recalculate
+                line_count: 32
+              dependencies: &id005
+              - py_accountant.application.ports
+              - py_accountant.domain
+              children:
+              - name: RecalculateAccountBalance
+                type: class
+                metadata:
+                  line_number: 13
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 26
+                    is_async: false
+          - name: use_cases_async
+            type: directory
+            path: src/py_accountant/application/use_cases_async
+            children:
+            - name: __init__.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/__init__.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async
+                line_count: 83
+            - name: accounts.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/accounts.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async.accounts
+                line_count: 81
+              dependencies: &id006
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain.accounts
+              children:
+              - name: AsyncCreateAccount
+                type: class
+                metadata:
+                  line_number: 11
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 24
+                    is_async: true
+              - name: AsyncGetAccount
+                type: class
+                metadata:
+                  line_number: 59
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 66
+                    is_async: true
+              - name: AsyncListAccounts
+                type: class
+                metadata:
+                  line_number: 72
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 79
+                    is_async: true
+            - name: currencies.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/currencies.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async.currencies
+                line_count: 96
+              dependencies: &id007
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain.currencies
+              children:
+              - name: AsyncCreateCurrency
+                type: class
+                metadata:
+                  line_number: 12
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 25
+                    is_async: true
+              - name: AsyncSetBaseCurrency
+                type: class
+                metadata:
+                  line_number: 54
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 64
+                    is_async: true
+              - name: AsyncListCurrencies
+                type: class
+                metadata:
+                  line_number: 89
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 94
+                    is_async: true
+            - name: fx_audit.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/fx_audit.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async.fx_audit
+                line_count: 70
+              dependencies: &id008
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              children:
+              - name: AsyncAddExchangeRateEvent
+                type: class
+                metadata:
+                  line_number: 12
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 35
+                    is_async: true
+              - name: AsyncListExchangeRateEvents
+                type: class
+                metadata:
+                  line_number: 48
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 68
+                    is_async: true
+            - name: fx_audit_ttl.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/fx_audit_ttl.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async.fx_audit_ttl
+                line_count: 167
+              dependencies: &id009
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain.errors
+              - py_accountant.domain.fx_audit
+              children:
+              - name: AsyncPlanFxAuditTTL
+                type: class
+                metadata:
+                  line_number: 23
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 48
+                    is_async: true
+              - name: AsyncExecuteFxAuditTTL
+                type: class
+                metadata:
+                  line_number: 84
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 111
+                    is_async: true
+              - name: _normalize_mode
+                type: function
+                metadata:
+                  line_number: 15
+                  is_async: false
+            - name: ledger.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/ledger.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async.ledger
+                line_count: 264
+              dependencies: &id010
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain.currencies
+              - py_accountant.domain.errors
+              - py_accountant.domain.ledger
+              children:
+              - name: AsyncPostTransaction
+                type: class
+                metadata:
+                  line_number: 20
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 54
+                    is_async: true
+              - name: AsyncListTransactionsBetween
+                type: class
+                metadata:
+                  line_number: 117
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 138
+                    is_async: true
+              - name: AsyncGetLedger
+                type: class
+                metadata:
+                  line_number: 151
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 177
+                    is_async: true
+              - name: AsyncGetAccountBalance
+                type: class
+                metadata:
+                  line_number: 216
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 235
+                    is_async: true
+            - name: reporting.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/reporting.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async.reporting
+                line_count: 169
+              dependencies: &id011
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain.errors
+              children:
+              - name: AsyncGetParityReport
+                type: class
+                metadata:
+                  line_number: 27
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 43
+                    is_async: true
+              - name: AsyncGetTradingBalanceSnapshotReport
+                type: class
+                metadata:
+                  line_number: 120
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 135
+                    is_async: true
+              - name: _epoch_with_tz
+                type: function
+                metadata:
+                  line_number: 22
+                  is_async: false
+            - name: trading_balance.py
+              type: file
+              path: src/py_accountant/application/use_cases_async/trading_balance.py
+              metadata:
+                module_name: src.py_accountant.application.use_cases_async.trading_balance
+                line_count: 195
+              dependencies: &id012
+              - py_accountant.application.dto.models
+              - py_accountant.application.ports
+              - py_accountant.domain.currencies
+              - py_accountant.domain.errors
+              - py_accountant.domain.ledger
+              - py_accountant.domain.trading_balance
+              children:
+              - name: AsyncGetTradingBalanceRaw
+                type: class
+                metadata:
+                  line_number: 28
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 45
+                    is_async: true
+              - name: AsyncGetTradingBalanceDetailed
+                type: class
+                metadata:
+                  line_number: 96
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: __call__
+                  type: method
+                  metadata:
+                    line_number: 114
+                    is_async: true
+              - name: _epoch_with_tz
+                type: function
+                metadata:
+                  line_number: 18
+                  is_async: false
+        - name: domain
+          type: directory
+          path: src/py_accountant/domain
+          children:
+          - name: __init__.py
+            type: file
+            path: src/py_accountant/domain/__init__.py
+            metadata:
+              module_name: src.py_accountant.domain
+              line_count: 27
+          - name: accounts.py
+            type: file
+            path: src/py_accountant/domain/accounts.py
+            metadata:
+              module_name: src.py_accountant.domain.accounts
+              line_count: 137
+            children:
+            - name: Account
+              type: class
+              metadata:
+                line_number: 74
+                decorators:
+                - dataclass
+                method_count: 5
+              children:
+              - name: __post_init__
+                type: method
+                metadata:
+                  line_number: 105
+                  is_async: false
+              - name: segments
+                type: method
+                metadata:
+                  line_number: 121
+                  is_async: false
+                  decorators:
+                  - property
+              - name: parent_path
+                type: method
+                metadata:
+                  line_number: 126
+                  is_async: false
+                  decorators:
+                  - property
+              - name: is_root
+                type: method
+                metadata:
+                  line_number: 130
+                  is_async: false
+              - name: depth
+                type: method
+                metadata:
+                  line_number: 135
+                  is_async: false
+                  decorators:
+                  - property
+            - name: _parse_full_name
+              type: function
+              metadata:
+                line_number: 28
+                is_async: false
+          - name: currencies.py
+            type: file
+            path: src/py_accountant/domain/currencies.py
+            metadata:
+              module_name: src.py_accountant.domain.currencies
+              line_count: 132
+            children:
+            - name: Currency
+              type: class
+              metadata:
+                line_number: 21
+                decorators:
+                - dataclass
+                method_count: 5
+              children:
+              - name: __post_init__
+                type: method
+                metadata:
+                  line_number: 35
+                  is_async: false
+              - name: set_rate
+                type: method
+                metadata:
+                  line_number: 48
+                  is_async: false
+              - name: clear_rate
+                type: method
+                metadata:
+                  line_number: 63
+                  is_async: false
+              - name: mark_base
+                type: method
+                metadata:
+                  line_number: 67
+                  is_async: false
+              - name: unmark_base
+                type: method
+                metadata:
+                  line_number: 71
+                  is_async: false
+            - name: BaseCurrencyRule
+              type: class
+              metadata:
+                line_number: 76
+                method_count: 2
+              children:
+              - name: ensure_single_base
+                type: method
+                metadata:
+                  line_number: 85
+                  is_async: false
+                  decorators:
+                  - staticmethod
+              - name: clear_base
+                type: method
+                metadata:
+                  line_number: 119
+                  is_async: false
+                  decorators:
+                  - staticmethod
+            - name: get_base_currency
+              type: function
+              metadata:
+                line_number: 125
+                is_async: false
+          - name: errors.py
+            type: file
+            path: src/py_accountant/domain/errors.py
+            metadata:
+              module_name: src.py_accountant.domain.errors
+              line_count: 28
+            children:
+            - name: DomainError
+              type: class
+              metadata:
+                line_number: 13
+                base_classes:
+                - Exception
+                method_count: 0
+            - name: ValidationError
+              type: class
+              metadata:
+                line_number: 22
+                base_classes:
+                - DomainError
+                method_count: 0
+          - name: fx_audit.py
+            type: file
+            path: src/py_accountant/domain/fx_audit.py
+            metadata:
+              module_name: src.py_accountant.domain.fx_audit
+              line_count: 177
+            children:
+            - name: ExchangeRateEventRef
+              type: class
+              metadata:
+                line_number: 26
+                decorators:
+                - dataclass
+                method_count: 0
+            - name: ArchivalMode
+              type: class
+              metadata:
+                line_number: 38
+                base_classes:
+                - str
+                - Enum
+                method_count: 0
+            - name: TTLConfig
+              type: class
+              metadata:
+                line_number: 47
+                decorators:
+                - dataclass
+                method_count: 0
+            - name: Batch
+              type: class
+              metadata:
+                line_number: 67
+                decorators:
+                - dataclass
+                method_count: 0
+            - name: FxAuditTTLService
+              type: class
+              metadata:
+                line_number: 92
+                method_count: 3
+              children:
+              - name: make_cutoff
+                type: method
+                metadata:
+                  line_number: 99
+                  is_async: false
+                  decorators:
+                  - staticmethod
+              - name: identify_old
+                type: method
+                metadata:
+                  line_number: 119
+                  is_async: false
+                  decorators:
+                  - staticmethod
+              - name: batch_plan
+                type: method
+                metadata:
+                  line_number: 152
+                  is_async: false
+                  decorators:
+                  - staticmethod
+            - name: _to_utc
+              type: function
+              metadata:
+                line_number: 79
+                is_async: false
+          - name: ledger.py
+            type: file
+            path: src/py_accountant/domain/ledger.py
+            metadata:
+              module_name: src.py_accountant.domain.ledger
+              line_count: 174
+            children:
+            - name: EntrySide
+              type: class
+              metadata:
+                line_number: 24
+                base_classes:
+                - str
+                - Enum
+                method_count: 0
+            - name: LedgerEntry
+              type: class
+              metadata:
+                line_number: 42
+                decorators:
+                - dataclass
+                method_count: 1
+              children:
+              - name: __post_init__
+                type: method
+                metadata:
+                  line_number: 55
+                  is_async: false
+            - name: LedgerValidator
+              type: class
+              metadata:
+                line_number: 83
+                method_count: 1
+              children:
+              - name: validate
+                type: method
+                metadata:
+                  line_number: 90
+                  is_async: false
+                  decorators:
+                  - staticmethod
+            - name: _to_decimal
+              type: function
+              metadata:
+                line_number: 31
+                is_async: false
+          - name: quantize.py
+            type: file
+            path: src/py_accountant/domain/quantize.py
+            metadata:
+              module_name: src.py_accountant.domain.quantize
+              line_count: 69
+            children:
+            - name: _to_decimal
+              type: function
+              metadata:
+                line_number: 20
+                is_async: false
+            - name: money_quantize
+              type: function
+              metadata:
+                line_number: 35
+                is_async: false
+            - name: rate_quantize
+              type: function
+              metadata:
+                line_number: 53
+                is_async: false
+          - name: services
+            type: directory
+            path: src/py_accountant/domain/services
+            children:
+            - name: account_balance_service.py
+              type: file
+              path: src/py_accountant/domain/services/account_balance_service.py
+              metadata:
+                module_name: src.py_accountant.domain.services.account_balance_service
+                line_count: 72
+              dependencies: &id013
+              - py_accountant.application.dto.models
+              children:
+              - name: AccountBalanceServiceProtocol
+                type: class
+                metadata:
+                  line_number: 10
+                  method_count: 2
+                children:
+                - name: process_transaction
+                  type: method
+                  metadata:
+                    line_number: 19
+                    is_async: false
+                - name: get_balance
+                  type: method
+                  metadata:
+                    line_number: 22
+                    is_async: false
+              - name: InMemoryAccountBalanceService
+                type: class
+                metadata:
+                  line_number: 27
+                  base_classes:
+                  - AccountBalanceServiceProtocol
+                  decorators:
+                  - dataclass
+                  method_count: 2
+                children:
+                - name: process_transaction
+                  type: method
+                  metadata:
+                    line_number: 40
+                    is_async: false
+                - name: get_balance
+                  type: method
+                  metadata:
+                    line_number: 53
+                    is_async: false
+            - name: exchange_rate_policy.py
+              type: file
+              path: src/py_accountant/domain/services/exchange_rate_policy.py
+              metadata:
+                module_name: src.py_accountant.domain.services.exchange_rate_policy
+                line_count: 43
+              children:
+              - name: ExchangeRatePolicy
+                type: class
+                metadata:
+                  line_number: 8
+                  decorators:
+                  - dataclass
+                  method_count: 1
+                children:
+                - name: apply
+                  type: method
+                  metadata:
+                    line_number: 25
+                    is_async: false
+          - name: trading_balance.py
+            type: file
+            path: src/py_accountant/domain/trading_balance.py
+            metadata:
+              module_name: src.py_accountant.domain.trading_balance
+              line_count: 249
+            children:
+            - name: RawBalanceLine
+              type: class
+              metadata:
+                line_number: 29
+                decorators:
+                - dataclass
+                method_count: 0
+            - name: RawAggregator
+              type: class
+              metadata:
+                line_number: 45
+                method_count: 1
+              children:
+              - name: aggregate
+                type: method
+                metadata:
+                  line_number: 51
+                  is_async: false
+            - name: ConvertedBalanceLine
+              type: class
+              metadata:
+                line_number: 105
+                decorators:
+                - dataclass
+                method_count: 0
+            - name: ConvertedAggregator
+              type: class
+              metadata:
+                line_number: 131
+                method_count: 1
+              children:
+              - name: aggregate
+                type: method
+                metadata:
+                  line_number: 138
+                  is_async: false
+          - name: value_objects.py
+            type: file
+            path: src/py_accountant/domain/value_objects.py
+            metadata:
+              module_name: src.py_accountant.domain.value_objects
+              line_count: 197
+            children:
+            - name: CurrencyCode
+              type: class
+              metadata:
+                line_number: 24
+                decorators:
+                - dataclass
+                method_count: 2
+              children:
+              - name: __post_init__
+                type: method
+                metadata:
+                  line_number: 28
+                  is_async: false
+              - name: __str__
+                type: method
+                metadata:
+                  line_number: 38
+                  is_async: false
+            - name: AccountName
+              type: class
+              metadata:
+                line_number: 43
+                decorators:
+                - dataclass
+                method_count: 5
+              children:
+              - name: __post_init__
+                type: method
+                metadata:
+                  line_number: 49
+                  is_async: false
+              - name: name
+                type: method
+                metadata:
+                  line_number: 67
+                  is_async: false
+                  decorators:
+                  - property
+              - name: parent
+                type: method
+                metadata:
+                  line_number: 71
+                  is_async: false
+                  decorators:
+                  - property
+              - name: path
+                type: method
+                metadata:
+                  line_number: 76
+                  is_async: false
+              - name: __str__
+                type: method
+                metadata:
+                  line_number: 79
+                  is_async: false
+            - name: EntrySide
+              type: class
+              metadata:
+                line_number: 83
+                base_classes:
+                - str
+                - Enum
+                method_count: 2
+              children:
+              - name: is_debit
+                type: method
+                metadata:
+                  line_number: 88
+                  is_async: false
+                  decorators:
+                  - property
+              - name: is_credit
+                type: method
+                metadata:
+                  line_number: 92
+                  is_async: false
+                  decorators:
+                  - property
+            - name: ExchangeRate
+              type: class
+              metadata:
+                line_number: 97
+                decorators:
+                - dataclass
+                method_count: 3
+              children:
+              - name: from_number
+                type: method
+                metadata:
+                  line_number: 101
+                  is_async: false
+                  decorators:
+                  - classmethod
+              - name: __post_init__
+                type: method
+                metadata:
+                  line_number: 112
+                  is_async: false
+              - name: __float__
+                type: method
+                metadata:
+                  line_number: 116
+                  is_async: false
+            - name: EntryLine
+              type: class
+              metadata:
+                line_number: 121
+                decorators:
+                - dataclass
+                method_count: 2
+              children:
+              - name: create
+                type: method
+                metadata:
+                  line_number: 129
+                  is_async: false
+                  decorators:
+                  - classmethod
+              - name: amount_in_base
+                type: method
+                metadata:
+                  line_number: 151
+                  is_async: false
+            - name: TransactionVO
+              type: class
+              metadata:
+                line_number: 157
+                decorators:
+                - dataclass
+                method_count: 6
+              children:
+              - name: __post_init__
+                type: method
+                metadata:
+                  line_number: 162
+                  is_async: false
+              - name: from_lines
+                type: method
+                metadata:
+                  line_number: 180
+                  is_async: false
+                  decorators:
+                  - classmethod
+              - name: debit_lines
+                type: method
+                metadata:
+                  line_number: 184
+                  is_async: false
+                  decorators:
+                  - property
+              - name: credit_lines
+                type: method
+                metadata:
+                  line_number: 188
+                  is_async: false
+                  decorators:
+                  - property
+              - name: total_base_debit
+                type: method
+                metadata:
+                  line_number: 192
+                  is_async: false
+                  decorators:
+                  - property
+              - name: total_base_credit
+                type: method
+                metadata:
+                  line_number: 196
+                  is_async: false
+                  decorators:
+                  - property
+        - name: infrastructure
+          type: directory
+          path: src/py_accountant/infrastructure
+          children:
+          - name: __init__.py
+            type: file
+            path: src/py_accountant/infrastructure/__init__.py
+            metadata:
+              module_name: src.py_accountant.infrastructure
+              line_count: 0
+          - name: config
+            type: directory
+            path: src/py_accountant/infrastructure/config
+            children:
+            - name: settings.py
+              type: file
+              path: src/py_accountant/infrastructure/config/settings.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.config.settings
+                line_count: 141
+              children:
+              - name: BaseAppSettings
+                type: class
+                metadata:
+                  line_number: 16
+                  base_classes:
+                  - BaseSettings
+                  method_count: 0
+              - name: TestSettings
+                type: class
+                metadata:
+                  line_number: 68
+                  base_classes:
+                  - BaseAppSettings
+                  method_count: 0
+              - name: ProdSettings
+                type: class
+                metadata:
+                  line_number: 86
+                  base_classes:
+                  - BaseAppSettings
+                  method_count: 1
+                children:
+                - name: validate_database_url
+                  type: method
+                  metadata:
+                    line_number: 103
+                    is_async: false
+                    decorators:
+                    - field_validator
+                    - classmethod
+              - name: TestSettingsNoFile
+                type: class
+                metadata:
+                  line_number: 111
+                  base_classes:
+                  - TestSettings
+                  method_count: 0
+              - name: ProdSettingsNoFile
+                type: class
+                metadata:
+                  line_number: 115
+                  base_classes:
+                  - ProdSettings
+                  method_count: 0
+              - name: _prefixed
+                type: function
+                metadata:
+                  line_number: 12
+                  is_async: false
+              - name: get_settings
+                type: function
+                metadata:
+                  line_number: 120
+                  is_async: false
+                  decorators:
+                  - lru_cache
+          - name: logging
+            type: directory
+            path: src/py_accountant/infrastructure/logging
+            children:
+            - name: config.py
+              type: file
+              path: src/py_accountant/infrastructure/logging/config.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.logging.config
+                line_count: 122
+              dependencies: &id014
+              - py_accountant.infrastructure.config.settings
+              children:
+              - name: _resolve_level
+                type: function
+                metadata:
+                  line_number: 13
+                  is_async: false
+              - name: configure_logging
+                type: function
+                metadata:
+                  line_number: 21
+                  is_async: false
+              - name: get_logger
+                type: function
+                metadata:
+                  line_number: 114
+                  is_async: false
+          - name: migrations
+            type: directory
+            path: src/py_accountant/infrastructure/migrations
+            children:
+            - name: __init__.py
+              type: file
+              path: src/py_accountant/infrastructure/migrations/__init__.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.migrations
+                line_count: 13
+            - name: __main__.py
+              type: file
+              path: src/py_accountant/infrastructure/migrations/__main__.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.migrations.__main__
+                line_count: 7
+            - name: alembic_integration.py
+              type: file
+              path: src/py_accountant/infrastructure/migrations/alembic_integration.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.migrations.alembic_integration
+                line_count: 85
+              children:
+              - name: include_in_alembic
+                type: function
+                metadata:
+                  line_number: 15
+                  is_async: false
+            - name: cli.py
+              type: file
+              path: src/py_accountant/infrastructure/migrations/cli.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.migrations.cli
+                line_count: 129
+              children:
+              - name: get_database_url
+                type: function
+                metadata:
+                  line_number: 25
+                  is_async: false
+              - name: upgrade
+                type: function
+                metadata:
+                  line_number: 35
+                  is_async: false
+                  decorators:
+                  - app.command
+              - name: downgrade
+                type: function
+                metadata:
+                  line_number: 56
+                  is_async: false
+                  decorators:
+                  - app.command
+              - name: current
+                type: function
+                metadata:
+                  line_number: 77
+                  is_async: false
+                  decorators:
+                  - app.command
+              - name: pending
+                type: function
+                metadata:
+                  line_number: 95
+                  is_async: false
+                  decorators:
+                  - app.command
+              - name: history
+                type: function
+                metadata:
+                  line_number: 121
+                  is_async: false
+                  decorators:
+                  - app.command
+            - name: errors.py
+              type: file
+              path: src/py_accountant/infrastructure/migrations/errors.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.migrations.errors
+                line_count: 22
+              children:
+              - name: MigrationError
+                type: class
+                metadata:
+                  line_number: 6
+                  base_classes:
+                  - Exception
+                  method_count: 0
+              - name: VersionMismatchError
+                type: class
+                metadata:
+                  line_number: 12
+                  base_classes:
+                  - MigrationError
+                  method_count: 0
+            - name: runner.py
+              type: file
+              path: src/py_accountant/infrastructure/migrations/runner.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.migrations.runner
+                line_count: 176
+              children:
+              - name: MigrationRunner
+                type: class
+                metadata:
+                  line_number: 22
+                  method_count: 9
+                children:
+                - name: __init__
+                  type: method
+                  metadata:
+                    line_number: 30
+                    is_async: false
+                - name: _load_alembic_config
+                  type: method
+                  metadata:
+                    line_number: 48
+                    is_async: false
+                - name: upgrade_to_head
+                  type: method
+                  metadata:
+                    line_number: 81
+                    is_async: true
+                - name: upgrade_to_version
+                  type: method
+                  metadata:
+                    line_number: 86
+                    is_async: true
+                - name: downgrade
+                  type: method
+                  metadata:
+                    line_number: 95
+                    is_async: true
+                - name: get_current_version
+                  type: method
+                  metadata:
+                    line_number: 108
+                    is_async: true
+                - name: get_pending_migrations
+                  type: method
+                  metadata:
+                    line_number: 125
+                    is_async: true
+                - name: validate_schema_version
+                  type: method
+                  metadata:
+                    line_number: 148
+                    is_async: true
+                - name: _run_in_sync
+                  type: method
+                  metadata:
+                    line_number: 165
+                    is_async: true
+            - name: versions
+              type: directory
+              path: src/py_accountant/infrastructure/migrations/versions
+              children:
+              - name: 0001_initial.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0001_initial.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0001_initial
+                  line_count: 79
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 23
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 73
+                    is_async: false
+              - name: 0002_add_is_base_currency.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0002_add_is_base_currency.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0002_add_is_base_currency
+                  line_count: 35
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 25
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 32
+                    is_async: false
+              - name: 0003_add_performance_indexes.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0003_add_performance_indexes.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0003_add_performance_indexes
+                  line_count: 35
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 23
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 30
+                    is_async: false
+              - name: 0004_add_exchange_rate_events.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0004_add_exchange_rate_events.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0004_add_exchange_rate_events
+                  line_count: 44
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 24
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 39
+                    is_async: false
+              - name: 0005_exchange_rate_events_archive.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0005_exchange_rate_events_archive.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0005_exchange_rate_events_archive
+                  line_count: 48
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 24
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 42
+                    is_async: false
+              - name: 0006_add_journal_idempotency_key.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0006_add_journal_idempotency_key.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0006_add_journal_idempotency_key
+                  line_count: 36
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 24
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 32
+                    is_async: false
+              - name: 0007_drop_balances_table.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0007_drop_balances_table.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0007_drop_balances_table
+                  line_count: 42
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 23
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 31
+                    is_async: false
+              - name: 0008_add_account_aggregates.py
+                type: file
+                path: src/py_accountant/infrastructure/migrations/versions/0008_add_account_aggregates.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.migrations.versions.0008_add_account_aggregates
+                  line_count: 58
+                children:
+                - name: upgrade
+                  type: function
+                  metadata:
+                    line_number: 23
+                    is_async: false
+                - name: downgrade
+                  type: function
+                  metadata:
+                    line_number: 52
+                    is_async: false
+          - name: persistence
+            type: directory
+            path: src/py_accountant/infrastructure/persistence
+            children:
+            - name: inmemory
+              type: directory
+              path: src/py_accountant/infrastructure/persistence/inmemory
+              children:
+              - name: clock.py
+                type: file
+                path: src/py_accountant/infrastructure/persistence/inmemory/clock.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.persistence.inmemory.clock
+                  line_count: 60
+                dependencies: &id015
+                - py_accountant.application.ports
+                - py_accountant.infrastructure.persistence.inmemory.repositories
+                children:
+                - name: SystemClock
+                  type: class
+                  metadata:
+                    line_number: 20
+                    base_classes:
+                    - Clock
+                    method_count: 1
+                  children:
+                  - name: now
+                    type: method
+                    metadata:
+                      line_number: 21
+                      is_async: false
+                - name: FixedClock
+                  type: class
+                  metadata:
+                    line_number: 27
+                    base_classes:
+                    - Clock
+                    method_count: 2
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 28
+                      is_async: false
+                  - name: now
+                    type: method
+                    metadata:
+                      line_number: 31
+                      is_async: false
+                - name: InMemoryUnitOfWork
+                  type: class
+                  metadata:
+                    line_number: 37
+                    base_classes:
+                    - UnitOfWork
+                    decorators:
+                    - dataclass
+                    method_count: 5
+                  children:
+                  - name: accounts
+                    type: method
+                    metadata:
+                      line_number: 43
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: currencies
+                    type: method
+                    metadata:
+                      line_number: 47
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: transactions
+                    type: method
+                    metadata:
+                      line_number: 51
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: commit
+                    type: method
+                    metadata:
+                      line_number: 54
+                      is_async: false
+                  - name: rollback
+                    type: method
+                    metadata:
+                      line_number: 58
+                      is_async: false
+              - name: repositories.py
+                type: file
+                path: src/py_accountant/infrastructure/persistence/inmemory/repositories.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.persistence.inmemory.repositories
+                  line_count: 222
+                dependencies: &id016
+                - py_accountant.application.dto.models
+                - py_accountant.application.ports
+                children:
+                - name: InMemoryCurrencyRepository
+                  type: class
+                  metadata:
+                    line_number: 22
+                    base_classes:
+                    - CurrencyRepository
+                    method_count: 8
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 23
+                      is_async: false
+                  - name: get_by_code
+                    type: method
+                    metadata:
+                      line_number: 26
+                      is_async: false
+                  - name: upsert
+                    type: method
+                    metadata:
+                      line_number: 29
+                      is_async: false
+                  - name: list_all
+                    type: method
+                    metadata:
+                      line_number: 37
+                      is_async: false
+                  - name: get_base
+                    type: method
+                    metadata:
+                      line_number: 41
+                      is_async: false
+                  - name: set_base
+                    type: method
+                    metadata:
+                      line_number: 47
+                      is_async: false
+                  - name: clear_base
+                    type: method
+                    metadata:
+                      line_number: 57
+                      is_async: false
+                  - name: bulk_upsert_rates
+                    type: method
+                    metadata:
+                      line_number: 61
+                      is_async: false
+                - name: InMemoryAccountRepository
+                  type: class
+                  metadata:
+                    line_number: 69
+                    base_classes:
+                    - AccountRepository
+                    method_count: 4
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 70
+                      is_async: false
+                  - name: get_by_full_name
+                    type: method
+                    metadata:
+                      line_number: 73
+                      is_async: false
+                  - name: create
+                    type: method
+                    metadata:
+                      line_number: 76
+                      is_async: false
+                  - name: list
+                    type: method
+                    metadata:
+                      line_number: 82
+                      is_async: false
+                - name: InMemoryTransactionRepository
+                  type: class
+                  metadata:
+                    line_number: 88
+                    base_classes:
+                    - TransactionRepository
+                    method_count: 5
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 89
+                      is_async: false
+                  - name: add
+                    type: method
+                    metadata:
+                      line_number: 92
+                      is_async: false
+                  - name: list_between
+                    type: method
+                    metadata:
+                      line_number: 98
+                      is_async: false
+                  - name: ledger
+                    type: method
+                    metadata:
+                      line_number: 105
+                      is_async: false
+                  - name: account_balance
+                    type: method
+                    metadata:
+                      line_number: 140
+                      is_async: false
+                - name: InMemoryExchangeRateEventsRepository
+                  type: class
+                  metadata:
+                    line_number: 156
+                    base_classes:
+                    - ExchangeRateEventsRepository
+                    method_count: 8
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 157
+                      is_async: false
+                  - name: add_event
+                    type: method
+                    metadata:
+                      line_number: 162
+                      is_async: false
+                  - name: list_events
+                    type: method
+                    metadata:
+                      line_number: 168
+                      is_async: false
+                  - name: list_old_events
+                    type: method
+                    metadata:
+                      line_number: 180
+                      is_async: false
+                  - name: delete_events_by_ids
+                    type: method
+                    metadata:
+                      line_number: 189
+                      is_async: false
+                  - name: archive_events
+                    type: method
+                    metadata:
+                      line_number: 195
+                      is_async: false
+                  - name: move_events_to_archive
+                    type: method
+                    metadata:
+                      line_number: 212
+                      is_async: false
+                  - name: _archive_rows
+                    type: method
+                    metadata:
+                      line_number: 221
+                      is_async: false
+              - name: uow.py
+                type: file
+                path: src/py_accountant/infrastructure/persistence/inmemory/uow.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.persistence.inmemory.uow
+                  line_count: 47
+                dependencies: &id017
+                - py_accountant.application.ports
+                - py_accountant.infrastructure.persistence.inmemory.repositories
+                children:
+                - name: InMemoryUnitOfWork
+                  type: class
+                  metadata:
+                    line_number: 21
+                    base_classes:
+                    - UnitOfWork
+                    decorators:
+                    - dataclass
+                    method_count: 6
+                  children:
+                  - name: accounts
+                    type: method
+                    metadata:
+                      line_number: 28
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: currencies
+                    type: method
+                    metadata:
+                      line_number: 32
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: transactions
+                    type: method
+                    metadata:
+                      line_number: 36
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: exchange_rate_events
+                    type: method
+                    metadata:
+                      line_number: 40
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: commit
+                    type: method
+                    metadata:
+                      line_number: 43
+                      is_async: false
+                  - name: rollback
+                    type: method
+                    metadata:
+                      line_number: 46
+                      is_async: false
+            - name: sqlalchemy
+              type: directory
+              path: src/py_accountant/infrastructure/persistence/sqlalchemy
+              children:
+              - name: async_engine.py
+                type: file
+                path: src/py_accountant/infrastructure/persistence/sqlalchemy/async_engine.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.persistence.sqlalchemy.async_engine
+                  line_count: 186
+                dependencies: &id018
+                - py_accountant.infrastructure.config.settings
+                children:
+                - name: normalize_async_url
+                  type: function
+                  metadata:
+                    line_number: 50
+                    is_async: false
+                - name: _engine_kwargs_for_dialect
+                  type: function
+                  metadata:
+                    line_number: 91
+                    is_async: false
+                - name: get_async_engine
+                  type: function
+                  metadata:
+                    line_number: 134
+                    is_async: false
+                - name: get_async_session_factory
+                  type: function
+                  metadata:
+                    line_number: 164
+                    is_async: false
+              - name: models.py
+                type: file
+                path: src/py_accountant/infrastructure/persistence/sqlalchemy/models.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.persistence.sqlalchemy.models
+                  line_count: 134
+                children:
+                - name: Base
+                  type: class
+                  metadata:
+                    line_number: 26
+                    base_classes:
+                    - DeclarativeBase
+                    method_count: 0
+                - name: CurrencyORM
+                  type: class
+                  metadata:
+                    line_number: 30
+                    base_classes:
+                    - Base
+                    method_count: 0
+                - name: AccountORM
+                  type: class
+                  metadata:
+                    line_number: 39
+                    base_classes:
+                    - Base
+                    method_count: 0
+                - name: JournalORM
+                  type: class
+                  metadata:
+                    line_number: 49
+                    base_classes:
+                    - Base
+                    method_count: 0
+                - name: TransactionLineORM
+                  type: class
+                  metadata:
+                    line_number: 64
+                    base_classes:
+                    - Base
+                    method_count: 0
+                - name: ExchangeRateEventORM
+                  type: class
+                  metadata:
+                    line_number: 81
+                    base_classes:
+                    - Base
+                    method_count: 0
+                - name: ExchangeRateEventArchiveORM
+                  type: class
+                  metadata:
+                    line_number: 95
+                    base_classes:
+                    - Base
+                    method_count: 0
+                - name: AccountBalanceORM
+                  type: class
+                  metadata:
+                    line_number: 112
+                    base_classes:
+                    - Base
+                    method_count: 0
+                - name: AccountDailyTurnoverORM
+                  type: class
+                  metadata:
+                    line_number: 122
+                    base_classes:
+                    - Base
+                    method_count: 0
+              - name: repositories_async.py
+                type: file
+                path: src/py_accountant/infrastructure/persistence/sqlalchemy/repositories_async.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.persistence.sqlalchemy.repositories_async
+                  line_count: 640
+                dependencies: &id019
+                - py_accountant.application.dto.models
+                - py_accountant.infrastructure.persistence.sqlalchemy.models
+                children:
+                - name: AsyncSqlAlchemyCurrencyRepository
+                  type: class
+                  metadata:
+                    line_number: 45
+                    method_count: 9
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 55
+                      is_async: false
+                  - name: get_by_code
+                    type: method
+                    metadata:
+                      line_number: 59
+                      is_async: true
+                  - name: upsert
+                    type: method
+                    metadata:
+                      line_number: 68
+                      is_async: true
+                  - name: list_all
+                    type: method
+                    metadata:
+                      line_number: 90
+                      is_async: true
+                  - name: get_base
+                    type: method
+                    metadata:
+                      line_number: 100
+                      is_async: true
+                  - name: set_base
+                    type: method
+                    metadata:
+                      line_number: 109
+                      is_async: true
+                  - name: clear_base
+                    type: method
+                    metadata:
+                      line_number: 120
+                      is_async: true
+                  - name: bulk_upsert_rates
+                    type: method
+                    metadata:
+                      line_number: 125
+                      is_async: true
+                  - name: delete
+                    type: method
+                    metadata:
+                      line_number: 141
+                      is_async: true
+                - name: AsyncSqlAlchemyAccountRepository
+                  type: class
+                  metadata:
+                    line_number: 155
+                    method_count: 6
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 161
+                      is_async: false
+                  - name: get_by_full_name
+                    type: method
+                    metadata:
+                      line_number: 165
+                      is_async: true
+                  - name: create
+                    type: method
+                    metadata:
+                      line_number: 179
+                      is_async: true
+                  - name: list
+                    type: method
+                    metadata:
+                      line_number: 196
+                      is_async: true
+                  - name: delete
+                    type: method
+                    metadata:
+                      line_number: 222
+                      is_async: true
+                  - name: get_balance
+                    type: method
+                    metadata:
+                      line_number: 235
+                      is_async: true
+                - name: AsyncSqlAlchemyTransactionRepository
+                  type: class
+                  metadata:
+                    line_number: 247
+                    method_count: 6
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 253
+                      is_async: false
+                  - name: get_by_idempotency_key
+                    type: method
+                    metadata:
+                      line_number: 257
+                      is_async: true
+                  - name: add
+                    type: method
+                    metadata:
+                      line_number: 296
+                      is_async: true
+                  - name: list_between
+                    type: method
+                    metadata:
+                      line_number: 347
+                      is_async: true
+                  - name: ledger
+                    type: method
+                    metadata:
+                      line_number: 390
+                      is_async: true
+                  - name: _apply_account_aggregates
+                    type: method
+                    metadata:
+                      line_number: 453
+                      is_async: true
+                - name: AsyncSqlAlchemyExchangeRateEventsRepository
+                  type: class
+                  metadata:
+                    line_number: 522
+                    method_count: 6
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 530
+                      is_async: false
+                  - name: add_event
+                    type: method
+                    metadata:
+                      line_number: 533
+                      is_async: true
+                  - name: list_events
+                    type: method
+                    metadata:
+                      line_number: 551
+                      is_async: true
+                  - name: list_old_events
+                    type: method
+                    metadata:
+                      line_number: 579
+                      is_async: true
+                  - name: delete_events_by_ids
+                    type: method
+                    metadata:
+                      line_number: 605
+                      is_async: true
+                  - name: archive_events
+                    type: method
+                    metadata:
+                      line_number: 617
+                      is_async: true
+              - name: uow.py
+                type: file
+                path: src/py_accountant/infrastructure/persistence/sqlalchemy/uow.py
+                metadata:
+                  module_name: src.py_accountant.infrastructure.persistence.sqlalchemy.uow
+                  line_count: 211
+                dependencies: &id020
+                - py_accountant.infrastructure.persistence.sqlalchemy.async_engine
+                - py_accountant.infrastructure.persistence.sqlalchemy.repositories_async
+                children:
+                - name: AsyncSqlAlchemyUnitOfWork
+                  type: class
+                  metadata:
+                    line_number: 23
+                    method_count: 13
+                  children:
+                  - name: __init__
+                    type: method
+                    metadata:
+                      line_number: 31
+                      is_async: false
+                  - name: engine
+                    type: method
+                    metadata:
+                      line_number: 51
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: session
+                    type: method
+                    metadata:
+                      line_number: 56
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: session_factory
+                    type: method
+                    metadata:
+                      line_number: 69
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: __aenter__
+                    type: method
+                    metadata:
+                      line_number: 73
+                      is_async: true
+                  - name: __aexit__
+                    type: method
+                    metadata:
+                      line_number: 92
+                      is_async: true
+                  - name: commit
+                    type: method
+                    metadata:
+                      line_number: 134
+                      is_async: true
+                  - name: rollback
+                    type: method
+                    metadata:
+                      line_number: 144
+                      is_async: true
+                  - name: close
+                    type: method
+                    metadata:
+                      line_number: 150
+                      is_async: false
+                  - name: accounts
+                    type: method
+                    metadata:
+                      line_number: 175
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: currencies
+                    type: method
+                    metadata:
+                      line_number: 184
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: transactions
+                    type: method
+                    metadata:
+                      line_number: 193
+                      is_async: false
+                      decorators:
+                      - property
+                  - name: exchange_rate_events
+                    type: method
+                    metadata:
+                      line_number: 203
+                      is_async: false
+                      decorators:
+                      - property
+          - name: utils
+            type: directory
+            path: src/py_accountant/infrastructure/utils
+            children:
+            - name: asyncio_utils.py
+              type: file
+              path: src/py_accountant/infrastructure/utils/asyncio_utils.py
+              metadata:
+                module_name: src.py_accountant.infrastructure.utils.asyncio_utils
+                line_count: 47
+              children:
+              - name: run_sync
+                type: function
+                metadata:
+                  line_number: 9
+                  is_async: false
+  dependencies:
+    src/__init__.py: *id001
+    src/py_accountant/__init__.py: []
+    src/py_accountant/application/__init__.py: []
+    src/py_accountant/application/dto/models.py: []
+    src/py_accountant/application/ports.py: *id002
+    src/py_accountant/application/use_cases/exchange_rates.py: *id003
+    src/py_accountant/application/use_cases/ledger.py: *id004
+    src/py_accountant/application/use_cases/recalculate.py: *id005
+    src/py_accountant/application/use_cases_async/__init__.py: []
+    src/py_accountant/application/use_cases_async/accounts.py: *id006
+    src/py_accountant/application/use_cases_async/currencies.py: *id007
+    src/py_accountant/application/use_cases_async/fx_audit.py: *id008
+    src/py_accountant/application/use_cases_async/fx_audit_ttl.py: *id009
+    src/py_accountant/application/use_cases_async/ledger.py: *id010
+    src/py_accountant/application/use_cases_async/reporting.py: *id011
+    src/py_accountant/application/use_cases_async/trading_balance.py: *id012
+    src/py_accountant/domain/__init__.py: []
+    src/py_accountant/domain/accounts.py: []
+    src/py_accountant/domain/currencies.py: []
+    src/py_accountant/domain/errors.py: []
+    src/py_accountant/domain/fx_audit.py: []
+    src/py_accountant/domain/ledger.py: []
+    src/py_accountant/domain/quantize.py: []
+    src/py_accountant/domain/services/account_balance_service.py: *id013
+    src/py_accountant/domain/services/exchange_rate_policy.py: []
+    src/py_accountant/domain/trading_balance.py: []
+    src/py_accountant/domain/value_objects.py: []
+    src/py_accountant/infrastructure/__init__.py: []
+    src/py_accountant/infrastructure/config/settings.py: []
+    src/py_accountant/infrastructure/logging/config.py: *id014
+    src/py_accountant/infrastructure/migrations/__init__.py: []
+    src/py_accountant/infrastructure/migrations/__main__.py: []
+    src/py_accountant/infrastructure/migrations/alembic_integration.py: []
+    src/py_accountant/infrastructure/migrations/cli.py: []
+    src/py_accountant/infrastructure/migrations/errors.py: []
+    src/py_accountant/infrastructure/migrations/runner.py: []
+    src/py_accountant/infrastructure/migrations/versions/0001_initial.py: []
+    src/py_accountant/infrastructure/migrations/versions/0002_add_is_base_currency.py: []
+    src/py_accountant/infrastructure/migrations/versions/0003_add_performance_indexes.py: []
+    src/py_accountant/infrastructure/migrations/versions/0004_add_exchange_rate_events.py: []
+    src/py_accountant/infrastructure/migrations/versions/0005_exchange_rate_events_archive.py: []
+    src/py_accountant/infrastructure/migrations/versions/0006_add_journal_idempotency_key.py: []
+    src/py_accountant/infrastructure/migrations/versions/0007_drop_balances_table.py: []
+    src/py_accountant/infrastructure/migrations/versions/0008_add_account_aggregates.py: []
+    src/py_accountant/infrastructure/persistence/inmemory/clock.py: *id015
+    src/py_accountant/infrastructure/persistence/inmemory/repositories.py: *id016
+    src/py_accountant/infrastructure/persistence/inmemory/uow.py: *id017
+    src/py_accountant/infrastructure/persistence/sqlalchemy/async_engine.py: *id018
+    src/py_accountant/infrastructure/persistence/sqlalchemy/models.py: []
+    src/py_accountant/infrastructure/persistence/sqlalchemy/repositories_async.py: *id019
+    src/py_accountant/infrastructure/persistence/sqlalchemy/uow.py: *id020
+    src/py_accountant/infrastructure/utils/asyncio_utils.py: []
+  functional_modules:
+  - name: src
+    type: directory
+    path: src
+    submodules:
+    - py_accountant
