@@ -1,0 +1,473 @@
+# AI Context: Architecture Constraints
+# Версия: 1.1.0
+# Последнее обновление: 2025-11-28
+# Назначение: Архитектурные ограничения и правила
+
+---
+# Overview
+---
+architecture: "Ports & Adapters (Hexagonal Architecture)"
+async_only: true
+version: "1.1.0 (async-first)"
+
+---
+# Layer Structure
+---
+layers:
+  domain:
+    location: src/py_accountant/domain
+    purpose: "Pure business logic, no I/O"
+    dependencies: []
+
+    contains:
+      - "Value objects (Decimal, datetime)"
+      - "Entities (Account, Currency, Transaction)"
+      - "Domain services (Aggregators)"
+      - "Validation logic"
+      - "Quantization rules"
+      - "Exceptions (DomainError, ValidationError)"
+
+    CANNOT_do:
+      - "Import from application or infrastructure"
+      - "Perform I/O (database, network, files)"
+      - "Use async/await"
+      - "Call external APIs"
+      - "Access environment variables"
+
+    CAN_do:
+      - "Define value objects and entities"
+      - "Validate invariants"
+      - "Raise DomainError/ValidationError"
+      - "Pure functions and calculations"
+      - "Business rules enforcement"
+
+  application:
+    location: src/py_accountant/application
+    purpose: "Orchestrate domain, use repositories via ports"
+    dependencies: [domain]
+
+    contains:
+      - "Use cases (async only)"
+      - "Ports (Protocol interfaces)"
+      - "DTOs (data transfer objects)"
+      - "Application services"
+
+    CANNOT_do:
+      - "Implement repositories (that's infrastructure)"
+      - "Import from infrastructure (use ports instead)"
+      - "Contain business logic (delegate to domain)"
+      - "Direct database access"
+
+    CAN_do:
+      - "Orchestrate domain objects"
+      - "Use repositories via ports (dependency injection)"
+      - "Convert between domain objects and DTOs"
+      - "Use async/await"
+      - "Handle use case flow"
+
+  infrastructure:
+    location: src/py_accountant/infrastructure
+    purpose: "Implement ports, handle I/O"
+    dependencies: [domain, application]
+
+    contains:
+      - "Repository implementations (SQLAlchemy)"
+      - "UnitOfWork implementation"
+      - "Database models (ORM)"
+      - "Configuration"
+      - "Logging"
+      - "CLI"
+
+    CANNOT_do:
+      - "Contain business logic (delegate to domain)"
+      - "Bypass ports (always implement protocols)"
+
+    CAN_do:
+      - "Implement repositories"
+      - "Database I/O"
+      - "External API calls"
+      - "File system access"
+      - "Import from application and domain"
+      - "Configuration management"
+
+---
+# Dependency Rules
+---
+dependency_rules:
+  allowed:
+    - "infrastructure → application → domain"
+    - "application → domain"
+    - "infrastructure → domain"
+
+  forbidden:
+    - "domain → application"
+    - "domain → infrastructure"
+    - "application → infrastructure"
+
+  visualization: |
+    ┌─────────────────┐
+    │ Infrastructure  │ ──→ (implements ports)
+    └─────────────────┘
+            ↓
+    ┌─────────────────┐
+    │  Application    │ ──→ (defines ports)
+    └─────────────────┘
+            ↓
+    ┌─────────────────┐
+    │     Domain      │ (pure business logic)
+    └─────────────────┘
+
+---
+# Use Case Constraints
+---
+use_case_rules:
+  async_only:
+    rule: "All use cases MUST be async"
+    location: py_accountant.application.use_cases_async
+    pattern: |
+      @dataclass(slots=True)
+      class AsyncSomeUseCase:
+          uow: AsyncUnitOfWork
+
+          async def __call__(self, ...) -> ResultDTO:
+              async with self.uow:
+                  # ... work
+                  await self.uow.commit()
+
+  dependency_injection:
+    rule: "Use cases accept dependencies via constructor"
+    pattern: |
+      @dataclass(slots=True)
+      class AsyncCreateAccount:
+          uow: AsyncUnitOfWork  # injected
+
+          async def __call__(self, ...) -> AccountDTO:
+              # use self.uow
+
+  dto_conversion:
+    rule: "Use cases convert between DTOs and domain objects"
+    pattern: |
+      # Input: DTO → Domain
+      account = Account.create(
+          full_name=dto.full_name,
+          currency_code=dto.currency_code,
+      )
+
+      # Output: Domain → DTO
+      return AccountDTO(
+          full_name=account.full_name,
+          account_type=account.account_type.value,
+      )
+
+  no_business_logic:
+    rule: "Use cases orchestrate, don't contain business logic"
+    bad_example: |
+      # BAD - business logic in use case
+      async def __call__(self, amount: Decimal) -> Decimal:
+          if amount < 0:
+              raise ValidationError("Amount must be positive")
+          return amount * 1.1  # business logic here!
+
+    good_example: |
+      # GOOD - business logic in domain
+      async def __call__(self, amount: Decimal) -> Decimal:
+          validated = Money.create(amount)  # domain validates
+          discounted = validated.apply_discount(0.1)  # domain logic
+          return discounted.value
+
+---
+# Repository Constraints
+---
+repository_rules:
+  crud_only:
+    rule: "Repositories are CRUD-only, no business logic"
+    allowed:
+      - "get_by_id(id) → Entity | None"
+      - "get_by_full_name(name) → Entity | None"
+      - "add(entity) → None"
+      - "list_all() → list[Entity]"
+      - "delete(entity) → None"
+
+    forbidden:
+      - "calculate_balance()"  # business logic
+      - "apply_discount()"  # business logic
+      - "validate_transaction()"  # business logic
+
+  return_domain_objects:
+    rule: "Repositories return domain objects, not DTOs"
+    example: |
+      # Repository
+      async def get_by_full_name(self, full_name: str) -> Account | None:
+          # ... load from DB
+          return Account(...)  # domain object
+
+      # Use case converts to DTO
+      account = await uow.accounts.get_by_full_name(full_name)
+      return AccountDTO(...)  # DTO
+
+  none_for_not_found:
+    rule: "Return None for not found, don't raise"
+    example: |
+      # Repository
+      async def get_by_id(self, id: int) -> Account | None:
+          result = await session.execute(query)
+          return result.scalar_one_or_none()  # None if not found
+
+      # Use case handles None
+      account = await uow.accounts.get_by_id(id)
+      if account is None:
+          raise ValueError(f"Account not found: {id}")
+
+  raise_on_invalid_input:
+    rule: "Raise ValidationError on invalid input"
+    example: |
+      async def get_by_full_name(self, full_name: str) -> Account | None:
+          if not re.match(r"^[A-Z0-9]+:[A-Z0-9_]+$", full_name):
+              raise ValidationError(f"Invalid full_name: {full_name}")
+          # ... proceed
+
+---
+# Async Rules
+---
+async_rules:
+  use_cases:
+    rule: "All use cases are async"
+    pattern: "async def __call__(...)"
+
+  repositories:
+    rule: "All repository methods are async"
+    pattern: "async def get_by_..., async def add(...)"
+
+  uow:
+    rule: "UnitOfWork uses async context manager"
+    pattern: |
+      async with uow:
+          # ... work
+          await uow.commit()
+
+  migrations_exception:
+    rule: "Alembic migrations use SYNC driver"
+    reason: "Alembic limitation"
+    location: "alembic/env.py"
+    note: "Runtime uses async, migrations use sync"
+
+---
+# Testing Constraints
+---
+testing_rules:
+  use_case_testing:
+    rule: "Test use cases with in-memory implementations"
+    pattern: |
+      @pytest_asyncio.fixture
+      async def uow():
+          return InMemoryUnitOfWork()
+
+      @pytest.mark.asyncio
+      async def test_create_account(uow):
+          uc = AsyncCreateAccount(uow)
+          result = await uc(...)
+          assert result.full_name == "ASSET:CASH_USD"
+
+  domain_testing:
+    rule: "Test domain objects without any I/O"
+    pattern: |
+      def test_transaction_balance():
+          tx = Transaction.create(lines=[...])
+          assert tx.is_balanced()  # pure function
+
+  repository_testing:
+    rule: "Test repositories with real database (integration tests)"
+    pattern: |
+      @pytest.mark.asyncio
+      async def test_account_repository(async_session):
+          repo = SqlAlchemyAccountRepository(async_session)
+          account = Account.create(...)
+          await repo.add(account)
+          loaded = await repo.get_by_full_name(account.full_name)
+          assert loaded == account
+
+---
+# Import Constraints
+---
+import_rules:
+  domain_imports:
+    allowed: ["typing", "decimal", "datetime", "dataclasses"]
+    forbidden:
+      - "sqlalchemy"
+      - "asyncpg"
+      - "aiosqlite"
+      - "application"
+      - "infrastructure"
+    example: |
+      # domain/transaction.py
+      from decimal import Decimal  # OK
+      from datetime import datetime  # OK
+      from dataclasses import dataclass  # OK
+
+      # FORBIDDEN
+      from application.ports import AsyncUnitOfWork
+      # FORBIDDEN
+      from infrastructure.persistence import SqlAlchemyAccountRepository
+
+  application_imports:
+    allowed: ["typing", "decimal", "datetime", "dataclasses", "domain.*"]
+    forbidden: ["infrastructure.*"]
+    example: |
+      # application/use_cases_async/accounts.py
+      from application.ports import AsyncUnitOfWork  # OK
+      from domain.account import Account  # OK
+
+      # FORBIDDEN
+      from infrastructure.persistence import SqlAlchemyAccountRepository
+
+  infrastructure_imports:
+    allowed: ["typing", "application.*", "domain.*", "sqlalchemy", "asyncpg"]
+    example: |
+      # infrastructure/persistence/sqlalchemy_account_repository.py
+      from sqlalchemy.ext.asyncio import AsyncSession  # OK
+      from application.ports import AsyncAccountRepository  # OK
+      from domain.account import Account  # OK
+
+---
+# Error Handling Rules
+---
+error_handling:
+  domain_errors:
+    rule: "Domain raises DomainError or ValidationError"
+    example: |
+      # domain/transaction.py
+      if not self.is_balanced():
+          raise DomainError("Transaction does not balance")
+
+  use_case_errors:
+    rule: "Use cases raise ValueError for not found"
+    example: |
+      # application/use_cases_async/accounts.py
+      account = await uow.accounts.get_by_full_name(full_name)
+      if account is None:
+          raise ValueError(f"Account not found: {full_name}")
+
+  infrastructure_errors:
+    rule: "Infrastructure catches and re-raises as domain errors"
+    example: |
+      # infrastructure/persistence/
+      # sqlalchemy_account_repository.py
+      try:
+          await session.add(account)
+      except IntegrityError as e:
+          if "unique_constraint" in str(e):
+              msg = f"Account already exists: {account.full_name}"
+              raise ValidationError(msg)
+          raise
+
+---
+# Immutability Rules
+---
+immutability:
+  transactions:
+    rule: "Transactions are immutable after creation"
+    pattern: "@dataclass(frozen=True)"
+    reason: "Audit trail integrity"
+    correction: "Create reversing transaction, not modify existing"
+
+  accounts:
+    rule: "Account full_name and type are immutable"
+    allowed_changes: "metadata only"
+    reason: "Transaction references would break"
+
+  currencies:
+    rule: "Currency code is immutable"
+    allowed_changes: "name, is_base_currency"
+
+---
+# Configuration Rules
+---
+configuration:
+  environment_variables:
+    prefix: "PYACC__"
+    examples:
+      - "PYACC__DATABASE_URL (sync for Alembic)"
+      - "PYACC__DATABASE_URL_ASYNC (async for runtime)"
+      - "PYACC__LOG_LEVEL"
+
+    location: "infrastructure/config/settings.py"
+    pattern: |
+      from pydantic_settings import BaseSettings
+
+      class Settings(BaseSettings):
+          database_url: str
+          database_url_async: str
+          log_level: str = "INFO"
+
+          class Config:
+              env_prefix = "PYACC__"
+
+  no_hardcoded_config:
+    rule: "No hardcoded configuration in code"
+    bad_example: |
+      DATABASE_URL = "postgresql://localhost/db"  # BAD
+
+    good_example: |
+      settings = Settings()  # loads from env
+      DATABASE_URL = settings.database_url  # GOOD
+
+---
+# CLI Constraints
+---
+cli_rules:
+  thin_controllers:
+    rule: "CLI commands are thin controllers"
+    pattern: |
+      @app.command()
+      def create_account(full_name: str, currency_code: str):
+          # 1. Parse input
+          # 2. Call use case
+          # 3. Print output
+          async with async_uow_factory() as uow:
+              uc = AsyncCreateAccount(uow)
+              result = await uc(full_name, currency_code)
+              print(result.json())
+
+  no_business_logic:
+    rule: "CLI contains no business logic"
+    bad_example: |
+      @app.command()
+      def post_transaction(lines: list):
+          # BAD - validation in CLI
+          if sum(line.debit) != sum(line.credit):
+              raise ValueError("Unbalanced")
+
+    good_example: |
+      @app.command()
+      def post_transaction(lines: list):
+          # GOOD - validation in domain
+          uc = AsyncPostTransaction(uow, clock)
+          result = await uc(lines, memo)  # domain validates
+
+---
+# Summary Checklist
+---
+checklist:
+  domain:
+    - "✓ No I/O (pure functions)"
+    - "✓ No async/await"
+    - "✓ No imports from application/infrastructure"
+    - "✓ Raise DomainError/ValidationError"
+
+  application:
+    - "✓ Async use cases only"
+    - "✓ Dependency injection (constructor args)"
+    - "✓ Use repositories via ports"
+    - "✓ Convert DTOs ↔ domain objects"
+    - "✓ No imports from infrastructure"
+
+  infrastructure:
+    - "✓ Implement ports (Protocols)"
+    - "✓ CRUD-only repositories"
+    - "✓ Return domain objects, not DTOs"
+    - "✓ Can import from application/domain"
+
+  testing:
+    - "✓ Domain tests: pure, no I/O"
+    - "✓ Use case tests: in-memory implementations"
+    - "✓ Repository tests: real database (integration)"

@@ -1,0 +1,248 @@
+# AI Context: Quantization Rules
+# Версия: 1.1.0
+# Последнее обновление: 2025-11-28
+# Назначение: Правила округления для Decimal значений
+
+---
+# Overview
+---
+purpose: >-
+  Centralized quantization rules for monetary amounts
+  and exchange rates
+location: py_accountant.domain.quantize
+importance: "CRITICAL - All Decimal values MUST be quantized"
+
+---
+# Money Quantization
+---
+money_quantize:
+  function: "money_quantize(value: Decimal) -> Decimal"
+  precision: 2
+  rounding_mode: ROUND_HALF_EVEN
+  description: "Quantize monetary amounts to 2 decimal places"
+
+  implementation: |
+    from decimal import Decimal, ROUND_HALF_EVEN
+
+    MONEY_QUANTIZER = Decimal("0.01")
+
+    def money_quantize(value: Decimal) -> Decimal:
+        """Quantize monetary amount to 2 decimals."""
+        return value.quantize(MONEY_QUANTIZER, rounding=ROUND_HALF_EVEN)
+
+  examples:
+    - input: Decimal("100.123")
+      output: Decimal("100.12")
+      explanation: "Round down (closer to 100.12)"
+
+    - input: Decimal("100.125")
+      output: Decimal("100.12")
+      explanation: "HALF_EVEN: round to nearest even (100.12)"
+
+    - input: Decimal("100.135")
+      output: Decimal("100.14")
+      explanation: "HALF_EVEN: round to nearest even (100.14)"
+
+    - input: Decimal("100.126")
+      output: Decimal("100.13")
+      explanation: "Round up (closer to 100.13)"
+
+    - input: Decimal("100")
+      output: Decimal("100.00")
+      explanation: "Add trailing zeros to 2 decimals"
+
+  use_cases:
+    - "Transaction line amounts (debit, credit)"
+    - "Balance calculations"
+    - "Trading balance aggregations"
+    - "FX conversion results (amount_base)"
+    - "Any monetary amount before persistence"
+
+  why_ROUND_HALF_EVEN:
+    reason: "Banker's rounding - reduces bias"
+    explanation: |
+      ROUND_HALF_EVEN (banker's rounding):
+      - .125 → .12 (round to even)
+      - .135 → .14 (round to even)
+      - Over many operations, bias cancels out
+      - IEEE 754 default rounding mode
+      - Recommended for financial calculations
+
+---
+# Rate Quantization
+---
+rate_quantize:
+  function: "rate_quantize(value: Decimal) -> Decimal"
+  precision: 6
+  rounding_mode: ROUND_HALF_EVEN
+  description: "Quantize exchange rates to 6 decimal places"
+
+  implementation: |
+    from decimal import Decimal, ROUND_HALF_EVEN
+
+    RATE_QUANTIZER = Decimal("0.000001")
+
+    def rate_quantize(value: Decimal) -> Decimal:
+        """Quantize exchange rate to 6 decimals."""
+        return value.quantize(RATE_QUANTIZER, rounding=ROUND_HALF_EVEN)
+
+  examples:
+    - input: Decimal("1.2345678")
+      output: Decimal("1.234568")
+      explanation: "Round up (closer to 1.234568)"
+
+    - input: Decimal("1.2345675")
+      output: Decimal("1.234568")
+      explanation: "HALF_EVEN: round to nearest even"
+
+    - input: Decimal("1.234567")
+      output: Decimal("1.234567")
+      explanation: "Already 6 decimals, no change"
+
+    - input: Decimal("1.25")
+      output: Decimal("1.250000")
+      explanation: "Add trailing zeros to 6 decimals"
+
+  use_cases:
+    - "Exchange rate events (rate field)"
+    - "Trading balance detailed (used_rate field)"
+    - "FX conversion calculations"
+    - "Any exchange rate before persistence"
+
+  why_6_decimals:
+    reason: "Industry standard for FX rates"
+    explanation: |
+      6 decimals provide:
+      - Sufficient precision for most currency pairs
+      - Standard in FX markets (e.g., EUR/USD = 1.234567)
+      - Avoids floating-point accumulation errors
+      - Balance between precision and storage
+
+---
+# Usage Patterns
+---
+usage_patterns:
+  transaction_creation:
+    code: |
+      from py_accountant.domain.quantize import money_quantize
+
+      # Quantize all line amounts
+      entry_line = EntryLine(
+          account=account,
+          debit=money_quantize(Decimal("100.123")),  # → 100.12
+          credit=money_quantize(Decimal("0")),       # → 0.00
+      )
+
+  fx_conversion:
+    code: |
+      from py_accountant.domain.quantize import money_quantize, rate_quantize
+
+      # Quantize rate to 6 decimals
+      rate = rate_quantize(Decimal("1.2345678"))  # → 1.234568
+
+      # Quantize result to 2 decimals
+      amount_base = money_quantize(amount * rate)  # → 2 decimals
+
+  trading_balance:
+    code: |
+      from py_accountant.domain.quantize import money_quantize, rate_quantize
+
+      # Aggregate and quantize
+      total = money_quantize(sum(balances))  # → 2 decimals
+
+      # Convert with rate
+      used_rate = rate_quantize(rate)  # → 6 decimals
+      total_base = money_quantize(total * used_rate)  # → 2 decimals
+
+---
+# Important Rules
+---
+rules:
+  quantize_before_persistence:
+    rule: "ALWAYS quantize before saving to database"
+    reason: "Ensures consistent precision across the system"
+    locations:
+      - "Transaction.create() quantizes line amounts"
+      - "ExchangeRateEvent.create() quantizes rate"
+      - "Use cases quantize before calling domain constructors"
+
+  quantize_after_arithmetic:
+    rule: "ALWAYS quantize after arithmetic operations"
+    reason: "Decimal arithmetic can produce more than 2/6 decimals"
+    example: |
+      # BAD (don't do this)
+      result = amount1 + amount2  # → might have 3+ decimals
+
+      # GOOD (do this)
+      result = money_quantize(amount1 + amount2)  # → 2 decimals
+
+  dont_quantize_intermediate:
+    rule: "DON'T quantize intermediate calculation steps"
+    reason: "Preserve precision until final result"
+    example: |
+      # BAD (loss of precision)
+      step1 = money_quantize(a * b)
+      step2 = money_quantize(step1 * c)
+      result = money_quantize(step2 * d)
+
+      # GOOD (preserve precision)
+      result = money_quantize(a * b * c * d)
+
+  use_decimal_not_float:
+    rule: "ALWAYS use Decimal, NEVER float"
+    reason: "float has precision errors (e.g., 0.1 + 0.2 != 0.3)"
+    example: |
+      # BAD
+      amount = float("100.12")  # DON'T
+
+      # GOOD
+      amount = Decimal("100.12")  # DO
+
+---
+# Common Mistakes
+---
+common_mistakes:
+  mistake_1_using_float:
+    error: "Using float instead of Decimal"
+    example: |
+      # BAD
+      amount = 100.12  # float
+
+      # GOOD
+      amount = Decimal("100.12")  # Decimal
+
+    consequence: "Precision errors, failed assertions"
+
+  mistake_2_not_quantizing:
+    error: "Forgetting to quantize after arithmetic"
+    example: |
+      # BAD
+      total = amount1 + amount2  # might have 3+ decimals
+
+      # GOOD
+      total = money_quantize(amount1 + amount2)
+
+    consequence: "Database constraint violations, precision mismatch"
+
+  mistake_3_wrong_precision:
+    error: "Using money_quantize for rates or vice versa"
+    example: |
+      # BAD
+      rate = money_quantize(Decimal("1.234567"))  # → 1.23 (WRONG!)
+
+      # GOOD
+      rate = rate_quantize(Decimal("1.234567"))  # → 1.234567
+
+    consequence: "Loss of precision, incorrect FX conversions"
+
+---
+# Summary Checklist
+---
+checklist:
+  - "✓ Import: from py_accountant.domain.quantize import \
+money_quantize, rate_quantize"
+  - "✓ Money: Always 2 decimals (money_quantize)"
+  - "✓ Rates: Always 6 decimals (rate_quantize)"
+  - "✓ Rounding: ROUND_HALF_EVEN (banker's rounding)"
+  - "✓ Timing: Quantize after arithmetic, before persistence"
+  - "✓ Type: Use Decimal, never float"

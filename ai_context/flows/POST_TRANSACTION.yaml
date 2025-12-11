@@ -1,0 +1,330 @@
+# AI Context: Data Flow - Post Transaction
+# Use Case: AsyncPostTransaction
+# Версия: 1.1.0
+# Последнее обновление: 2025-11-28
+
+---
+# Overview
+---
+use_case: AsyncPostTransaction
+purpose: "Create and persist a new double-entry transaction"
+location: py_accountant.application.use_cases_async.ledger
+complexity: medium
+typical_duration: "10-50ms (depends on line count)"
+
+---
+# Signature
+---
+signature:
+  class: AsyncPostTransaction
+  constructor:
+    args:
+      - name: uow
+        type: AsyncUnitOfWork
+      - name: clock
+        type: Clock
+
+  call_method:
+    args:
+      - name: lines
+        type: list[EntryLineDTO]
+        min_length: 2
+        description: "Transaction lines (must balance)"
+
+      - name: memo
+        type: str
+        description: "Transaction description"
+
+      - name: meta
+        type: dict | None
+        default: null
+        description: "Optional metadata (e.g., idempotency_key)"
+
+    returns: TransactionDTO
+
+    raises:
+      - ValidationError: "If double-entry invariant violated"
+      - ValidationError: "If amounts not quantized"
+      - ValueError: "If account not found"
+      - IntegrityError: "If idempotency_key duplicate (infrastructure)"
+
+---
+# Data Flow Steps
+---
+flow:
+  step_1_validate_input:
+    action: "Validate lines list"
+    checks:
+      - "len(lines) >= 2"
+      - "sum(line.debit) == sum(line.credit)"
+      - "all(line.debit >= 0 and line.credit >= 0)"
+      - "all amounts quantized to 2 decimals"
+    raises: "ValidationError if any check fails"
+    code_hint: |
+      total_debit = sum(line.debit for line in lines)
+      total_credit = sum(line.credit for line in lines)
+      if total_debit != total_credit:
+          raise ValidationError("Transaction does not balance")
+
+  step_2_get_timestamp:
+    action: "Get current timestamp"
+    code: "posted_at = clock.now()"
+    result: "datetime (UTC)"
+
+  step_3_load_accounts:
+    action: "Load Account domain objects for each line"
+    iteration: "for each line in lines"
+    code: |
+      account = await uow.accounts.get_by_full_name(line.full_name)
+      if account is None:
+          raise ValueError(f"Account not found: {line.full_name}")
+    result: "list[Account]"
+    note: "This validates accounts exist before creating transaction"
+
+  step_4_create_entry_lines:
+    action: "Convert EntryLineDTO to EntryLine domain objects"
+    code: |
+      entry_lines = [
+          EntryLine(
+              account=account,
+              debit=money_quantize(line.debit),
+              credit=money_quantize(line.credit),
+          )
+          for line, account in zip(lines, accounts)
+      ]
+    result: "list[EntryLine]"
+    note: "EntryLine validates debit >= 0, credit >= 0"
+
+  step_5_create_transaction:
+    action: "Create Transaction domain object"
+    code: |
+      transaction = Transaction.create(
+          lines=entry_lines,
+          memo=memo,
+          posted_at=posted_at,
+          meta=meta,
+      )
+    validation: "Transaction.create() validates double-entry invariant"
+    raises: "DomainError if invariant violated"
+    result: "Transaction"
+
+  step_6_persist:
+    action: "Persist transaction via repository"
+    code: "await uow.transactions.add(transaction)"
+    note: "Repository assigns transaction_id"
+
+  step_7_commit:
+    action: "Commit unit of work"
+    code: "await uow.commit()"
+    effect: "Transaction persisted to database"
+
+  step_8_convert_to_dto:
+    action: "Convert Transaction to TransactionDTO"
+    code: |
+      return TransactionDTO(
+          transaction_id=transaction.transaction_id,
+          posted_at=transaction.posted_at,
+          memo=transaction.memo,
+          lines=[
+              EntryLineDTO(
+                  full_name=line.account.full_name,
+                  debit=line.debit,
+                  credit=line.credit,
+              )
+              for line in transaction.lines
+          ],
+          meta=transaction.meta,
+      )
+    result: "TransactionDTO"
+
+---
+# Dependencies
+---
+dependencies:
+  ports:
+    - AsyncUnitOfWork
+    - AsyncAccountRepository (via uow.accounts)
+    - AsyncTransactionRepository (via uow.transactions)
+    - Clock
+
+  domain_objects:
+    - Transaction
+    - EntryLine
+    - Account
+
+  dtos:
+    - EntryLineDTO (input)
+    - TransactionDTO (output)
+
+  functions:
+    - money_quantize (from py_accountant.domain.quantize)
+
+---
+# Invariants Enforced
+---
+invariants:
+  double_entry:
+    rule: "sum(debits) == sum(credits)"
+    enforced_at: "Step 1 (input validation) + Step 5 (Transaction.create)"
+
+  positive_amounts:
+    rule: "debit >= 0 AND credit >= 0"
+    enforced_at: "Step 4 (EntryLine validation)"
+
+  quantization:
+    rule: "All amounts 2 decimals"
+    enforced_at: "Step 4 (money_quantize)"
+
+  account_existence:
+    rule: "All accounts must exist"
+    enforced_at: "Step 3 (load_accounts)"
+
+  minimum_lines:
+    rule: "At least 2 lines"
+    enforced_at: "Step 1 (input validation)"
+
+---
+# Example Usage
+---
+example_1_simple:
+  description: "Simple cash revenue transaction"
+  input:
+    lines:
+      - full_name: "ASSET:CASH_USD"
+        debit: "100.00"
+        credit: "0.00"
+      - full_name: "REVENUE:SERVICES"
+        debit: "0.00"
+        credit: "100.00"
+    memo: "Payment for services"
+    meta: null
+
+  output:
+    transaction_id: 123
+    posted_at: "2025-11-28T12:00:00+00:00"
+    memo: "Payment for services"
+    lines:
+      - full_name: "ASSET:CASH_USD"
+        debit: "100.00"
+        credit: "0.00"
+      - full_name: "REVENUE:SERVICES"
+        debit: "0.00"
+        credit: "100.00"
+    meta: null
+
+example_2_with_idempotency:
+  description: "Transaction with idempotency key"
+  input:
+    lines:
+      - full_name: "ASSET:CASH_USD"
+        debit: "50.00"
+        credit: "0.00"
+      - full_name: "REVENUE:SALES"
+        debit: "0.00"
+        credit: "50.00"
+    memo: "Sale #42"
+    meta:
+      idempotency_key: "sale-42"
+      customer_id: "cust-123"
+
+  note: "If posted again with same idempotency_key, will raise IntegrityError"
+
+example_3_multi_line:
+  description: "Multi-line transaction with VAT"
+  input:
+    lines:
+      - full_name: "ASSET:CASH_USD"
+        debit: "150.00"
+        credit: "0.00"
+      - full_name: "REVENUE:SERVICES"
+        debit: "0.00"
+        credit: "100.00"
+      - full_name: "LIABILITY:VAT_PAYABLE"
+        debit: "0.00"
+        credit: "50.00"
+    memo: "Invoice #100 with VAT"
+    meta: null
+
+  validation: "sum(debits)=150.00 == sum(credits)=150.00 ✓"
+
+---
+# Error Scenarios
+---
+errors:
+  unbalanced_transaction:
+    input:
+      lines:
+        - full_name: "ASSET:CASH_USD"
+          debit: "100.00"
+          credit: "0.00"
+        - full_name: "REVENUE:SERVICES"
+          debit: "0.00"
+          credit: "90.00"
+    raises: "ValidationError: Transaction does not balance (100.00 != 90.00)"
+
+  account_not_found:
+    input:
+      lines:
+        - full_name: "ASSET:NONEXISTENT"
+          debit: "100.00"
+          credit: "0.00"
+        - full_name: "REVENUE:SERVICES"
+          debit: "0.00"
+          credit: "100.00"
+    raises: "ValueError: Account not found: ASSET:NONEXISTENT"
+
+  negative_amount:
+    input:
+      lines:
+        - full_name: "ASSET:CASH_USD"
+          debit: "-100.00"
+          credit: "0.00"
+        - full_name: "REVENUE:SERVICES"
+          debit: "0.00"
+          credit: "-100.00"
+    raises: "ValidationError: Amounts cannot be negative"
+
+  duplicate_idempotency_key:
+    input:
+      meta:
+        idempotency_key: "already-used"
+    raises: "IntegrityError (from database UNIQUE constraint)"
+
+---
+# Performance Notes
+---
+performance:
+  typical_duration: "10-50ms"
+  bottlenecks:
+    - "Step 3: N database queries (one per line) to load accounts"
+    - "Step 7: Database commit"
+
+  optimization_hints:
+    - "For batch posting, use a single UoW for multiple transactions"
+    - "Consider caching frequently used accounts"
+    - "Idempotency_key index helps prevent duplicate detection performance"
+
+---
+# Related Use Cases
+---
+related:
+  - AsyncGetTransaction: "Retrieve posted transaction by ID"
+  - AsyncGetBalance: "Calculate account balance including this transaction"
+  - AsyncListTransactions: "List all transactions"
+
+---
+# Testing Hints
+---
+testing:
+  mock_dependencies:
+    - "Use InMemoryUnitOfWork for testing"
+    - "Use FixedClock for deterministic timestamps"
+
+  test_cases:
+    - "Valid 2-line transaction"
+    - "Valid multi-line transaction (3+)"
+    - "Unbalanced transaction (should fail)"
+    - "Negative amounts (should fail)"
+    - "Nonexistent account (should fail)"
+    - "Duplicate idempotency_key (should fail)"
+    - "Quantization (e.g., 100.123 → 100.12)"
